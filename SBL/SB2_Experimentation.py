@@ -18,13 +18,15 @@ from SB2_Sigmoid import SB2_Sigmoid
 rseed = 1
 np.random.seed(rseed)
 
-N = 1000
-
+N = 100
 noiseToSignal = 0.2
 
 # = (np.matrix(range(N)) / float(N)).T
 #X = np.matrix(np.random.uniform(-np.pi,np.pi,N)).T
-X = np.matrix(np.random.uniform(-10,10,N)).T
+
+X_axis = np.linspace(-10,10,500)
+true_function = np.sin(X_axis)/X_axis
+X = np.matrix(np.sort(np.random.uniform(-10,10,N))).T
 
 
 z1 = np.sin(X)
@@ -39,7 +41,7 @@ noise = np.std(z2, ddof=1) * noiseToSignal
 Outputs = z2 + noise*np.random.randn(N,1)
     
 plt.figure()
-plt.plot(X,z2,'bo')
+plt.plot(X_axis,true_function,'b-')
 plt.plot(X,Outputs,'ro')
 
  ##################################################################
