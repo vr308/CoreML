@@ -98,6 +98,7 @@
 
 import numpy as np
 import math
+import scipy
 import time
 from SB2_ParameterSettings  import SB2_ParameterSettings
 from SB2_UserOptions  import SB2_UserOptions
@@ -333,7 +334,9 @@ def SparseBayes(*args):
         GoodFactor[Used]    = 0
         # ... and then mask out any that are aligned with those in the model
         if CONTROLS['BasisAlignmentTest']:
-            GoodFactor[Aligned_out]    = 0
+            #print Aligned_out
+            #print(type(Aligned_out))
+            GoodFactor[[np.int(x) for x in Aligned_out]]    = 0
         index               = np.array(GoodFactor).squeeze().nonzero()
         anyToAdd            = np.size(index) != 0
         
@@ -434,9 +437,19 @@ def SparseBayes(*args):
                     # Make a note so we don't try this next time
                     # May be more than one in the model, which we need to note was
                     # the cause of function 'nu' being rejected
-                
-                    Aligned_out     = np.vstack([Aligned_out , nu * np.ones((numAligned,1))])
-                    Aligned_in      = np.vstack([Aligned_in , Used[findAligned]])
+                    #print(Aligned_out)
+                    #print(type(Aligned_out))
+                    #print nu*np.ones((numAligned,1))
+                    #print(type(nu*np.ones((numAligned,1))))
+                    #Aligned_out     = np.vstack([Aligned_out , nu * np.ones((numAligned,1))])
+                    Aligned_out.append(nu * np.ones((numAligned,1)))
+                    Aligned_in.append(Used[findAligned])
+
+                    #Aligned_out     = scipy.sparse.vstack([Aligned_out , nu * np.ones((numAligned,1))])
+                    #Aligned_in      = scipy.sparse.vstack([Aligned_in , Used[findAligned]])
+                    
+                    #print Aligned_out
+                    #print Aligned_in
                 
             # Deletion: reinstate any previously deferred basis functions
             # resulting from this basis function
@@ -446,6 +459,8 @@ def SparseBayes(*args):
                 numAligned      = np.size(findAligned)
             
                 if numAligned > 0:
+                    print Aligned_out
+                    print findAligned
                     reinstated                  = Aligned_out[findAligned]
                     Aligned_in[findAligned]     = []
                     Aligned_out[findAligned]    = []
@@ -765,7 +780,8 @@ def SparseBayes(*args):
     DIAGNOSTIC      = {}
      
     # We also choose to sort here - it can't hurt and may help later
-        
+    
+    PARAMETER['VARIANCE']           = SIGMA
     PARAMETER['RELEVANT'], index    = np.sort(Used), np.argsort(Used)
         
     # Not forgetting to correct for normalisation too
