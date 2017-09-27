@@ -144,6 +144,21 @@ if __name__ == "__main__":
     BASIS = np.hstack((BASIS0,BASIS1))
     BASIS = polynomialBasis(X)
     
+    ################ Start here
+    
+    N = 100
+    noiseToSignal = 0.2
+    #X = np.matrix(np.linspace(1,20,N)).T
+    #x = np.linspace(1,20,N)
+    u = np.sort(np.random.uniform(1,20,N))
+    X = np.matrix(u).T # Sampling at random locations
+    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
+    noise = np.std(z, ddof=1) * noiseToSignal
+    Outputs = z + noise*np.random.randn(N,1)
+
+    bw = 3
+    BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
+
     
     M = BASIS.shape[1]
     likelihood_ = 'Gaussian'
@@ -238,44 +253,55 @@ if __name__ == "__main__":
     #    y_l     = y
 #    if LIKELIHOOD['InUse'] == LIKELIHOOD['Bernoulli']:
 #        y_l     = SB2_Sigmoid(y) > 0.5
+    
+    # Sparse Bayesian Learning Results
 
-
-    plt.figure()
+    plt.figure(figsize=(10,8))
     plt.subplot(321)
     plt.plot(X,z)
     plt.ylabel('sin(x)/x')
-    plt.title('Generative function',fontsize='small')
+    plt.plot(X,Outputs,'ko',markersize=2)
+    plt.title('Generative function/Noisy Outputs',fontsize='small')
+    
     
     plt.subplot(322)
-    plt.plot(X,Outputs,'ko',markersize=2)
-    plt.title('Noisy Outputs/Targets [' + str(np.size(X)) + ' samples]',fontsize='small')
-    
-    
-    plt.subplot(323)
     plt.plot(X,z,label='Generative function',linewidth=3)
     plt.plot(X,y, label='Predictive linear model',color='r')
     plt.title('Generative and predictive linear model',fontsize='small')
-    #plt.legend(fontsize='small')
+    plt.legend(fontsize='small',loc=1)
     
-    plt.subplot(324)
+    plt.subplot(323)
     plt.plot(X,Outputs,'ko',markersize=2)
     plt.plot(X,y,label='Predictive linear model',color='r')
-    #plt.plot(X[PARAMETER['RELEVANT']],Outputs[PARAMETER['RELEVANT']],'yo', markersize=8, clip_on=False)
+    plt.plot(X[PARAMETER['RELEVANT']],Outputs[PARAMETER['RELEVANT']],'g+', markersize=4, clip_on=False)
     plt.title('Data and predictive linear model', fontsize='small')
     
-       #  Show the inferred weights
+    #Show the inferred weights
+            
+    plt.subplot(324)
+    markerline, stemlines, baseline = plt.stem(w_infer, 'r-.')
+    plt.setp(markerline, markerfacecolor='r')
+    plt.setp(baseline, color='k', linewidth=1)
+    plt.xlim(0, N+1)
+    t_    = 'Posterior mean weights ({:d})'.format(len(PARAMETER['RELEVANT']))
+    plt.title(t_,fontsize='small')
+    
+    # Show the selected Basis function
+    plt.subplot(325)
+    plt.plot(X,BASIS,color='k',alpha=0.2)
+    plt.plot(X,BASIS[:,PARAMETER['RELEVANT']], color='m')
+    plt.title('Relevant Basis (|w| > 0)', fontsize='small')
+    
+    #Show the S and Q factors
+    
+    plt.subplot(326)
+    plt.plot(DIAGNOSTIC['S_FACTOR'], label='Sparsity Factor')
+    plt.plot(DIAGNOSTIC['Q_FACTOR'], label='Quality Factor')
+    plt.legend(fontsize='small')
+    plt.title('Diagnostic',fontsize='small')
+    
+    # Show the "well-determinedness" factors
         
-#    plt.subplot(325)
-#    markerline, stemlines, baseline = plt.stem(w_infer, 'r-.')
-#    plt.setp(markerline, markerfacecolor='r')
-#    plt.setp(baseline, color='k', linewidth=1)
-#    plt.xlim(0, N+1)
-#    t_    = 'Inferred weights ({:d})'.format(len(PARAMETER['RELEVANT']))
-#    plt.title(t_,fontsize='small')
-#    
-#    
-#    # Show the "well-determinedness" factors
-#        
 #    plt.subplot(326)
 #    ind = np.arange(len(DIAGNOSTIC['GAMMA'])) + 1
 #    plt.bar(ind, DIAGNOSTIC['GAMMA'], 0.7, color='g', align = 'center')

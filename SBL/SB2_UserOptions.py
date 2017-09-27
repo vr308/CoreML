@@ -81,6 +81,8 @@
 # Contact the author: m a i l [at] m i k e t i p p i n g . c o m
 #
 
+import numpy as np
+
 def SB2_UserOptions(*args):
     
     # Ensure arguments are supplied in pairs
@@ -90,7 +92,7 @@ def SB2_UserOptions(*args):
     
     # Any options specified?
     
-    numSettings = len(args)/2
+    numSettings = np.int(len(args)/2)
     
 
     ###########################################################################

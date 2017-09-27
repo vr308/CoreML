@@ -58,12 +58,20 @@ plt.plot(X,Outputs,'ro')
  Xa7 = Xa5*Xa2
  Xa8 = Xa7*Xa
  
+ 
  inf = X1 - (Xa2/6) + (Xa4/120) - (Xa6/5040) + (Xa8/40320)
+ 
+ def distSquared(X,Y):
+    nx = np.size(X, 0)
+    ny = np.size(Y, 0)
+    D2 =  ( np.multiply(X, X).sum(1)  * np.ones((1, ny)) ) + ( np.ones((nx, 1)) * np.multiply(Y, Y).sum(1).T  ) - 2*X*Y.T
+    return D2
 
  #BASIS = np.matrix(np.column_stack((Xa,Xa3,Xa5,Xa7)))
  BASIS = np.matrix(np.column_stack((X1,Xa2,Xa4,Xa6)))
 
-    
+ bw = 1
+ BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
  
  #######################################################################
     # 
@@ -97,6 +105,7 @@ plt.plot(X,Outputs,'ro')
     # Now run the main SPARSEBAYES function
     
     B = np.matrix(BASIS)
+    B = BASIS
 
     [PARAMETER, HYPERPARAMETER, DIAGNOSTIC] = SparseBayes(likelihood_, BASIS, Outputs, OPTIONS, SETTINGS)
 

@@ -13,14 +13,14 @@ from mpl_toolkits.mplot3d import Axes3D
 from matplotlib import animation
 
 # Our 2-dimensional distribution will be over variables X and Y
-N = 60
-X = np.linspace(-3, 3, N)
-Y = np.linspace(-3, 4, N)
+N = 100
+X = np.linspace(-1, 7, N)
+Y = np.linspace(-1, 7, N)
 X, Y = np.meshgrid(X, Y)
 
 # Mean vector and covariance matrix
-mu = np.array([0., 1.])
-Sigma = np.array([[ 1. , -0.5], [-0.5,  1.5]])
+mu = np.array([4, 4])
+Sigma = np.array([[ 1. , 0.5], [0.5,  1.0]])
 
 # Pack X and Y into a single 3-dimensional array
 pos = np.empty(X.shape + (2,))
@@ -83,9 +83,9 @@ Z = multivariate_gaussian(pos, mu, Sigma)
 fig = plt.figure()
 ax = fig.gca(projection='3d')
 ax.plot_surface(X, Y, Z, rstride=3, cstride=3, linewidth=1, antialiased=True,
-                cmap=cm.jet)
+                cmap=cm.Reds)
 
-cset = ax.contourf(X, Y, Z, zdir='z', offset=-0.15, cmap=cm.jet)
+cset = ax.contourf(X, Y, Z, zdir='z', offset=-0.15, cmap=cm.Reds)
 
 # Adjust the limits, ticks and view angle
 ax.set_zlim(-0.15,0.2)
