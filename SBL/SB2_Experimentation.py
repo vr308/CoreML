@@ -71,7 +71,7 @@ if __name__ == "__main__":
     np.random.seed(rseed)
     
     N = 100
-    noiseToSignal = 0.4
+    noiseToSignal = 0.2
     
     # Uniformly spaced or randomly spaced input data 
     #X = np.matrix(np.random.uniform(-np.pi,np.pi,N)).T
@@ -95,7 +95,7 @@ if __name__ == "__main__":
  #  Basis Generation 
  ##################################################################
  
-    bw = 1
+    bw = 3
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -230,10 +230,10 @@ if __name__ == "__main__":
     up_array = np.array((y-pred_std).reshape(100,))[0]
     down_array = np.array((y + pred_std).reshape(100,))[0]
     plt.plot(X,y,label='Predictive linear model',color='r')
-    plt.fill_between(X_array, up_array, down_array, color='orange',alpha=0.4)
-    plt.plot(X[PARAMETER['RELEVANT']],Outputs[PARAMETER['RELEVANT']],'g+', markersize=4, clip_on=False, label='1 sd')
-    plt.title('Data and predictive linear model', fontsize='small')
-    plt.legend(fontsize='small')
+    plt.fill_between(X_array, up_array, down_array, color='orange',alpha=0.4, label = '1 sd')
+    plt.plot(X[PARAMETER['RELEVANT']],Outputs[PARAMETER['RELEVANT']],'g+', markersize=4, clip_on=False, label='Relevant points')
+    plt.title('Predictive st. deviation around the predictions', fontsize='small')
+    plt.legend(fontsize='small',loc=2)
     #Show the inferred weights with the uncertainty in the weights
     
     ax = plt.subplot(324)
