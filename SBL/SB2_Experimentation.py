@@ -95,7 +95,7 @@ if __name__ == "__main__":
  #  Basis Generation 
  ##################################################################
  
-    bw = 3
+    bw = 2
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -203,7 +203,21 @@ if __name__ == "__main__":
         
     pred_std = np.matrix(np.sqrt(pred_var).reshape(100,1))
     
-        
+    
+    # Test data 
+    
+    t = np.sort(np.random.uniform(20,30,N))
+    #u = np.linspace(1,20,100)
+    Xt = np.matrix(t).T # Sampling at random locations
+    zt = np.matrix(0.5*np.sin(t) + 0.5*t -0.02*(t-5)**2).T
+    noise_t = np.std(z, ddof=1) * noiseToSignal
+    Outputs_t = z + noise*np.random.randn(N,1)
+    
+    BASIS_test = np.matrix(np.exp(-distSquared(Xt,Xt)/(bw**2)))
+    
+    y_test = BASIS_test*w_infer
+    
+    
     # Sparse Bayesian Learning Results
 
     # Plot the generative function and noisy output 
