@@ -7,6 +7,8 @@ Created on Sun Oct 15 16:41:51 2017
 import numpy as np
 import matplotlib.pylab as plt
 import scipy.stats as st
+import GPy as gp
+import george as grg
 
 
 M = 3
@@ -14,6 +16,7 @@ cov = np.identity(3)
 x = np.sort(np.random.uniform(-8,8, 200))
 
 # Sampling from a univariate gaussian
+
 x=np.arange(-5,+5,0.01)
 pdf=st.norm.pdf(x, loc=0,scale=1)
 s = np.random.normal(0, 1, 25)
@@ -23,6 +26,37 @@ plt.plot(x,pdf)
 plt.title('Samples from a Gaussian distributed random variable $x \sim N(0,1)$', fontsize='x-small')
 plt.xlabel('x')
 plt.scatter(s,np.zeros(25), marker='x')
+
+# Sampling from a GP prior 
+
+k = gp.kern.RBF(input_dim=1,lengthscale=0.2)
+k = gp.kern.Brownian()
+k = gp.kern.Matern32(input_dim=1, variance=1, lengthscale=0.2)
+
+
+# Select input points
+X = np.linspace(0.,1.,500) # define X to be 500 points evenly spaced over [0,1]
+X = X[:,None] 
+
+# Set the mean and covariance function 
+
+mu = np.zeros((500))
+C = k.K(X,X)
+
+# Generate 20 samples from the multivariate Gaussian with mean mu and covariance C
+
+Z = np.random.multivariate_normal(mu,C,20)
+
+plt.figure(figsize=(5,5))    
+for i in range(20):
+    plt.plot(X[:],Z[i,:])
+plt.xlabel('x')
+plt.ylabel('f(x)')
+#plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = \frac{-1}{2l^{2}}(x_{i} - x_{j})^{2}$'  + ' and 'r'$l = 0.2$' + '[RBF kernel]', fontsize='x-small')
+#plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = min(x_{i}, x_{j})$' + '[Brownian kernel]', fontsize='x-small')
+plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = (1 + \sqrt{3}r)\exp(-\sqrt{3}r)$' + ' and 'r'$r = \sqrt{\sum_{i=1}^{n}\frac{x_{i} - y_{i}}{l_{i}^{2}}}$' + '[Matern32 kernel]', fontsize='x-small')
+
+# Basis function representation of a GP
 
 def sample_paths(x, cov, gamma):
     w=np.matrix(np.random.multivariate_normal([0,0,0],cov)).T
@@ -53,7 +87,6 @@ plt.xlabel('$x$')
 plt.ylabel('$f(x)$')
 
 
-# Sampling from a GP prior 
 
 
 
