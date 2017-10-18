@@ -9,6 +9,8 @@ import matplotlib.pylab as plt
 import scipy.stats as st
 import GPy as gp
 import george as grg
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
 
 M = 3
@@ -87,6 +89,118 @@ plt.xlabel('$x$')
 plt.ylabel('$f(x)$')
 
 
+# GP Regression (using GPY package - does not give error bars when noise is 0 aaaargh!)
+
+X = np.linspace(0.05,0.95,10)[:,None]
+Y = -np.cos(np.pi*X) + np.sin(4*np.pi*X)
+Y_noise = -np.cos(np.pi*X) + np.sin(4*np.pi*X) + np.random.normal(loc=0.0, scale=0.1, size=(10,1)) 
+
+k = gp.kern.RBF(input_dim=1, variance=1, lengthscale=1)
+m = gp.models.GPRegression(X,Y,k)
+
+m.Gaussian_noise = 0 #variance
+m.rbf.lengthscale = 1
+m.plot()
+plt.title('lengthscale=0.2')
+print(m)
+
+
+# Sklearn version of GPs
+
+# Noise-less case
+
+def f(x):
+    """The function to predict."""
+    return x * np.sin(x)
+
+# ----------------------------------------------------------------------
+#  First the noiseless case
+X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
+
+# Observations
+y = f(X).ravel()
+
+# Mesh the input space for evaluations of the real function, the prediction and
+# its MSE
+x = np.atleast_2d(np.linspace(0, 10, 1000)).T
+
+# Instanciate a Gaussian Process model
+kernel = RBF(length_scale=1.5)
+gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
+
+# Fit to data using Maximum Likelihood Estimation of the parameters
+gpr.fit(X, y)
+
+# Make the prediction on the meshed x-axis (ask for MSE as well)
+y_pred, sigma = gpr.predict(x, return_std=True)
+
+# Plot the function, the prediction and the 95% confidence interval based on
+# the MSE
+fig = plt.figure()
+plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
+plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
+plt.plot(x, y_pred, 'b-', label=u'Prediction')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([y_pred - 1.9600 * sigma,
+                        (y_pred + 1.9600 * sigma)[::-1]]),
+         alpha=.5, fc='b', ec='None', label='95% confidence interval')
+plt.xlabel('$x$')
+plt.ylabel('$f(x)$')
+plt.ylim(-10, 20)
+plt.legend(loc='upper left')
 
 
 
+# Noisy case
+
+X = np.linspace(0.1, 9.9, 10)
+X = np.atleast_2d(X).T
+
+#kernel = RBF(length_scale=1.2)
+y = f(X).ravel()
+dy = 0.5 + 1.0 * np.random.random(y.shape)
+noise = np.random.normal(0, dy)
+y += noise
+
+
+kernel = C(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
+gpr = GaussianProcessRegressor(kernel=kernel, alpha=(dy / y) ** 2, optimizer=None)
+
+# Fit to data using Maximum Likelihood Estimation of the parameters
+gpr.fit(X, y)
+
+# Make the prediction on the meshed x-axis (ask for MSE as well)
+y_pred, sigma = gpr.predict(x, return_std=True)
+
+# Plot the function, the prediction and the 95% confidence interval based on
+# the MSE
+fig = plt.figure()
+plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
+plt.scatter(X.ravel(), y, color='r', label=u'Observations')
+plt.plot(x, y_pred, 'b-', label=u'Mean Prediction')
+plt.fill(np.concatenate([x, x[::-1]]),
+         np.concatenate([y_pred - 1.9600 * sigma,
+                        (y_pred + 1.9600 * sigma)[::-1]]),
+         alpha=.5, fc='b', ec='None', label='95% confidence interval')
+#plt.fill(np.concatenate([x, x[::-1]]),
+#         np.concatenate([y_pred - sigma.diagonal(),
+#                        (y_pred + sigma.diagonal())[::-1]]),
+#         alpha=.5, fc='b', ec='None', label='Variance')
+plt.xlabel('$x$')
+plt.ylabel('$f(x)$')
+plt.ylim(-10, 20)
+plt.legend(loc='upper left')
+
+
+fig = plt.figure()
+plt.plot(x, gpr.sample_y(x, 100), alpha=0.5)
+plt.plot(x, y_pred, 'k--', label=u'Mean Prediction')
+plt.scatter(X.ravel(), y, color='r', label=u'Observations', zorder=3)
+plt.title('100 Samples from the posterior distribution')
+plt.legend()
+
+
+
+
+
+plt.title('lengthscale=0.2')
