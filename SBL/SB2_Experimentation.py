@@ -83,8 +83,8 @@ if __name__ == "__main__":
     
     # Composite function result
     
-    u = np.sort(np.random.uniform(1,20,N))
-    #u = np.linspace(1,20,100)
+    #u = np.sort(np.random.uniform(1,20,N))
+    u = np.linspace(1,20,100)
     X = np.matrix(u).T # Sampling at random locations
     z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
     noise = np.std(z, ddof=1) * noiseToSignal
@@ -95,7 +95,7 @@ if __name__ == "__main__":
  #  Basis Generation 
  ##################################################################
  
-    bw = 2
+    bw = 3.25
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -193,38 +193,74 @@ if __name__ == "__main__":
     
     y = BASIS*w_infer
     
-    # Compute variance around the predictions
-    
-    pred_var = []
-    rel_index = [x-1 for x in alphas.index]
-    rel_phi = BASIS[:,rel_index]
-    for i in np.arange(0,100):
-        pred_var.append(np.float(1.0/beta + np.dot(np.dot(rel_phi[i,:],PARAMETER['VARIANCE']),rel_phi[i,:].T)))
-        
-    pred_std = np.matrix(np.sqrt(pred_var).reshape(100,1))
-    
-    
     # Test data 
     
-    t = np.sort(np.random.uniform(20,30,N))
+    t = np.sort(np.random.uniform(1,20,40))
     #u = np.linspace(1,20,100)
     Xt = np.matrix(t).T # Sampling at random locations
     zt = np.matrix(0.5*np.sin(t) + 0.5*t -0.02*(t-5)**2).T
     noise_t = np.std(z, ddof=1) * noiseToSignal
-    Outputs_t = z + noise*np.random.randn(N,1)
+    Outputs_t = zt + noise_t*np.random.randn(40,1)
+   
+    # Get the relevant training points and compute BASIS_test with those basis functions
+    X_relevant = X[PARAMETER['RELEVANT']]
+    W_relevant =  w_infer[PARAMETER['RELEVANT']] 
     
-    BASIS_test = np.matrix(np.exp(-distSquared(Xt,Xt)/(bw**2)))
+    BASIS_test = np.matrix(np.exp(-distSquared(Xt, X_relevant)/(bw**2)))
     
-    y_test = BASIS_test*w_infer
+    # Inferred test prediction
     
+    y_test = BASIS_test*W_relevant
     
+    # Compute variance around the predictions
+    
+    pred_var = []
+    pred_var_test = []
+    rel_index = [x-1 for x in alphas.index]
+    rel_phi = BASIS[:,rel_index]
+    rel_phi_test = BASIS_test
+    for i in np.arange(0,100):
+        pred_var.append(np.float(1.0/beta + np.dot(np.dot(rel_phi[i,:],PARAMETER['VARIANCE']),rel_phi[i,:].T)))
+    for i in np.arange(0,40):
+        pred_var_test.append(np.float(1.0/beta + np.dot(np.dot(rel_phi_test[i,:],PARAMETER['VARIANCE']),rel_phi_test[i,:].T)))
+
+    pred_std = np.matrix(np.sqrt(pred_var).reshape(100,1))
+    pred_std_test = np.matrix(np.sqrt(pred_var_test).reshape(40,1))
+    
+    # Collect and print test results
+    
+    test_error = np.round(np.sum(np.square(zt - y_test)),2)
+    likelihood = DIAGNOSTIC['LIKELIHOOD'][-1]
+    
+    # Plotting test results
+    
+    #Extend the curve to plot to cover area not covered in training
+    
+    plt.figure()
+    plt.plot(X,z, color='b')
+    #plt.plot(ex,exf, color='b')
+    plt.plot(Xt,Outputs_t,'k*',markersize=4)
+    plt.plot(Xt, y_test, 'r')
+
+    Xt_array = np.array(Xt.reshape(40,))[0]
+    upt_array = np.array((y_test - pred_std_test).reshape(40,))[0]
+    downt_array = np.array((y_test + pred_std_test).reshape(40,))[0]
+    plt.fill_between(Xt_array, upt_array, downt_array, color='red',alpha=0.4, label = '1 sd')
+    plt.plot(X,BASIS[:,PARAMETER['RELEVANT']], color='m')
+    plt.scatter(list(X[PARAMETER['RELEVANT']]),list(Outputs[PARAMETER['RELEVANT']]), c = 'g', marker='+', label='Relevant points')
+    plt.title('Predictions on test data' + ' (Basis width = ' + str(bw) + ')', fontsize='small')
+    plt.legend(fontsize='small')
+    plt.annotate('Test error = ' + str(test_error), xy=(1.0,5.5),fontsize='small')
+    
+   
+
     # Sparse Bayesian Learning Results
 
     # Plot the generative function and noisy output 
     
     plt.figure(figsize=(10,8))
     plt.subplot(321)
-    plt.plot(X,z)
+    plt.plot(X,z, color='b')
     plt.ylabel('f(X)')
     plt.plot(X,Outputs,'ko',markersize=2)
     plt.title('Generative function/Noisy Outputs',fontsize='small')
@@ -232,7 +268,7 @@ if __name__ == "__main__":
     # Plot the Generative function and the predictions
     
     plt.subplot(322)
-    plt.plot(X,z,label='Generative function',linewidth=3)
+    plt.plot(X,z,label='Generative function',linewidth=3, color='b')
     plt.plot(X,y, label='Predictive linear model',color='r')
     plt.title('Generative and predictive linear model',fontsize='small')
     plt.legend(fontsize='small',loc=4)
@@ -245,7 +281,7 @@ if __name__ == "__main__":
     down_array = np.array((y + pred_std).reshape(100,))[0]
     plt.plot(X,y,label='Predictive linear model',color='r')
     plt.fill_between(X_array, up_array, down_array, color='orange',alpha=0.4, label = '1 sd')
-    plt.plot(X[PARAMETER['RELEVANT']],Outputs[PARAMETER['RELEVANT']],'g+', markersize=4, clip_on=False, label='Relevant points')
+    plt.scatter(list(X[PARAMETER['RELEVANT']]),list(Outputs[PARAMETER['RELEVANT']]), c = 'g', marker='+', label='Relevant points')
     plt.title('Predictive st. deviation around the predictions', fontsize='small')
     plt.legend(fontsize='small',loc=2)
     #Show the inferred weights with the uncertainty in the weights
@@ -276,7 +312,7 @@ if __name__ == "__main__":
     plt.legend(fontsize='small')
     plt.title('Diagnostic',fontsize='small')
     
-    
+    print(likelihood)
 
 #    #######################################################################
 #    # 
