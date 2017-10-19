@@ -8,7 +8,6 @@ import numpy as np
 import matplotlib.pylab as plt
 import scipy.stats as st
 import GPy as gp
-import george as grg
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
 
