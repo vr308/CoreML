@@ -252,7 +252,6 @@ if __name__ == "__main__":
     plt.legend(fontsize='small')
     plt.annotate('Test error = ' + str(test_error), xy=(1.0,5.5),fontsize='small')
     
-   
 
     # Sparse Bayesian Learning Results
 
