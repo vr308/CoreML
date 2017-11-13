@@ -19,15 +19,6 @@ Quantities of interest:
     Prediction Intervals: Applies to calculating the uncertainty bands for test data points.
     Estimate of the variance of the residual (sigma^2)  = SQRT(Mean squared error) = std error of the estimate
     
-MLE 
-
-Quantities of interest:
-
-    
-
-Bayesian 
-
-
 Single Regressor / Multiple Regressors
 
 """
