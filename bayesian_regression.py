@@ -6,7 +6,7 @@ Created on Sat Sep  9 18:53:41 2017
 @author: vr308
 """
 
-# Fit a non-linear curve to data - Bayesian method
+# Fit a non-linear curve to data - Bayesian linear method
 
 import numpy as np
 import matplotlib.pylab as plt
@@ -35,6 +35,9 @@ def posterior_update():
     
     return 
 
+
+def 
+
 if __name__ == "__main__":
 
     N = 100
@@ -52,7 +55,7 @@ if __name__ == "__main__":
     
     #Define Basis Matrix
     
-    bw = 0.2
+    bw = 0.4
     BASIS = np.matrix(np.exp(-distSquared(x,x)/(bw**2)))
     plt.plot(x,BASIS)
     
@@ -60,11 +63,23 @@ if __name__ == "__main__":
     
     # Normal Prior 
     
-    mu = 
+    # Select a precision factor for the weights
+    
+    mu = 0
     Sigma =
     
    # Sparsity Prior 
-    
+
+
+
+
+
+
+
+
+
+
+
    from sklearn.neighbors import NearestNeighbors
    X = np.array([[-1, -1], [-2, -1], [-3, -2], [1, 1], [2, 1], [3, 2]])
    nbrs = NearestNeighbors(n_neighbors=3, algorithm='ball_tree').fit(X)
