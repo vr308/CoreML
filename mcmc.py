@@ -9,6 +9,7 @@ Created on Thu Dec  7 16:52:19 2017
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import pymc3 as pm
 np.random.seed(123)
 
 # Analytical posterior - conjugate Gaussian prior case
@@ -68,3 +69,17 @@ def sampler(data, samples=4, mu_init=0.5, proposal_width=0.5, mu_prior_mu =0, mu
 
 pos = sampler(data, 1000, 0, 1)
 plt.hist(pos, bins=100, normed=True)
+
+# With Pymc3
+
+with pm.Model():
+    mu = pm.Normal('mu', 0, 1)
+    sigma = 1.
+    returns = pm.Normal('returns', mu=mu, sd=sigma, observed=data)
+    
+    step = pm.Metropolis()
+    trace = pm.sample(15000, step)
+    
+sns.distplot(trace[2000:]['mu'], label='PyMC3 sampler');
+sns.distplot(posterior[500:], label='Hand-written sampler');
+plt.legend();
