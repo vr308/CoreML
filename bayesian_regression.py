@@ -7,6 +7,8 @@ Created on Sat Sep  9 18:53:41 2017
 """
 
 # Fit a non-linear curve to data - Bayesian linear method
+# Assuming we know the alphas (hyperparameters) and variance of targets sigma^2
+# Also assuming conjugate prior with Gaussian Likelihood
 
 import numpy as np
 import matplotlib.pylab as plt
@@ -53,20 +55,20 @@ if __name__ == "__main__":
     plt.plot(x,y_true, 'b')
     plt.plot(x,y_noise, 'ko',markersize=2)
     
-    #Define Basis Matrix
+    #Design ma Matrix
     
-    bw = 0.4
+    bw = 0.4 # basis hyperparameter
     BASIS = np.matrix(np.exp(-distSquared(x,x)/(bw**2)))
     plt.plot(x,BASIS)
     
-    # Define the parameters of the prior
-    
-    # Normal Prior 
-    
+    # Define the parameters of the prior for weights    
     # Select a precision factor for the weights
     
+    alpha = 0.5
+    
     mu = 0
-    Sigma =
+    A = alpha*np.identity(100)
+    
     
    # Sparsity Prior 
 

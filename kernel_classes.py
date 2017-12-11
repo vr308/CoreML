@@ -16,7 +16,20 @@ class Kernel:
     def __init__(self):
         self.data = []
         
+    def dot():
+        
     def 
+    
+    
+
+def kernel_additive(k1, k2, ):
+    
+
+
+def kernel_products():
+    
+
+def kernel_scaling()
 
 
 class BasisFunction:
