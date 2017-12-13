@@ -92,6 +92,8 @@ def SB2_UserOptions(*args):
     
     # Any options specified?
     
+    print(args)
+    
     numSettings = np.int(len(args)/2)
     
 

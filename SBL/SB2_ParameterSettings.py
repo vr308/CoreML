@@ -70,7 +70,7 @@ def SB2_ParameterSettings(*args):
     if len(args) % 2 != 0:
         raise Exception('Arguments to SB2_ParameterSettings should be (property, value) pairs')
 
-    
+    print(args)
     # Any settings specified?
     
     numSettings    = np.int(len(args)/2)

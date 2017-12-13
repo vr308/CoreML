@@ -136,7 +136,7 @@ def SB2_ControlSettings():
 
     CONTROLS['BasisAlignmentTest']     = True
      
-    ALIGNMENT_ZERO                     = 1e-3
+    ALIGNMENT_ZERO                     = 0.01
 
     # If BasisAlignmentTest is true, any basis vector with inner product more
     # than MAX_ALIGNMENT with any existing model vector will not be added

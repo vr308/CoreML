@@ -13,6 +13,7 @@ from SB2_Likelihoods import SB2_Likelihoods
 from SB2_UserOptions import SB2_UserOptions
 from SB2_ParameterSettings import SB2_ParameterSettings
 from SparseBayes import SparseBayes
+from sklearn.preprocessing import normalize
 
 #######################################################################
 #
@@ -84,22 +85,24 @@ if __name__ == "__main__":
     # Composite function result
     
     #u = np.sort(np.random.uniform(1,20,N))
-    u = np.linspace(1,20,100)
-    X = np.matrix(u).T # Sampling at random locations
-    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
-    noise = np.std(z, ddof=1) * noiseToSignal
-    Outputs = z + noise*np.random.randn(N,1)
+#    u = np.linspace(1,20,100)
+#    X = np.matrix(u).T # Sampling at random locations
+#    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
+#    noise = np.std(z, ddof=1) * noiseToSignal
+#    Outputs = z + noise*np.random.randn(N,1)
 
     
  ##################################################################
  #  Basis Generation 
  ##################################################################
  
-    bw = 3.25
+    bw = 2.25
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
     likelihood_ = 'Gaussian'
+    
+    #BASIS = np.matrix(normalize(BASIS, norm='l2', axis=0))
      
  #######################################################################
     # 
@@ -131,7 +134,7 @@ if __name__ == "__main__":
     SETTINGS    = SB2_ParameterSettings('NOISESTD', 0.1)
     
     # Now run the main SPARSEBAYES function
-    
+        
     B = np.matrix(BASIS)
 
     [PARAMETER, HYPERPARAMETER, DIAGNOSTIC] = SparseBayes(likelihood_, BASIS, Outputs, OPTIONS, SETTINGS)
@@ -312,6 +315,17 @@ if __name__ == "__main__":
     plt.title('Diagnostic',fontsize='small')
     
     print(likelihood)
+    
+    # Analysis of S_FACTOR and Q_FACTOR
+    
+    plt.figure()
+    plt.subplot(211)
+    plt.hist(DIAGNOSTIC['S_FACTOR'],bins=100, alpha=0.5, label='Sparsity factor')
+    plt.legend()
+    plt.subplot(212)
+    plt.hist(DIAGNOSTIC['Q_FACTOR'],bins=100, alpha=0.5, label = 'Quality Fcator')
+    plt.legend()
+    
 
 #    #######################################################################
 #    # 

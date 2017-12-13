@@ -94,32 +94,32 @@ if __name__ == "__main__":
     plt.hlines(y=0, xmin=0,xmax=100)
     plt.suptitle('Weights under Ridge and ARD', fontsize='small')
     
-    # Cross-checking ridge regression
-    
-    #noise_variance = np.var(y_noise)
-    #beta = 1/noise_variance
-    beta = fitted_model_ridge.alpha_
-    alpha = fitted_model_ridge.lambda_
-    
-    # Weight prior 
-    
-    mu_w_prior = np.zeros(100)
-    sigma_w_prior = np.matrix(np.identity(100))
-    
-    # Weight posterior
-    
-    sigma_w_posterior = np.linalg.inv(np.add(np.multiply(1,sigma_w_prior),np.multiply(1/np.var(y_noise),np.matmul(design_matrix.T, design_matrix))))
-    mu_w = np.multiply(beta, np.matmul(sigma_w_posterior,np.matmul(design_matrix.T, y_noise)))
-    
-    # From the sklearn version
-    
-    
-    
-    # Predictive distribution
-    
-    y_pred_mean = np.matmul(mu_w.T, design_matrix_test)
-    y_pred_variance = 1.0/beta + np.matmul(design_matrix_test.T, sigma_w_posterior)    
-    
+#    # Cross-checking ridge regression
+#    
+#    #noise_variance = np.var(y_noise)
+#    #beta = 1/noise_variance
+#    beta = fitted_model_ridge.alpha_
+#    alpha = fitted_model_ridge.lambda_
+#    
+#    # Weight prior 
+#    
+#    mu_w_prior = np.zeros(100)
+#    sigma_w_prior = np.matrix(np.identity(100))
+#    
+#    # Weight posterior
+#    
+#    sigma_w_posterior = np.linalg.inv(np.add(np.multiply(1,sigma_w_prior),np.multiply(1/np.var(y_noise),np.matmul(design_matrix.T, design_matrix))))
+#    mu_w = np.multiply(beta, np.matmul(sigma_w_posterior,np.matmul(design_matrix.T, y_noise)))
+#    
+#    # From the sklearn version
+#    
+#    
+#    
+#    # Predictive distribution
+#    
+#    y_pred_mean = np.matmul(mu_w.T, design_matrix_test)
+#    y_pred_variance = 1.0/beta + np.matmul(design_matrix_test.T, sigma_w_posterior)    
+#    
     
     
 

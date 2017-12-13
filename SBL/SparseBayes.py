@@ -422,8 +422,10 @@ def SparseBayes(*args):
             if selectedAction == ACTION_ADD:
                 # Basic test for correlated basis vectors
                 # (note, Phi and columns of PHI are normalised)
+                
+                #TODO: Examine the lines below to understand BasisAlignment test
         
-                p               = Phi.T * PHI
+                p = Phi.T * PHI
                 findAligned     = np.array(p > CONTROLS['AlignmentMax']).squeeze().nonzero()
                 numAligned      = np.size(findAligned)
             

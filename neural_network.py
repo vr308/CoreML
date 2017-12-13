@@ -89,3 +89,13 @@ for iter in xrange(40000):
 
 print "Output after Training"
 print l2
+
+
+###################
+# MLP using Python libraries
+####################
+
+import sklearn.datasets as skdata
+import matplotlib.pyplot as plt
+
+data, targets = skdata.load_wine(return_X_y=True)
