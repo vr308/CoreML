@@ -16,11 +16,16 @@ import matplotlib.pylab as plt
 import numpy as np
 
 
-def distSquared(X,Y):
-    nx = np.size(X, 0)
-    ny = np.size(Y, 0)
-    D2 =  (np.multiply(X, X).sum(1)  * np.ones((1, ny)) ) + ( np.ones((nx, 1)) * np.multiply(Y, Y).sum(1).T  ) - 2*X*Y.T
+def distSquared(x,y):
+    nx = np.size(x, 0)
+    ny = np.size(y, 0)
+    D2 =  (np.multiply(x, x).sum(1)  * np.ones((1, ny)) ) + ( np.ones((nx, 1)) * np.multiply(y, y).sum(1).T  ) - 2*x*y.T
     return D2
+
+
+def gaussian_kernel_matrix(x,y):
+    
+    return np.matrix(np.exp(-distSquared(x,y)/(bw**2)))
 
 if __name__ == "__main__":
     
@@ -37,8 +42,8 @@ if __name__ == "__main__":
     
     #Design Matrix
     
-    bw = 0.4 # basis hyperparameter
-    design_matrix = np.matrix(np.exp(-distSquared(x,x)/(bw**2)))
+    bw = 1.4 # basis hyperparameter
+    design_matrix = gaussian_kernel_matrix(x,x)
     #plt.plot(x,design_matrix)
 
     #Ridge example
@@ -66,20 +71,26 @@ if __name__ == "__main__":
     
     # Plot the predictions
     
+    x_line = np.matrix(np.linspace(-10,+10,500)).T
+    y_line_ridge = fitted_model_ridge.predict(gaussian_kernel_matrix(x_line, x))
+    y_line_ard = fitted_model_ard.predict(gaussian_kernel_matrix(x_line,x))
+    
     plt.figure()
     plt.subplot(211)
     plt.plot(x,y_true, 'b')
     #plt.plot(x,y_noise, 'ko',markersize=2)
     plt.plot(x_test, y_pred_ridge, 'ro', markersize=1, label = 'RMSE: ' + np.str(np.round(rmse_ridge, 2)))
-    plt.vlines(x_test, ymin= y_test_true, ymax=y_pred_ridge)
+    plt.plot(x_line,y_line_ridge)
+    #plt.vlines(x_test, ymin= y_test_true, ymax=y_pred_ridge)
     plt.legend(loc=2)
-    plt.title('Predictions under ARD', fontsize='small')
+    plt.title('Predictions under Ridge', fontsize='small')
     plt.subplot(212)
     plt.plot(x, y_true, 'b')
     plt.plot(x_test, y_pred_ard, 'go', markersize=1, label = 'RMSE: ' + np.str(np.round(rmse_ard, 2)))
-    plt.vlines(x_test, ymin=y_test_true, ymax=y_pred_ard)
+    #plt.vlines(x_test, ymin=y_test_true, ymax=y_pred_ard)
+    plt.plot(x_line,y_line_ard)
     plt.legend(loc=2)
-    plt.title('Predictions under Ridge', fontsize='small')
+    plt.title('Predictions under ARD', fontsize='small')
     
     # Plot the weights (coef_) with the variances
     

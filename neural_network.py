@@ -97,5 +97,57 @@ print l2
 
 import sklearn.datasets as skdata
 import matplotlib.pyplot as plt
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from random import shuffle
 
+scaler = StandardScaler()
 data, targets = skdata.load_wine(return_X_y=True)
+
+index = [i for i in range(len(data))]
+shuffle(index)
+
+X_train = scaler.fit_transform(data[index][0:100:,])
+y_train = targets[index][0:100]
+X_test = scaler.fit_transform(data[index][100:,])
+y_test = targets[index][100:]
+
+net = MLPClassifier(hidden_layer_sizes=(6), solver='sgd', activation='relu')
+trained_net = net.fit(X_train, y_train)
+y_pred = trained_net.predict(X_test)
+
+test_accuracy = net.score(X_test, y_test)
+print(np.round(test_accuracy*100,2))
+
+# Cross-checking
+
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x)
+    return e_x / e_x.sum()
+
+test_data = X_test
+
+# Collecting the weights
+
+layer_01_weights = net.coefs_[0]
+layer_12_weights = net.coefs_[1]
+
+# Layer 1 outputs 
+
+relu = lambda x: x*(x > 0) 
+activations_l1 = relu(np.dot(test_data, layer_01_weights) + net.intercepts_[0])
+
+# Layer 2 outputs
+
+activations_l2 = softmax(np.dot(activations_l1,layer_12_weights) + net.intercepts_[1])
+
+def map_to_class(outputs):
+    
+    return outputs.index(max(outputs))
+    
+y_pred1 = []
+for i in range(len(activations_l2)):
+    y_pred1.append(map_to_class(list(activations_l2[i]))) 
+    
+(y_pred == y_pred1).all()

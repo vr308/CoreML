@@ -48,7 +48,7 @@ def generate_gaussian_basis(X,Y, bw):
         return np.matrix(np.exp(-distSquared(X,Y)/(bw**2)))
     
 
-def generate_posterior_w_std(alphas, beta, BASIS):
+#def generate_posterior_w_std(alphas, beta, BASIS):
     
 #    full_alphas = np.zeros(100)
 #    full_alphas.fill(np.infty)
@@ -59,16 +59,16 @@ def generate_posterior_w_std(alphas, beta, BASIS):
 #    np.fill_diagonal(A,full_alphas)
 #    Sigma_inv = np.linalg.inv(A + beta*np.dot(BASIS.T, BASIS))
 
-     inv_var = []
-     for i in alphas.index:
-         inv_var.append(alphas[i] + beta*np.dot(BASIS[:,i-1].T,BASIS[:,i-1]))
-     w_var = np.divide(1,inv_var)
-     return np.sqrt(w_var)  
+#     inv_var = []
+#     for i in alphas.index:
+#         inv_var.append(alphas[i] + beta*np.dot(BASIS[:,i-1].T,BASIS[:,i-1]))
+#     w_var = np.divide(1,inv_var)
+#     return np.sqrt(w_var)  
         
 
 if __name__ == "__main__":
     
-    rseed = 1
+    rseed = 87
     np.random.seed(rseed)
     
     N = 100
@@ -84,19 +84,19 @@ if __name__ == "__main__":
     
     # Composite function result
     
-    #u = np.sort(np.random.uniform(1,20,N))
-#    u = np.linspace(1,20,100)
-#    X = np.matrix(u).T # Sampling at random locations
-#    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
-#    noise = np.std(z, ddof=1) * noiseToSignal
-#    Outputs = z + noise*np.random.randn(N,1)
+    u = np.sort(np.random.uniform(1,20,N))
+    #u = np.linspace(1,20,100)
+    X = np.matrix(u).T # Sampling at random locations
+    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
+    noise = np.std(z, ddof=1) * noiseToSignal
+    Outputs = z + noise*np.random.randn(N,1)
 
     
  ##################################################################
  #  Basis Generation 
  ##################################################################
  
-    bw = 2.25
+    bw = 2
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -239,21 +239,21 @@ if __name__ == "__main__":
     
     #Extend the curve to plot to cover area not covered in training
     
-    plt.figure()
-    plt.plot(X,z, color='b')
-    #plt.plot(ex,exf, color='b')
-    plt.plot(Xt,Outputs_t,'k*',markersize=4)
-    plt.plot(Xt, y_test, 'r')
-
-    Xt_array = np.array(Xt.reshape(40,))[0]
-    upt_array = np.array((y_test - pred_std_test).reshape(40,))[0]
-    downt_array = np.array((y_test + pred_std_test).reshape(40,))[0]
-    plt.fill_between(Xt_array, upt_array, downt_array, color='red',alpha=0.4, label = '1 sd')
-    plt.plot(X,BASIS[:,PARAMETER['RELEVANT']], color='m')
-    plt.scatter(list(X[PARAMETER['RELEVANT']]),list(Outputs[PARAMETER['RELEVANT']]), c = 'g', marker='+', label='Relevant points')
-    plt.title('Predictions on test data' + ' (Basis width = ' + str(bw) + ')', fontsize='small')
-    plt.legend(fontsize='small')
-    plt.annotate('Test error = ' + str(test_error), xy=(1.0,5.5),fontsize='small')
+#    plt.figure()
+#    plt.plot(X,z, color='b')
+#    #plt.plot(ex,exf, color='b')
+#    plt.plot(Xt,Outputs_t,'k*',markersize=4)
+#    plt.plot(Xt, y_test, 'r')
+#
+#    Xt_array = np.array(Xt.reshape(40,))[0]
+#    upt_array = np.array((y_test - pred_std_test).reshape(40,))[0]
+#    downt_array = np.array((y_test + pred_std_test).reshape(40,))[0]
+#    plt.fill_between(Xt_array, upt_array, downt_array, color='red',alpha=0.4, label = '1 sd')
+#    plt.plot(X,BASIS[:,PARAMETER['RELEVANT']], color='m')
+#    plt.scatter(list(X[PARAMETER['RELEVANT']]),list(Outputs[PARAMETER['RELEVANT']]), c = 'g', marker='+', label='Relevant points')
+#    plt.title('Predictions on test data' + ' (Basis width = ' + str(bw) + ')', fontsize='small')
+#    plt.legend(fontsize='small')
+#    plt.annotate('Test error = ' + str(test_error), xy=(1.0,5.5),fontsize='small')
     
 
     # Sparse Bayesian Learning Results
@@ -309,8 +309,8 @@ if __name__ == "__main__":
     #Show the S and Q factors
     
     plt.subplot(326)
-    plt.plot(DIAGNOSTIC['S_FACTOR'], label='Sparsity Factor')
-    plt.plot(DIAGNOSTIC['Q_FACTOR'], label='Quality Factor')
+    plt.stem(DIAGNOSTIC['S_FACTOR'], label='Sparsity Factor', linefmt='b-', markerfmt='bo')
+    plt.stem(DIAGNOSTIC['Q_FACTOR'], label='Quality Factor', linefmt='r-', markerfmt='ro')
     plt.legend(fontsize='small')
     plt.title('Diagnostic',fontsize='small')
     

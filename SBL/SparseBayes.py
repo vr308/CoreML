@@ -334,9 +334,7 @@ def SparseBayes(*args):
         GoodFactor[Used]    = 0
         # ... and then mask out any that are aligned with those in the model
         if CONTROLS['BasisAlignmentTest']:
-            #print Aligned_out
-            #print(type(Aligned_out))
-            GoodFactor[[np.int(x) for x in Aligned_out]]    = 0
+            GoodFactor[[np.int(x) for x in list(Aligned_out)]]    = 0      
         index               = np.array(GoodFactor).squeeze().nonzero()
         anyToAdd            = np.size(index) != 0
         
@@ -415,6 +413,7 @@ def SparseBayes(*args):
         # on addition and deletion
     
         if CONTROLS['BasisAlignmentTest']:
+            
     
         # Addition - rule out addition (from now onwards) if the new basis
         # vector is aligned too closely to one or more already in the model
@@ -422,14 +421,14 @@ def SparseBayes(*args):
             if selectedAction == ACTION_ADD:
                 # Basic test for correlated basis vectors
                 # (note, Phi and columns of PHI are normalised)
-                
-                #TODO: Examine the lines below to understand BasisAlignment test
-        
+                        
                 p = Phi.T * PHI
                 findAligned     = np.array(p > CONTROLS['AlignmentMax']).squeeze().nonzero()
                 numAligned      = np.size(findAligned)
-            
+                
                 if numAligned > 0:
+                    
+                    print ('Detected Alignment in Basis function')
                     # The added basis function is effectively indistinguishable from
                     # one present already
                     selectedAction      = ACTION_ALIGNMENT_SKIP
@@ -439,17 +438,11 @@ def SparseBayes(*args):
                     # Make a note so we don't try this next time
                     # May be more than one in the model, which we need to note was
                     # the cause of function 'nu' being rejected
-                    #print(Aligned_out)
-                    #print(type(Aligned_out))
-                    #print nu*np.ones((numAligned,1))
-                    #print(type(nu*np.ones((numAligned,1))))
-                    #Aligned_out     = np.vstack([Aligned_out , nu * np.ones((numAligned,1))])
-                    Aligned_out.append(nu * np.ones((numAligned,1)))
-                    Aligned_in.append(Used[findAligned])
-
-                    #Aligned_out     = scipy.sparse.vstack([Aligned_out , nu * np.ones((numAligned,1))])
-                    #Aligned_in      = scipy.sparse.vstack([Aligned_in , Used[findAligned]])
-                    
+                 
+                    Aligned_out = np.vstack([Aligned_out , nu * np.ones((numAligned,1))]) if len(Aligned_out) > 0 else np.vstack([nu*np.ones((numAligned, 1))])
+                    k = len(Used[findAligned])
+                    Aligned_in = np.vstack([Aligned_in , Used[findAligned].reshape(k,1)]) if len(Aligned_in) > 0 else np.vstack([Used[findAligned].reshape(k,1)])
+                                      
                     #print Aligned_out
                     #print Aligned_in
                 
@@ -461,13 +454,13 @@ def SparseBayes(*args):
                 numAligned      = np.size(findAligned)
             
                 if numAligned > 0:
-                    print Aligned_out
-                    print findAligned
-                    reinstated                  = Aligned_out[findAligned]
-                    Aligned_in[findAligned]     = []
-                    Aligned_out[findAligned]    = []
-                
-                
+                    
+                    print ('First time in')
+            
+                    reinstated  = Aligned_out[findAligned]
+                    Aligned_out = np.delete(Aligned_out, findAligned, axis=0)
+                    Aligned_in = np.delete(Aligned_in, findAligned, axis=0)
+                  
                     r_ = ''
                 
                     for i in np.nditer(reinstated): #Mimics MATLAB's sprintf function
@@ -702,12 +695,12 @@ def SparseBayes(*args):
         
             # If we're here, then no update to the model was considered worthwhile
         
-            SB2_Diagnostic(OPTIONS,2, '** Stopping at iteration {:d} (Max_delta_ml={:g}) **'.format(i, deltaLogMarginal))
+            SB2_Diagnostic(OPTIONS,2, '** Stopping at iteration {:d} (Max_delta_ml={:g}) **'.format(np.int(i), deltaLogMarginal))
             
             if LIKELIHOOD['InUse'] != LIKELIHOOD['Gaussian']:
                 SB2_Diagnostic(OPTIONS,2,'{:4d}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})'.format( i, logML[0,0]/float(N), np.sum(Gamma), M))
             else:
-                SB2_Diagnostic(OPTIONS,2, '{:4d}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})\t s={:.3f}'.format(i,logML[0,0]/float(N),np.sum(Gamma),M,np.sqrt(1/float(beta))))
+                SB2_Diagnostic(OPTIONS,2, '{:4d}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})\t s={:.3f}'.format(np.int(i),logML[0,0]/float(N),np.sum(Gamma),M,np.sqrt(1/float(beta))))
             break
     
         # Check for "natural" termination
@@ -723,7 +716,7 @@ def SparseBayes(*args):
             if LIKELIHOOD['InUse'] != LIKELIHOOD['Gaussian']:
                 SB2_Diagnostic(OPTIONS,2,'{:5d}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})'.format(i,logML[0,0]/float(N),np.sum(Gamma),M))
             else:
-                SB2_Diagnostic(OPTIONS,2,'{:5d}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})\t s={:.3f}'.format(i,logML[0,0]/float(N),np.sum(Gamma),M,np.sqrt(1/float(beta))))
+                SB2_Diagnostic(OPTIONS,2,'{:5f}> L = {:.6f}\t Gamma = {:.2f} (M = {:d})\t s={:.3f}'.format(np.int(i),logML[0,0]/float(N),np.sum(Gamma),M,np.sqrt(1/float(beta))))
                 
                 
     ###########################################################################
@@ -742,7 +735,6 @@ def SparseBayes(*args):
         elif TIME_LIMIT:
             SB2_Diagnostic(OPTIONS,1,'** Time limit: algorithm did not converge')
             
-    
     
     # Output action summary if desired
     
