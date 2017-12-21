@@ -134,7 +134,7 @@ def SB2_ControlSettings():
     
     # Check for basis vector alignment/correlation redundancy
 
-    CONTROLS['BasisAlignmentTest']     = True
+    CONTROLS['BasisAlignmentTest']     = False
      
     ALIGNMENT_ZERO                     = 0.01
 

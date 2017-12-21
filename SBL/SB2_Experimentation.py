@@ -96,7 +96,7 @@ if __name__ == "__main__":
  #  Basis Generation 
  ##################################################################
  
-    bw = 2
+    bw = 4
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -316,16 +316,16 @@ if __name__ == "__main__":
     
     print(likelihood)
     
-    # Analysis of S_FACTOR and Q_FACTOR
-    
-    plt.figure()
-    plt.subplot(211)
-    plt.hist(DIAGNOSTIC['S_FACTOR'],bins=100, alpha=0.5, label='Sparsity factor')
-    plt.legend()
-    plt.subplot(212)
-    plt.hist(DIAGNOSTIC['Q_FACTOR'],bins=100, alpha=0.5, label = 'Quality Fcator')
-    plt.legend()
-    
+#    # Analysis of S_FACTOR and Q_FACTOR
+#    
+#    plt.figure()
+#    plt.subplot(211)
+#    plt.hist(DIAGNOSTIC['S_FACTOR'],bins=100, alpha=0.5, label='Sparsity factor')
+#    plt.legend()
+#    plt.subplot(212)
+#    plt.hist(DIAGNOSTIC['Q_FACTOR'],bins=100, alpha=0.5, label = 'Quality Fcator')
+#    plt.legend()
+#    
 
 #    #######################################################################
 #    # 
