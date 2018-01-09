@@ -9,10 +9,15 @@ Created on Tue Nov 14 16:09:13 2017
 import numpy as np
 import pandas as pd
 
+def tensor_create(shape_tuple):
+    
+    return np.empty(shape=shape_tuple)
+
 
 class Kernel:
     
-    """ A class that allows one to manipulater kernels """
+    """ A class that allows one to create and combine kernels """
+    
     def __init__(self):
         self.data = []
         
@@ -40,6 +45,8 @@ class BasisFunction:
         
 class BasisMatrix:
     
-    
+    return 
+
+
     
     

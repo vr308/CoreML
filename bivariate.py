@@ -42,7 +42,6 @@ def multivariate_gaussian(pos, mu, Sigma):
     # This einsum call calculates (x-mu)T.Sigma-1.(x-mu) in a vectorized
     # way across all the input variables.
     fac = np.einsum('...k,kl,...l->...', pos-mu, Sigma_inv, pos-mu)
-
     return np.exp(-fac / 2) / N
 
 fig = plt.figure()

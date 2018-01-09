@@ -198,8 +198,4 @@ plt.scatter(X.ravel(), y, color='r', label=u'Observations', zorder=3)
 plt.title('100 Samples from the posterior distribution')
 plt.legend()
 
-
-
-
-
 plt.title('lengthscale=0.2')
