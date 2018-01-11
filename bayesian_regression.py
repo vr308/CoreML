@@ -10,6 +10,8 @@ Created on Sat Sep  9 18:53:41 2017
 # Assuming we know the alphas (hyperparameters) and variance of targets sigma^2
 # Also assuming conjugate prior with Gaussian Likelihood
 
+# Highlight the differences between Bayes Linear Regression, Bayesian Ridge Rgression and ARD Regression. 
+
 import numpy as np
 import matplotlib.pylab as plt
 import scipy.stats as st
@@ -71,25 +73,26 @@ if __name__ == "__main__":
     
     
    # Sparsity Prior 
-
-
-
-
-
-
-
-
-
-
-
-   from sklearn.neighbors import NearestNeighbors
-   X = np.array([[-1, -1], [-2, -1], [-3, -2], [1, 1], [2, 1], [3, 2]])
-   nbrs = NearestNeighbors(n_neighbors=3, algorithm='ball_tree').fit(X)
-   distances, indices = nbrs.kneighbors(X)
    
-   kde = gaussian_kde(u, bw_method=0.2)
-   density = kde.evaluate(u)
-   plt.plot(u,density)
-   plt.hist(u, normed=True)
-    
+   
+   # Posterior 
+   
+   
+
+
+
+# Bayesian Regression using pymc
+
+import pymc3 as pm
+from scipy.stats import norm
+
+k = 100 #number of data points
+x_data = norm(0,1).rvs(k)
+y_data = x_data + norm(0,0.35).rvs(k) + 0.5
+
+alpha = pm.Uniform(lower=-5, upper=5)
+beta = pm.Uniform(lower=-5, upper=5)
+
+
+
     

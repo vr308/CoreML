@@ -72,7 +72,7 @@ if __name__ == "__main__":
     np.random.seed(rseed)
     
     N = 100
-    noiseToSignal = 0.2
+    noiseToSignal = 0.4
     
     # Uniformly spaced or randomly spaced input data 
     #X = np.matrix(np.random.uniform(-np.pi,np.pi,N)).T
@@ -84,10 +84,11 @@ if __name__ == "__main__":
     
     # Composite function result
     
-    u = np.sort(np.random.uniform(1,20,N))
+    u = np.sort(np.random.uniform(-2,4,N))
     #u = np.linspace(1,20,100)
     X = np.matrix(u).T # Sampling at random locations
-    z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
+    #z = np.matrix(0.5*np.sin(u) + 0.5*u -0.02*(u-5)**2).T
+    z = np.multiply(np.sin(np.power(X,2)),X)
     noise = np.std(z, ddof=1) * noiseToSignal
     Outputs = z + noise*np.random.randn(N,1)
 
@@ -96,7 +97,7 @@ if __name__ == "__main__":
  #  Basis Generation 
  ##################################################################
  
-    bw = 4
+    bw = 2
     BASIS = np.matrix(np.exp(-distSquared(X,X)/(bw**2)))
     
     M = BASIS.shape[1]
@@ -396,3 +397,65 @@ if __name__ == "__main__":
 #    plt.xlim(0, len(PARAMETER['RELEVANT'])+1)
 #    plt.ylim(0, 1.1)
 #    plt.title('Well-determinedness (gamma)',fontsize=TITLE_SIZE)
+
+
+def get_position_consecutive_flips(a):
+    
+    positions = []
+    for i in np.arange(1,len(a)):
+        if ~((a[i-1]*a[i])>0):
+            #print ((a[i-1], a[i]))
+            positions.append((i-1,i))
+    return positions
+
+def get_abscissa_stationary(X,positions):
+    
+    approx_critical_points = []
+    for (i,j) in positions:
+        center_point = np.mean((X[i], X[j]))
+        approx_critical_points.append(center_point)
+    return approx_critical_points
+
+    #deltas = np.diff(Outputs.T).T
+    #delta_o = np.gradient(np.array(Outputs).reshape(N,))
+   # delta_z = np.gradient(np.array(z).reshape(N,))
+    #rolling_var_o = pd.rolling_var(delta_o, 7, min_periods=1, ddof=1)
+#    rolling_var_z = pd.rolling_var(delta_z, 7, min_periods=1, ddof=1)
+#    
+#    plt.plot(X,Outputs,'ko',markersize=2)
+#    plt.plot(X,z)
+#    
+#    plt.plot(X,delta_o)
+#    plt.plot(X,delta_z)
+#    plt.plot(X[1:], rolling_var_z)
+    
+    #X = np.sort(np.random.uniform(-2,4,100))
+    X = np.linspace(-2,4,100)
+    N = 100
+    
+    x = np.multiply(np.sin(np.power(X,2)),X)
+    
+    # First and second derivatives
+    y_first = np.gradient(np.array(x).reshape(N,))
+    y_second = np.gradient(y_first)
+    
+    # Variance of the gradient
+    
+    rvar = pd.rolling_var(y_first, 5, min_periods=1, ddof=1, center=True)
+    
+    plt.figure(figsize=(10,8))
+    plt.plot(X, x, 'b-', label='True function (no noise)')
+    plt.plot(X,x, 'go', markersize=4)
+    plt.plot(X,y_first,  color='orange', label='Gradient')
+    plt.plot(X, y_second, color='cyan', label='Second-order/Curvature')
+    plt.axhline(y=0, color='r')
+    plt.plot(X,rvar, color='m', label='Rolling Variance')
+
+    critical_points = get_abscissa_stationary(X, positions)
+
+    # Plot critical points
+    plt.vlines(x=np.array(critical_points), ymin=min(x) - 1, ymax= max(x) + 1, linestyle='--', alpha=0.4)
+    plt.legend(fontsize='x-small')
+    
+    plt.title('Placement of Basis functions in the 1d case', fontsize='x-small')
+    
