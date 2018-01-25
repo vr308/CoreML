@@ -72,3 +72,5 @@ if __name__ == "__main__":
     # OLS estimator of the noise variance
     
     ols_noise_var = np.sum(np.square(fitted-y_noise))/(len(x) - 4)
+    
+    #4 is the number of regressors

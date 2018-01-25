@@ -9,6 +9,7 @@ Created on Thu Dec  7 16:52:19 2017
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+import seaborn as sns
 import pymc3 as pm
 np.random.seed(123)
 
