@@ -7,86 +7,68 @@ Created on Mon Sep  4 18:03:56 2017
 """
 
 import numpy as np
-import numdifftools as ndt
 import matplotlib.pylab as plt
 import scipy.stats as st
 import scipy.optimize as so
 import statsmodels.api as smt
 import pandas as pd
-from statsmodels.sandbox.regression.predstd import wls_prediction_std
-from statsmodels.base.model import GenericLikelihoodModel
+import numdifftools as ndt
 
 # Prediction Interval under maximum likelihood is same as in Least Squares.
 
-def log_likelihood(params, x, y_noise):
+def neg_log_like(params):
     
-    slope = params[0]
-    intercept = params[1]
-    noise_var = params[2]
-    fitted = x.dot(slope) + intercept
-    l = np.sum(st.norm.logpdf(y_noise, loc=fitted, scale= noise_var))
-    return l
-
-def _ll_ols(y, X, beta, sigma):
-    mu = X.dot(beta)
-    return st.norm(mu,sigma).logpdf(y).sum()
-
-def log_likelihood_matrix(params, X, y_noise):
-    
-    noise_var = params[-1]
+    sigma = params[-1]
     fitted = X.dot(params[:-1])
-    l = -np.sum(st.norm.logpdf(y_noise, loc=fitted, scale= noise_var))
+    l = -np.sum(st.norm.logpdf(y_noise, loc=fitted, scale=sigma))
     return l
-
-class MyOLS(GenericLikelihoodModel):
-    def __init__(self, endog, exog, **kwds):
-        super(MyOLS, self).__init__(endog, exog, **kwds)
-    def nloglikeobs(self, params):
-	#sigma = params[-1]
-	#beta = params[:-1]
-	ll = log_likelihood(params, self.exog, self.endog)
-    #ll = log_likelihood_matix(params, self.exog, self.endog)
-	return -ll
-    def fit(self, start_params=None, maxiter=10000, maxfun=5000, **kwds):
-	# we have one additional parameter and we need to add it for summary
-	self.exog_names.append('sigma')
-	if start_params == None:
-	    # Reasonable starting values
-	    #start_params = np.append([0.5,-0.05,0.5], 1)
-            start_params = np.append([1,1], 1)
-	return super(MyOLS, self).fit(start_params=start_params,
-				     maxiter=maxiter, maxfun=maxfun,
-				     **kwds)
-
-    #Hfun = ndt.Hessian(log_likelihood_matrix(initial, X, y_noise), full_output=True)
-    #hessian_ndt, info = Hfun(results.x)
   
+def calcMLE_coefs(X,y_noise):
+        
+    X_plus = np.linalg.inv(np.dot(X.T,X)).dot(X.T)
+    return np.dot(X_plus,y_noise)
+        
     
 if __name__ == "__main__":
     
     x = np.linspace(1,20,100)
     y_true = 0.5*np.sin(x) + 0.5*x + -0.02*(x-5)**2
-    y_noise = y_true + 0.2*np.std(y_true)*np.random.normal(0,1,100)
-    X = smt.add_constant(x)
-    
-    # Fit a line, one regressor - maximum likelihood method
-    
-    initial = [1,1,1]
-    results = so.minimize(log_likelihood, initial, args=(x,y_noise))
-    print results.x
+    y_noise = y_true + 0.2*np.std(y_true)*np.random.normal(0,1,100)    
     
     # Fit a curve, multiple regressors
     initial = [0.5,-0.05,0.5,1,1]
-    X = np.vstack([x**3, x**2, x, np.ones(len(x))]).T
-    results = so.minimize(log_likelihood_matrix, initial, args=(X, y_noise))
+    X = np.vstack([np.sin(x), x**2, x, np.ones(len(x))]).T
+    
+    mle_coefs = calcMLE_coefs(X, y_noise)
+    
+    # Least squares coefs to verify (they should match)
+    
+    lsq_coefs = np.linalg.lstsq(X,y_noise)[0]
+        
+    results = so.minimize(neg_log_like, initial, method = 'Nelder-Mead', options={'disp': True})
     results.x
     
-    Xframe = pd.DataFrame({'x3':x**3, 'x2': x**2, 'x1': x, 'const': np.ones(len(x))})
+    Hfun = ndt.Hessian(neg_log_like, full_output=True)
+    hessian_ndt, info = Hfun(results['x'])
+    se = np.sqrt(np.diag(np.linalg.inv(hessian_ndt)))
+    results = pd.DataFrame({'parameters':results['x'],'std err':se})
+    results.index=['coef1','coef2','coef3','coef4','Sigma']   
+    results.head()
     
-    ll_manual = MyOLS(y_noise, Xframe[['x1', 'const']]).fit()
-    ll_manual.summary()
-    
+    fitted = np.dot(X,mle_coefs)
+
+    # Plotting the data
+
     plt.figure()
     plt.plot(x, y_true)
     plt.scatter(x, y_noise, s=4)
     plt.plot(x, fitted)
+    
+    # just check if the standard errors from 
+    # MLE estimator of the noise variance sigma^2
+    
+    mle_noise_var = np.sum(np.square(fitted-y_noise))/len(x)
+    
+    # OLS estimator of the noise variance
+    
+    ols_noise_var = np.sum(np.square(fitted-y_noise))/(len(x) - 4)
