@@ -9,7 +9,7 @@ import matplotlib.pylab as plt
 import scipy.stats as st
 import GPy as gp
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as C
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck
 
 
 M = 3
@@ -123,8 +123,8 @@ y = f(X).ravel()
 # its MSE
 x = np.atleast_2d(np.linspace(0, 10, 1000)).T
 
-# Instanciate a Gaussian Process model
-kernel = RBF(length_scale=1.5)
+# Instansiate a Gaussian Process model
+kernel = RBF(length_scale=0.2)
 gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
 
 # Fit to data using Maximum Likelihood Estimation of the parameters

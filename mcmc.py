@@ -41,7 +41,8 @@ def sampler(data, samples=4, mu_init=0.5, proposal_width=0.5, mu_prior_mu =0, mu
     posterior = [0.1]
     for i in range(samples):
         
-        # suggest a new position
+        # suggest a new position. This function generates a variate from a normal distribution
+        # with  mean / sd = mu_current , proposal_width 
         mu_proposal = norm(mu_current, proposal_width).rvs()
     
         likelihood_current = norm(mu_current, 1).pdf(data).prod()
