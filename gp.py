@@ -10,6 +10,8 @@ import scipy.stats as st
 import GPy as gp
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck
+from matplotlib import cm
+import matplotlib as mpl
 
 
 M = 3
@@ -103,7 +105,6 @@ m.plot()
 plt.title('lengthscale=0.2')
 print(m)
 
-
 # Sklearn version of GPs
 
 # Noise-less case
@@ -112,57 +113,89 @@ def f(x):
     """The function to predict."""
     return x * np.sin(x)
 
-# ----------------------------------------------------------------------
-#  First the noiseless case
+def plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr):
+    
+    #x_, y_upper, y_lower = get_max_entropy(sigma, x, y_pred)
+    
+    #y_space = np.linspace(y_lower, y_upper, 1000)
+    
+    y_upper = y_pred + 2*sigma
+    y_lower = y_pred - 2*sigma
+    z = y_upper - y_lower  
+    
+    cmap = cm.get_cmap('autumn')
+    x_array = x.reshape(len(y_pred),)
+    
+    plt.figure()
+    plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
+    plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
+    plt.plot(x, y_pred, 'b-', label=u'Prediction')
+  #  plt.fill(np.concatenate([x, x[::-1]]),
+  #           np.concatenate([y_pred - 2*sigma,
+  #                          (y_pred + 2*sigma)[::-1]]),
+  #           alpha=.4, fc=cm.get_cmap('jet'), ec='None', label='2 $\sigma$')
+    
+    normalize = mpl.colors.Normalize(vmin = z.min(), vmax=z.max())
+    for i in range(999):
+        plt.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])))
+    plt.fill_between(x_, y_lower, y_upper, color = 'r', alpha=0.5)
+    plt.plot(x, gpr.sample_y(x, 10), alpha=0.5, linewidth=0.5)
+    plt.xlabel('$x$')
+    plt.ylabel('$f(x)$')
+    plt.ylim(-10, 20)
+    plt.legend(loc='upper left')
+    plt.title(title)
+    
+def get_max_entropy(sigma, x, y_pred):
+    
+    pos_max_sigma = np.where(sigma == np.max(sigma))
+    x_ = x[pos_max_sigma].reshape(len(pos_max_sigma[0]),)
+    sigma_ = sigma[pos_max_sigma]
+    y_pred_ = y_pred[pos_max_sigma]
+    y_upper = y_pred_ + 2*sigma_
+    y_lower = y_pred_ - 2*sigma_
+    return x_, y_upper.T, y_lower.T
+    
+    
+#  First the noiseless case # ----------------------------------------------------------------------
+
 X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
+X = np.atleast_2d([5.,8.0]).T 
 
 # Observations
 y = f(X).ravel()
 
-# Mesh the input space for evaluations of the real function, the prediction and
-# its MSE
+# Mesh the input space for evaluations of the real function.
+
 x = np.atleast_2d(np.linspace(0, 10, 1000)).T
 
 # Instansiate a Gaussian Process model
-kernel = RBF(length_scale=0.2)
-gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=0)
+kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
+gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2, optimizer=None)
 
 # Fit to data using Maximum Likelihood Estimation of the parameters
 gpr.fit(X, y)
 
 # Make the prediction on the meshed x-axis (ask for MSE as well)
-y_pred, sigma = gpr.predict(x, return_std=True)
+y_pred, sigma = gpr.predict(x, return_std = True)
+sigma = np.round(sigma, 2)
 
-# Plot the function, the prediction and the 95% confidence interval based on
-# the MSE
-fig = plt.figure()
-plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
-plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
-plt.plot(x, y_pred, 'b-', label=u'Prediction')
-plt.fill(np.concatenate([x, x[::-1]]),
-         np.concatenate([y_pred - 1.9600 * sigma,
-                        (y_pred + 1.9600 * sigma)[::-1]]),
-         alpha=.5, fc='b', ec='None', label='95% confidence interval')
-plt.xlabel('$x$')
-plt.ylabel('$f(x)$')
-plt.ylim(-10, 20)
-plt.legend(loc='upper left')
+title = 'GP Regression with 2 training points'
+plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr)
 
-
-
-# Noisy case
+# Noisy case ##-----------------------------------------------------------------
 
 X = np.linspace(0.1, 9.9, 10)
 X = np.atleast_2d(X).T
 
-#kernel = RBF(length_scale=1.2)
+X = np.atleast_2d([5.4,2.8]).T
+
 y = f(X).ravel()
 dy = 0.5 + 1.0 * np.random.random(y.shape)
 noise = np.random.normal(0, dy)
 y += noise
 
-
-kernel = C(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
+kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
 gpr = GaussianProcessRegressor(kernel=kernel, alpha=(dy / y) ** 2, optimizer=None)
 
 # Fit to data using Maximum Likelihood Estimation of the parameters
@@ -170,32 +203,23 @@ gpr.fit(X, y)
 
 # Make the prediction on the meshed x-axis (ask for MSE as well)
 y_pred, sigma = gpr.predict(x, return_std=True)
+sigma = np.round(sigma, 2)
 
-# Plot the function, the prediction and the 95% confidence interval based on
-# the MSE
-fig = plt.figure()
-plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
-plt.scatter(X.ravel(), y, color='r', label=u'Observations')
-plt.plot(x, y_pred, 'b-', label=u'Mean Prediction')
-plt.fill(np.concatenate([x, x[::-1]]),
-         np.concatenate([y_pred - 1.9600 * sigma,
-                        (y_pred + 1.9600 * sigma)[::-1]]),
-         alpha=.5, fc='b', ec='None', label='95% confidence interval')
-#plt.fill(np.concatenate([x, x[::-1]]),
-#         np.concatenate([y_pred - sigma.diagonal(),
-#                        (y_pred + sigma.diagonal())[::-1]]),
-#         alpha=.5, fc='b', ec='None', label='Variance')
-plt.xlabel('$x$')
-plt.ylabel('$f(x)$')
-plt.ylim(-10, 20)
-plt.legend(loc='upper left')
+title = 'GP Regression with 2 training points'
+plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr)
 
 
-fig = plt.figure()
-plt.plot(x, gpr.sample_y(x, 100), alpha=0.5)
-plt.plot(x, y_pred, 'k--', label=u'Mean Prediction')
-plt.scatter(X.ravel(), y, color='r', label=u'Observations', zorder=3)
-plt.title('100 Samples from the posterior distribution')
-plt.legend()
 
-plt.title('lengthscale=0.2')
+
+
+
+
+
+
+
+
+
+
+
+
+
