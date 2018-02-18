@@ -113,75 +113,85 @@ def f(x):
     """The function to predict."""
     return x * np.sin(x)
 
-def plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr):
-    
-    #x_, y_upper, y_lower = get_max_entropy(sigma, x, y_pred)
-    
-    #y_space = np.linspace(y_lower, y_upper, 1000)
+def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr):
     
     y_upper = y_pred + 2*sigma
     y_lower = y_pred - 2*sigma
     z = y_upper - y_lower  
     
-    cmap = cm.get_cmap('autumn')
+    cmap = cm.get_cmap('viridis')
     x_array = x.reshape(len(y_pred),)
     
     plt.figure()
     plt.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
     plt.plot(X, y, 'r.', markersize=10, label=u'Observations')
     plt.plot(x, y_pred, 'b-', label=u'Prediction')
-  #  plt.fill(np.concatenate([x, x[::-1]]),
-  #           np.concatenate([y_pred - 2*sigma,
-  #                          (y_pred + 2*sigma)[::-1]]),
-  #           alpha=.4, fc=cm.get_cmap('jet'), ec='None', label='2 $\sigma$')
-    
     normalize = mpl.colors.Normalize(vmin = z.min(), vmax=z.max())
     for i in range(999):
-        plt.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])))
-    plt.fill_between(x_, y_lower, y_upper, color = 'r', alpha=0.5)
+        plt.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])), alpha=0.7)
     plt.plot(x, gpr.sample_y(x, 10), alpha=0.5, linewidth=0.5)
+    plt.errorbar(knots, y_pred_knots, yerr= sigma_knots*2, barsabove=True, ls='None', marker='s', capsize=10, color='orange')
     plt.xlabel('$x$')
     plt.ylabel('$f(x)$')
     plt.ylim(-10, 20)
     plt.legend(loc='upper left')
-    plt.title(title)
+    plt.title(title, fontsize='small')
     
 def get_max_entropy(sigma, x, y_pred):
     
-    pos_max_sigma = np.where(sigma == np.max(sigma))
-    x_ = x[pos_max_sigma].reshape(len(pos_max_sigma[0]),)
-    sigma_ = sigma[pos_max_sigma]
-    y_pred_ = y_pred[pos_max_sigma]
-    y_upper = y_pred_ + 2*sigma_
-    y_lower = y_pred_ - 2*sigma_
-    return x_, y_upper.T, y_lower.T
-    
-    
+    pos_max_sigma = np.where(sigma == np.max(sigma))[0]
+    if len(pos_max_sigma) > 1:
+        x_ = x[pos_max_sigma].reshape(len(pos_max_sigma),)
+        if np.where(np.diff(pos_max_sigma) > 1)[0].size > 0:
+            print('There are more than 1 regions of max entropy, identifying the centers of each region')
+            break_points = np.where(np.diff(pos_max_sigma) > 1)[0]
+            regions = np.split(x_,break_points+1)
+            return [np.median(k) for k in regions]
+        else:
+            print('There is 1 region of max entropy, returning its center')
+            return np.median(x[pos_max_sigma])
+    else:
+        print('There is one distinct point of highest variance')
+        return x[pos_max_sigma]
+        
 #  First the noiseless case # ----------------------------------------------------------------------
 
 X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
-X = np.atleast_2d([5.,8.0]).T 
 
-# Observations
-y = f(X).ravel()
 
-# Mesh the input space for evaluations of the real function.
+i = 0
+seq_ = [3.4]
+while i < 5:
 
-x = np.atleast_2d(np.linspace(0, 10, 1000)).T
+    X = np.atleast_2d(seq_).T 
+    
+    # Observations
+    y = f(X).ravel()
+    
+    # Mesh the input space for evaluations of the real function
+    x = np.atleast_2d(np.linspace(0, 10, 1000)).T
+    
+    # Instansiate a Gaussian Process model
+    kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2, optimizer=None)
+    
+    # Fit to data using Maximum Likelihood Estimation of the parameters
+    gpr.fit(X, y)
+    
+    # Make the prediction on the meshed x-axis 
+    y_pred, sigma = gpr.predict(x, return_std = True)
+    sigma = np.round(sigma, 2)
+    
+    # Predict on the knots
+    knots = get_max_entropy(sigma, x, y_pred)
+    y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
+    
+    title = 'GP Regression ' + 'Iteration ' + str(i)
+    plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
+    
+    i = i + 1
+    seq_ = seq_ + knots
 
-# Instansiate a Gaussian Process model
-kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
-gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2, optimizer=None)
-
-# Fit to data using Maximum Likelihood Estimation of the parameters
-gpr.fit(X, y)
-
-# Make the prediction on the meshed x-axis (ask for MSE as well)
-y_pred, sigma = gpr.predict(x, return_std = True)
-sigma = np.round(sigma, 2)
-
-title = 'GP Regression with 2 training points'
-plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr)
 
 # Noisy case ##-----------------------------------------------------------------
 
