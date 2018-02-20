@@ -136,6 +136,7 @@ def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots
     plt.ylim(-10, 20)
     plt.legend(loc='upper left')
     plt.title(title, fontsize='small')
+    plt.annotate('Knots at ' + knots)
     
 def get_max_entropy(sigma, x, y_pred):
     
@@ -149,7 +150,7 @@ def get_max_entropy(sigma, x, y_pred):
             return [np.median(k) for k in regions]
         else:
             print('There is 1 region of max entropy, returning its center')
-            return np.median(x[pos_max_sigma])
+            return [np.median(x[pos_max_sigma])]
     else:
         print('There is one distinct point of highest variance')
         return x[pos_max_sigma]
@@ -186,12 +187,13 @@ while i < 5:
     knots = get_max_entropy(sigma, x, y_pred)
     y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
     
-    title = 'GP Regression ' + 'Iteration ' + str(i)
+    title = 'GP Regression ' + 'Iteration ' + str(i+1)
     plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
     
     i = i + 1
     seq_ = seq_ + knots
 
+    
 
 # Noisy case ##-----------------------------------------------------------------
 
