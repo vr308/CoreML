@@ -136,7 +136,7 @@ def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots
     plt.ylim(-10, 20)
     plt.legend(loc='upper left')
     plt.title(title, fontsize='small')
-    plt.annotate('Knots at ' + knots)
+    #plt.annotate('Knots at ' + str(knots), xy=[5,8])
     
 def get_max_entropy(sigma, x, y_pred):
     
@@ -147,53 +147,82 @@ def get_max_entropy(sigma, x, y_pred):
             print('There are more than 1 regions of max entropy, identifying the centers of each region')
             break_points = np.where(np.diff(pos_max_sigma) > 1)[0]
             regions = np.split(x_,break_points+1)
-            return [np.median(k) for k in regions]
+            return [np.round(np.median(k),2) for k in regions]
         else:
             print('There is 1 region of max entropy, returning its center')
-            return [np.median(x[pos_max_sigma])]
+            return [np.round(np.median(x[pos_max_sigma]),2)]
     else:
         print('There is one distinct point of highest variance')
-        return x[pos_max_sigma]
+        return [np.round(np.median(x[pos_max_sigma]),2)]
+    
+    
+def plot_mle_trace(mle_trace, mean_mle_trace):
+    
+    plt.figure()
+    plt.title('Negative MLE Trace', fontsize='small')
+    plt.plot(mle_trace,label='Greedy Centers')
+    plt.plot(mean_mle_trace, label = 'Uniform Centers')
+    plt.legend(fontsize='small')
         
 #  First the noiseless case # ----------------------------------------------------------------------
 
 X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
 
-
-i = 0
-seq_ = [3.4]
-while i < 5:
-
-    X = np.atleast_2d(seq_).T 
+mle_traces = []
+for k in range(1,20):
     
-    # Observations
+    i = 0
+    seq_ = [2]
+    mle_trace = []
     y = f(X).ravel()
+    dy = 0.2 + 1.0 * np.random.random(y.shape)
+    noise = np.random.normal(0, dy)
+    y += noise
+    while i < 5:
     
-    # Mesh the input space for evaluations of the real function
-    x = np.atleast_2d(np.linspace(0, 10, 1000)).T
-    
-    # Instansiate a Gaussian Process model
-    kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
-    gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2, optimizer=None)
-    
-    # Fit to data using Maximum Likelihood Estimation of the parameters
-    gpr.fit(X, y)
-    
-    # Make the prediction on the meshed x-axis 
-    y_pred, sigma = gpr.predict(x, return_std = True)
-    sigma = np.round(sigma, 2)
-    
-    # Predict on the knots
-    knots = get_max_entropy(sigma, x, y_pred)
-    y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
-    
-    title = 'GP Regression ' + 'Iteration ' + str(i+1)
-    plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
-    
-    i = i + 1
-    seq_ = seq_ + knots
+        X = np.atleast_2d(seq_).T 
+        
+        # Observations
+     
+        
+        # Mesh the input space for evaluations of the real function
+        x = np.atleast_2d(np.linspace(0, 10, 1000)).T
+        
+        # Instansiate a Gaussian Process model
+        kernel = Ck(1.0, (1e-3, 1e3)) * RBF(2, (1e-2, 1e2))
+        gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2,optimizer=None)
+        
+        # Fit to data using Maximum Likelihood Estimation of the parameters
+        gpr.fit(X, y)
+        mle_trace.append(gpr.log_marginal_likelihood_value_)
+        
+        # Make the prediction on the meshed x-axis 
+        y_pred, sigma = gpr.predict(x, return_std = True)
+        sigma = np.round(sigma, 2)
+        
+        # Predict on the knots
+        #knots = get_max_entropy(sigma, x, y_pred)
+        knots = np.random.uniform(0,10,1)
+        knots = [knots]
+        y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
+        
+        title = 'GP Regression ' + 'Iteration ' + str(i+1)
+        plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
+        
+        i = i + 1
+        seq_ = seq_ + knots
+        
+        #print(knots)
+        #print(seq_)
+        
+    mle_traces.append(mle_trace)
 
+mean_mle_trace = [np.mean(j) for j in np.asarray(mle_traces).T]
     
+plot_mle_trace(var_mle_trace, mean_mle_trace) 
+
+
+
 
 # Noisy case ##-----------------------------------------------------------------
 
