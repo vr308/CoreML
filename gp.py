@@ -164,9 +164,9 @@ def plot_mle_trace(mle_trace, mean_mle_trace):
     plt.plot(mean_mle_trace, label = 'Uniform Centers')
     plt.legend(fontsize='small')
         
-#  First the noiseless case # ----------------------------------------------------------------------
+#  The noiseless / noisy case # ----------------------------------------------------------------------
 
-X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
+#X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
 
 mle_traces = []
 for k in range(1,20):
@@ -174,16 +174,15 @@ for k in range(1,20):
     i = 0
     seq_ = [2]
     mle_trace = []
-    y = f(X).ravel()
-    dy = 0.2 + 1.0 * np.random.random(y.shape)
+    dy = 0.2 + 1.0 * np.random.random(40)
     noise = np.random.normal(0, dy)
-    y += noise
-    while i < 5:
+    while i < 30:
     
         X = np.atleast_2d(seq_).T 
         
         # Observations
-     
+    
+        y = f(seq_).ravel() + noise[0:len(X)]
         
         # Mesh the input space for evaluations of the real function
         x = np.atleast_2d(np.linspace(0, 10, 1000)).T
@@ -193,6 +192,7 @@ for k in range(1,20):
         gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
+        
         gpr.fit(X, y)
         mle_trace.append(gpr.log_marginal_likelihood_value_)
         
@@ -207,7 +207,7 @@ for k in range(1,20):
         y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
         
         title = 'GP Regression ' + 'Iteration ' + str(i+1)
-        plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
+        #plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
         
         i = i + 1
         seq_ = seq_ + knots
@@ -219,6 +219,7 @@ for k in range(1,20):
 
 mean_mle_trace = [np.mean(j) for j in np.asarray(mle_traces).T]
     
+mle_trace = var_mle_trace
 plot_mle_trace(var_mle_trace, mean_mle_trace) 
 
 
