@@ -9,7 +9,6 @@ The main difference between Ridge and ARD is in the specification of individual 
 The sklearn implementation assumes gamma priors over the hyperparameters and infers both precision of weights and 
 precision of the noise variance through maximization over the marginal likelihood.  
 
-
 """
 from sklearn import linear_model
 import matplotlib.pylab as plt
@@ -46,9 +45,9 @@ if __name__ == "__main__":
     design_matrix = gaussian_kernel_matrix(x,x)
     #plt.plot(x,design_matrix)
 
-    #Ridge example
+    # Ridge example
 
-    base_model_ridge = linear_model.BayesianRidge(verbose=True, compute_score=True)
+    base_model_ridge = linear_model.BayesianRidge(n_iter=1,verbose=True, compute_score=True)
     fitted_model_ridge = base_model_ridge.fit(design_matrix,y_noise)
     
     # ARD example
@@ -105,32 +104,36 @@ if __name__ == "__main__":
     plt.hlines(y=0, xmin=0,xmax=100)
     plt.suptitle('Weights under Ridge and ARD', fontsize='small')
     
-#    # Cross-checking ridge regression
-#    
-#    #noise_variance = np.var(y_noise)
-#    #beta = 1/noise_variance
-#    beta = fitted_model_ridge.alpha_
-#    alpha = fitted_model_ridge.lambda_
-#    
-#    # Weight prior 
-#    
-#    mu_w_prior = np.zeros(100)
-#    sigma_w_prior = np.matrix(np.identity(100))
-#    
-#    # Weight posterior
-#    
-#    sigma_w_posterior = np.linalg.inv(np.add(np.multiply(1,sigma_w_prior),np.multiply(1/np.var(y_noise),np.matmul(design_matrix.T, design_matrix))))
-#    mu_w = np.multiply(beta, np.matmul(sigma_w_posterior,np.matmul(design_matrix.T, y_noise)))
-#    
-#    # From the sklearn version
-#    
-#    
-#    
-#    # Predictive distribution
-#    
-#    y_pred_mean = np.matmul(mu_w.T, design_matrix_test)
-#    y_pred_variance = 1.0/beta + np.matmul(design_matrix_test.T, sigma_w_posterior)    
-#    
+    # Cross-checking ridge regression
+    
+    noise_variance = np.var(y_noise)
+    beta = 1/noise_variance
+    #beta = fitted_model_ridge.alpha_
+    #alpha = fitted_model_ard.lambda_
+    
+    # Weight prior 
+    
+    from scipy.stats import gamma
+    
+    mu_w_prior = np.zeros(100)
+    sigma_w_prior = np.matrix(np.identity(100))
+    
+    # Weight posterior
+    
+    sigma_w_posterior = np.linalg.inv(np.linalg.inv(sigma_w_prior) + np.multiply(beta,np.dot(design_matrix.T, design_matrix)))
+    mu_w = sigma_w_posterior.dot(beta*np.dot(design_matrix.T, y_noise))
+        
+    # Predictive distribution
+    
+    design_matrix_test = gaussian_kernel_matrix(x_line,x)
+    y_pred_mean = design_matrix_test.dot(mu_w)
+    y_pred_variance = 1.0/beta + np.matmul(design_matrix_test.T, sigma_w_posterior)    
+    
+    plt.figure()
+    plt.plot(x,y_true, 'b')
+    plt.plot(x_line, y_line_ridge)
+    plt.plot(x_line, y_pred_mean)
+    
     
     
 

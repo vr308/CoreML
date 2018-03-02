@@ -10,7 +10,6 @@ import scipy.stats as st
 import matplotlib.pylab as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-
 def f(x, y):
     z = np.column_stack([x.ravel(), y.ravel()])
     return (0.1*st.multivariate_normal([0,0], 1*np.eye(2)).pdf(z) +

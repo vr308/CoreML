@@ -33,7 +33,7 @@ plt.xlabel('mu')
 plt.ylabel('belief') 
 plt.title('Analytical posterior')
 
-# MCMC part
+# MCMC Metropolis Sampler for mu
 
 def sampler(data, samples=4, mu_init=0.5, proposal_width=0.5, mu_prior_mu =0, mu_prior_sd=1.0):
     
@@ -70,9 +70,16 @@ def sampler(data, samples=4, mu_init=0.5, proposal_width=0.5, mu_prior_mu =0, mu
 
 
 pos = sampler(data, 1000, 0, 1)
-plt.hist(pos, bins=100, normed=True)
 
-# With Pymc3
+
+def plot_posterior_result(posterior, analytical):
+    
+    plt.figure()
+    plt.hist(posterior, bins=100, normed=True)
+    plt.plot(analytical)
+
+
+# Pymc3 Metropolis
 
 with pm.Model():
     mu = pm.Normal('mu', 0, 1)

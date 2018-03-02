@@ -113,7 +113,7 @@ def f(x):
     """The function to predict."""
     return x * np.sin(x)
 
-def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr):
+def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr, entropy):
     
     y_upper = y_pred + 2*sigma
     y_lower = y_pred - 2*sigma
@@ -130,10 +130,11 @@ def plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots
     for i in range(999):
         plt.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])), alpha=0.7)
     plt.plot(x, gpr.sample_y(x, 10), alpha=0.5, linewidth=0.5)
-    plt.errorbar(knots, y_pred_knots, yerr= sigma_knots*2, barsabove=True, ls='None', marker='s', capsize=10, color='orange')
+    if entropy:
+        plt.errorbar(knots, y_pred_knots, yerr=sigma_knots*2, barsabove=True, ls='None', marker='s', capsize=10, color='orange')
     plt.xlabel('$x$')
     plt.ylabel('$f(x)$')
-    plt.ylim(-10, 20)
+    plt.ylim(-20, 20)
     plt.legend(loc='upper left')
     plt.title(title, fontsize='small')
     #plt.annotate('Knots at ' + str(knots), xy=[5,8])
@@ -168,94 +169,78 @@ def plot_mle_trace(mle_trace, mean_mle_trace):
 
 #X = np.atleast_2d([1., 3., 5., 6., 7., 8.]).T
 
-mle_traces = []
-for k in range(1,20):
-    
-    i = 0
-    seq_ = [2]
-    mle_trace = []
-    dy = 0.2 + 1.0 * np.random.random(40)
-    noise = np.random.normal(0, dy)
-    while i < 30:
-    
-        X = np.atleast_2d(seq_).T 
-        
-        # Observations
-    
-        y = f(seq_).ravel() + noise[0:len(X)]
-        
-        # Mesh the input space for evaluations of the real function
-        x = np.atleast_2d(np.linspace(0, 10, 1000)).T
-        
-        # Instansiate a Gaussian Process model
-        kernel = Ck(1.0, (1e-3, 1e3)) * RBF(2, (1e-2, 1e2))
-        gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2,optimizer=None)
-        
-        # Fit to data using Maximum Likelihood Estimation of the parameters
-        
-        gpr.fit(X, y)
-        mle_trace.append(gpr.log_marginal_likelihood_value_)
-        
-        # Make the prediction on the meshed x-axis 
-        y_pred, sigma = gpr.predict(x, return_std = True)
-        sigma = np.round(sigma, 2)
-        
-        # Predict on the knots
-        #knots = get_max_entropy(sigma, x, y_pred)
-        knots = np.random.uniform(0,10,1)
-        knots = [knots]
-        y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
-        
-        title = 'GP Regression ' + 'Iteration ' + str(i+1)
-        #plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr)
-        
-        i = i + 1
-        seq_ = seq_ + knots
-        
-        #print(knots)
-        #print(seq_)
-        
-    mle_traces.append(mle_trace)
 
-mean_mle_trace = [np.mean(j) for j in np.asarray(mle_traces).T]
-    
-mle_trace = var_mle_trace
-plot_mle_trace(var_mle_trace, mean_mle_trace) 
-
-
-
-
-# Noisy case ##-----------------------------------------------------------------
-
-X = np.linspace(0.1, 9.9, 10)
-X = np.atleast_2d(X).T
-
-X = np.atleast_2d([5.4,2.8]).T
-
-y = f(X).ravel()
-dy = 0.5 + 1.0 * np.random.random(y.shape)
+i = 0
+seq_ = [4]
+dy = 0.2 + 1.0 * np.random.random(40)
 noise = np.random.normal(0, dy)
-y += noise
+while i < 7:
 
-kernel = Ck(1.0, (1e-3, 1e3)) * RBF(0.97, (1e-2, 1e2))
-gpr = GaussianProcessRegressor(kernel=kernel, alpha=(dy / y) ** 2, optimizer=None)
+    X = np.atleast_2d(seq_).T 
+    
+    # Observations
 
-# Fit to data using Maximum Likelihood Estimation of the parameters
-gpr.fit(X, y)
+    y = f(seq_).ravel() + noise[0:len(X)]
+    
+    # Mesh the input space for evaluations of the real function
+    x = np.atleast_2d(np.linspace(0, 20, 1000)).T
+    
+    # Instansiate a Gaussian Process model
+    kernel = Ck(1.0, (1e-3, 1e3)) * RBF(1, (1e-2, 1e2))
+    gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2,optimizer=None)
+    
+    # Fit to data using Maximum Likelihood Estimation of the parameters
+    gpr.fit(X, y)        
+    # Make the prediction on the meshed x-axis 
+    y_pred, sigma = gpr.predict(x, return_std = True)
+    sigma = np.round(sigma, 2)
+    
+    # Predict on the knots
+    knots = get_max_entropy(sigma, x, y_pred)
+    #knots = np.random.uniform(0,10,1)
+    #knots = knots_grid[i] 
+    #knots = [knots]
+    y_pred_knots, sigma_knots = gpr.predict(np.atleast_2d(knots).T, return_std = True)
+    
+    title = 'GP Regression ' + 'Iteration ' + str(i+1)
+    #plot_gp_fit_predict(X, x, y, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr, True)
+    
+    i = i + 1
+    seq_ = seq_ + knots
+    
+    #if len(seq_) > 7:
+    #    break;
+        
 
-# Make the prediction on the meshed x-axis (ask for MSE as well)
-y_pred, sigma = gpr.predict(x, return_std=True)
-sigma = np.round(sigma, 2)
 
-title = 'GP Regression with 2 training points'
-plot_gp_fit_predict(X, x, y, y_pred, sigma, title, gpr)
+# Train a GP on a grid on points / on uniformly distributed sample in the range of X.
+
+X = np.atleast_2d(np.random.uniform(0,20,10)).T
+X = np.atleast_2d(np.arange(0,20,2)).T
+
+dy = 0.2 + 1.0 * np.random.random(len(X))
+noise = np.random.normal(0, dy)
+y = f(X).ravel() + noise
+
+# Instansiate a Gaussian Process model
+
+kernel = Ck(1.0, (1e-3, 1e3)) * RBF(1, (1e-2, 1e2))
+gpr = GaussianProcessRegressor(kernel=kernel, alpha=1e-2,optimizer=None)
+
+# Fit to data
+ 
+gpr.fit(X, y)        
+
+# Predict on the full x-axis
+
+x = np.atleast_2d(np.linspace(0, 20, 1000)).T
+y_pred, sigma = gpr.predict(x, return_std = True)
 
 
+title = 'GP Regression on evenly spaced knots'
 
-
-
-
-
+title = 'GP Regression on randomly sampled knots'
+plot_gp_fit_predict(X, x, y, y_pred, sigma, None, None, None, title, gpr, False)
 
 
 
