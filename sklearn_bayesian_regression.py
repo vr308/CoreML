@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     # Ridge example
 
-    base_model_ridge = linear_model.BayesianRidge(n_iter=1,verbose=True, compute_score=True)
+    base_model_ridge = linear_model.BayesianRidge(n_iter=10,verbose=True, compute_score=True)
     fitted_model_ridge = base_model_ridge.fit(design_matrix,y_noise)
     
     # ARD example
@@ -117,6 +117,9 @@ if __name__ == "__main__":
     
     mu_w_prior = np.zeros(100)
     sigma_w_prior = np.matrix(np.identity(100))
+    
+    # Convergence loop to optimize alpha (weight precision) and beta (noise precision)
+    
     
     # Weight posterior
     

@@ -131,6 +131,7 @@ class BayesianRidge():
         U, S, Vh = linalg.svd(X, full_matrices=False)
         eigen_vals_ = S ** 2
 
+        coef_trajectory = []
         # Convergence loop of the bayesian ridge regression
         for iter_ in range(self.n_iter):
 
@@ -168,7 +169,6 @@ class BayesianRidge():
             alpha_ = ((n_samples - gamma_ + 2 * alpha_1) /
                       (rmse_ + 2 * alpha_2))
 
-
             # Compute the objective function
             if self.compute_score:
                 s = lambda_1 * log(lambda_) - lambda_2 * lambda_
@@ -176,11 +176,12 @@ class BayesianRidge():
                 s += 0.5 * (n_features * log(lambda_) +
                             n_samples * log(alpha_) -
                             alpha_ * rmse_ -
-                            (lambda_ * np.sum(coef_ ** 2)) -
+                            (lambda_ * np.sum(coef_ ** 2)) +
                             logdet_sigma_ -
                             n_samples * log(2 * np.pi))
                 self.scores_.append(s)
 
+            coef_trajectory.append(coef_)
             # Check for convergence
             if iter_ != 0 and np.sum(np.abs(coef_old_ - coef_)) < self.tol:
                 if verbose:
@@ -192,9 +193,8 @@ class BayesianRidge():
         sigma_ = np.dot(Vh.T,
                         Vh / (eigen_vals_ + self.lambda_ / self.alpha_)[:, np.newaxis])
         self.sigma_ = (1. / self.alpha_) * sigma_
-
         #self._set_intercept(X_offset_, y_offset_, X_scale_)
-        return self
+        return self, coef_trajectory
 
     def predict(self, X, return_std=False):
         """Predict using the linear model.
@@ -222,9 +222,7 @@ class BayesianRidge():
             sigmas_squared_data = (np.dot(X, self.sigma_) * X).sum(axis=1)
             y_std = np.sqrt(sigmas_squared_data + (1. / self.alpha_))
             return y_mean, y_std
-
-
-
-
-br = BayesianRidge(n_iter=1)
-br.fit(design_matrix, y_noise)
+        
+        
+br = BayesianRidge(n_iter=10)
+model, coefs = br.fit(design_matrix, y_noise)
