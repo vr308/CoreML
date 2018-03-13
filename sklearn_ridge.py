@@ -128,7 +128,7 @@ class BayesianRidge():
         coef_old_ = None
 
         XT_y = np.dot(X.T, y)
-        U, S, Vh = linalg.svd(X, full_matrices=False)
+        U, S, Vh = linalg.svd(X, full_matrices=True)
         eigen_vals_ = S ** 2
 
         coef_trajectory = []
@@ -191,7 +191,7 @@ class BayesianRidge():
 
         self.coef_ = coef_
         sigma_ = np.dot(Vh.T,
-                        Vh / (eigen_vals_ + self.lambda_ / self.alpha_)[:, np.newaxis])
+                        Vh / (eigen_vals_ + lambda_ / alpha_)[:, np.newaxis])
         self.sigma_ = (1. / self.alpha_) * sigma_
         #self._set_intercept(X_offset_, y_offset_, X_scale_)
         return self, coef_trajectory
@@ -222,7 +222,3 @@ class BayesianRidge():
             sigmas_squared_data = (np.dot(X, self.sigma_) * X).sum(axis=1)
             y_std = np.sqrt(sigmas_squared_data + (1. / self.alpha_))
             return y_mean, y_std
-        
-        
-br = BayesianRidge(n_iter=10)
-model, coefs = br.fit(design_matrix, y_noise)

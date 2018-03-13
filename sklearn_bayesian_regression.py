@@ -104,7 +104,7 @@ if __name__ == "__main__":
     plt.hlines(y=0, xmin=0,xmax=100)
     plt.suptitle('Weights under Ridge and ARD', fontsize='small')
     
-    # Cross-checking ridge regression
+    # Cross-checking ridge/ARD regression
     
     noise_variance = np.var(y_noise)
     beta = 1/noise_variance
@@ -112,14 +112,13 @@ if __name__ == "__main__":
     #alpha = fitted_model_ard.lambda_
     
     # Weight prior 
-    
-    from scipy.stats import gamma
-    
+        
     mu_w_prior = np.zeros(100)
     sigma_w_prior = np.matrix(np.identity(100))
     
     # Convergence loop to optimize alpha (weight precision) and beta (noise precision)
     
+    # ? missing part which makes the simple results different from the python answer
     
     # Weight posterior
     
