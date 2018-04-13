@@ -1,27 +1,32 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Sat Mar 10 22:03:05 2018
+Created on Fri Apr 13 19:22:13 2018
 
 @author: vr308
 """
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
+from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as Ck, WhiteKernel
 from matplotlib import cm
 import matplotlib as mpl
-from scipy.spatial import distance
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 import matplotlib.pylab as plt
-import random
 import matplotlib.backends.backend_pdf
 #from matplotlib import animation
 import numpy as np
+
 
 # Sklearn version of GPs
 
 def f(x):
     """The function to predict."""
     return np.square(x)*np.sin(x)
+
+def f2(x,y):
+    """ The 2 d function to predict """
+    return x*np.exp(-np.square(x)-np.square(y))
+
 
 #def plot_gp_fit_predict(X_train, x, y_train, y_pred, sigma, knots, y_pred_knots, sigma_knots, title, gpr, entropy):
 #    
@@ -105,7 +110,8 @@ def plot_mle_trace(mle_trace, mean_mle_trace):
     plt.legend(fontsize='small')
 
 if __name__ == "__main__":
-        
+
+    
     #  The  noisy case # ----------------------------------------------------------------------
     
     X = np.atleast_2d(np.sort(np.random.uniform(0,20,40))).T
@@ -114,7 +120,6 @@ if __name__ == "__main__":
     noise = np.random.normal(0, 20, len(X)).reshape(len(X),1)
     
     y = f(X) + noise
-    
     
     #random.randint(0,len(X))
     
@@ -215,87 +220,3 @@ pdf = matplotlib.backends.backend_pdf.PdfPages("Exp3.pdf")
 for fig in xrange(1, plt.get_fignums()[-1] +1): ## will open an empty extra figure :(
     pdf.savefig(fig)
 pdf.close()
-
-
-# Train a GP on uniformly distributed sample in the range of X.
-
-# Instansiate a Gaussian Process model
-
-kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(5, (0.001, 100)) + WhiteKernel(0.2, noise_level_bounds =(1e-5, 1e2))
-gpr = GaussianProcessRegressor(kernel=kernel,alpha=0.001)
-# Fit to data
- 
-gpr.fit(X, y)        
-
-# Predict on the full x-axis
-
-x = np.atleast_2d(np.linspace(0, 20, 1000)).T
-y_pred, sigma = gpr.predict(x, return_std = True)
-
-rmse_ = np.round(np.sqrt(np.mean(np.square(y_pred - y)),2)
-lml = np.round(gpr.log_marginal_likelihood_value_,2)
-
-
-title = 'GP Regression on full training set'
-
-plt.figure()
-plt.plot(x, f(x), 'r:', label=u'$f(x) = x^2\sin(x)$')
-plt.plot(X, y, 'r.', markersize=5, label=u'Observations')
-#plt.plot(X, y, 'g+', markersize=10, label=u'Chosen Observations')
-plt.plot(x, y_pred, 'b-', label=u'Prediction')
-plt.fill_between(x.reshape(len(x),), y_pred.reshape(len(x),) - 1.96*sigma, y_pred.reshape(len(x),) + 1.96*sigma, alpha=0.5, color='y')
-plt.title('GPR on Full training data [n = 40]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse) + '\n' + 'LML: ' +  str(lml), fontsize='small')
-plt.legend(fontsize='small')
-
-plot_gp_fit_predict(X_train, x, y_train, y_pred, sigma, None, None, None, title, gpr, False)
-
-
-
-
-# Animation stuff
-
-#fig = plt.figure()
-#ax = plt.axes(xlim=(0,20), ylim=(-40,40))
-#line, = ax.plot([], [], lw=1, color='b')
-#line2, = ax.plot([],[], 'r.', markersize=10, label=u'Observations')
-##path, = ax.fill_between([],[],[],[], alpha=0.7)
-#fills = ax.fill_between([],[],[],[])
-#xdata, ydata = [], []
-#    
-#def init():
-#    ax.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
-#    #ax.title('Sequential GP Training (adaptive centers)', fontsize='small')
-#    #ax.plot(X, y, 'r.', markersize=10, label=u'Observations')
-#    return line, line2, 
-#    
-#def data_gen(i=0):
-#    i = 0
-#    while i < len(y_pred_evolutions):
-#        i += 1
-#        yield x, y_pred_evolutions[i-1], sigma_evolutions[i-1], X[i-1], y[i-1] 
-#    
-#def animate(data):
-#    x_curve, y_pred_curve, sigma_curve, X, y = data
-#    xdata.append(X)
-#    ydata.append(y)
-#    line2.set_data(xdata, ydata)
-#    line.set_data(x_curve, y_pred_curve)
-#    
-#    y_upper = y_pred_curve + 2*sigma_curve
-#    y_lower = y_pred_curve - 2*sigma_curve
-#    z = y_upper - y_lower  
-#    
-#    cmap = cm.get_cmap('viridis')
-#    x_array = x_curve.reshape(len(y_pred_curve),)
-#    normalize = mpl.colors.Normalize(vmin = z.min(), vmax=z.max())
-#    fills.remove()
-#    for i in range(999):
-#        fills = ax.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])), alpha=0.7)
-#        
-#    return line, line2, fills
-#
-## call the animator.  blit=True means only re-draw the parts that have changed.
-#anim = animation.FuncAnimation(fig, func=animate, frames=data_gen, init_func=init,
-#           repeat=False, interval=500, blit=False)
-#
-#plt.show()
