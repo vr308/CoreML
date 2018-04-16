@@ -9,12 +9,8 @@ Created on Sat Mar 10 22:03:05 2018
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as Ck, WhiteKernel
 from matplotlib import cm
-import matplotlib as mpl
-from mpl_toolkits.mplot3d.axes3d import Axes3D
-from scipy.spatial import distance
 import matplotlib.pylab as plt
-import random
-import matplotlib.backends.backend_pdf
+import itertools as it
 import numpy as np
 
 # Sklearn version of GPs
@@ -25,6 +21,12 @@ def f(x):
 
 def f2(x,y):
     """ The 2 d function to predict """
+    return x*np.exp(-np.square(x)-np.square(y))
+
+def f2_(X_):
+    """ The 2 d function to predict """
+    x = X_[:,0]
+    y = X_[:,1]
     return x*np.exp(-np.square(x)-np.square(y))
 
 if __name__ == "__main__":
@@ -71,14 +73,9 @@ if __name__ == "__main__":
     
     # GPR in 2d 
     
-    x = y = np.linspace(-2,2,1000)
+    x = y = np.linspace(-2,2,500)
     X, Y = np.meshgrid(x,y)
     Z = f2(X,Y)
-    
-    x_sample = np.sort(random.sample(x,100))
-    y_sample = np.sort(random.sample(y,100))
-    z_sample = f2(x_sample,y_sample) + 0.2*np.random.randn(100)
-    
     
     # Plotting the true surface
     X, Y = np.meshgrid(x,y)
@@ -86,26 +83,62 @@ if __name__ == "__main__":
     ax = fig.gca(projection='3d')
     #ax.scatter(x_sample,y_sample,z_sample, c='k', depthshade=False)
     ax.plot_surface(X,Y,Z, cmap=cm.get_cmap('jet'), alpha=0.5)
+    plt.title(r'$xe^{-x^2-y^2}$')
     
+    #Plotting sample paths from the prior
+    
+    x_sample = np.sort(x[0::20])
+    y_sample = np.sort(y[0::20])
+    z_sample = f2(x_sample,y_sample) + 0.2*np.random.randn(25)
     
     kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(1, (0.001, 100)) #+ WhiteKernel(2, noise_level_bounds =(1e-5, 1e2))
-    kernel = Ck(1000, (1e-10, 1e3))* Matern(1, (0.001, 100))
+    #kernel = Ck(1000, (1e-10, 1e3))* Matern(1, (0.001, 100))
     gpr = GaussianProcessRegressor(kernel=kernel,alpha=0.001)
     
-    X_ = np.asarray((x, y)).T
-    X_sample, Y_sample = np.meshgrid(x, y)
+    X_sample, Y_sample = np.meshgrid(x_sample, y_sample)
+    X_ = np.array(list(it.product(x_sample,y_sample)))
     
-    Z_samples = gpr.sample_y(X_,10)
+    Z_samples = gpr.sample_y(X_,7)
     
     fig = plt.figure()
-    ax = fig.gca(projection='3d')
-    #ax.scatter(x_sample,y_sample,z_sample, c='k', depthshade=False)
-    ax.plot_surface(X_sample,Y_sample,Z_samples[:,5], cmap=cm.get_cmap('jet'), alpha=0.5)
     
-    
-    
-    gpr.fit(X, y)        
+    for i in np.arange(1, 7):
+        ax = fig.add_subplot(2,3, i, projection='3d')
+        ax.plot_surface(X_sample,Y_sample,Z_samples[:,i].reshape(50,50), rstride=1, cstride=1, cmap=cm.get_cmap('jet'), alpha=0.5)
+    plt.suptitle('Sample paths from a 2d GP Prior with kernel ' + str(gpr.kernel), fontsize='x-small')
 
+    # Declaring training and test sets (ensuring they dont overlap)
+    
+    XY_train = X_[0::50]
+    Z_train = f2_(XY_train)
+    
+    XY_test = X_[0::30]
+    Z_test = f2_(XY_test)
+    
+    gpr.fit(XY_train, Z_train)     
+    
+    # Predict on the test set
+    Z_pred_test, sigma = gpr.predict(XY_test, return_std = True)
+    
+    rmse_ = np.round(np.sqrt(np.mean(np.square(Z_pred_test - Z_test))),2)
+    lml = np.round(gpr.log_marginal_likelihood_value_,2)
+    
+    # Meshes for plotting 
+    
+    #Test mesh 
+    X_test_mesh, Y_test_mesh = np.meshgrid(XY_test[:,0], XY_test[:,1]) 
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(121, projection='3d')    
+    ax.plot_surface(X, Y, Z, label=u'$f(x) = xe^(-x^{2}-y^{2})$', rstride=1, cstride=1, cmap=cm.get_cmap('jet'), alpha=0.5)
+    ax.scatter(XY_train[:,0], XY_train[:,1], Z_train, s=1, color='k', depthshade=False)
+    plt.plot(X_train, y_train, 'r.', markersize=5, label=u'Observations')
+    plt.plot(X_test, y_pred_test, 'b-', label=u'Prediction')
+    plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
+    plt.title('GPR on Full training data [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
+    plt.legend(fontsize='small')
+    
+    
 
 
 # Animation stuff
