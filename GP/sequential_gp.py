@@ -123,11 +123,11 @@ if __name__ == "__main__":
     
     #random.randint(0,len(X))
     
-    i = 0  
+    i = 1
     #y_pred_evolutions = []
     #sigma_evolutions = []
     bool_array = np.array([False]*len(X))
-    bool_array[[36]] = True
+    bool_array[[30]] = True
     
     training_err = [] 
     test_err = []
@@ -146,8 +146,15 @@ if __name__ == "__main__":
         y_test = y[~bool_array]
         
         # Instansiate a Gaussian Process model
-        kernel = Ck(1000.0, (1e-3, 1e3)) * RBF(1, (1e-2, 1e2)) + WhiteKernel(noise_level=100, noise_level_bounds=(1e-10, 20))
-        gpr = GaussianProcessRegressor(kernel=kernel, alpha=0, optimizer=None)
+        kernel = Ck(1000.0, (1e-3, 1e3)) * RBF(1, (1, 1e2)) + WhiteKernel(noise_level=100, noise_level_bounds=(1e-10, 10))
+        
+        
+        # Decide whether to update hyper-parameters or not
+        if np.mod(i,5) == 0:
+            gpr = GaussianProcessRegressor(kernel=kernel)
+        else:
+             gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
+        
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
         gpr.fit(X_train, y_train)        
@@ -161,7 +168,7 @@ if __name__ == "__main__":
         print 'Training error : ' + str(rmse_train)
         print 'Test error : ' + str(rmse_test)
         
-        if i > 0:
+        if i > 1:
             if np.abs(test_err[-1] - rmse_test) < 1e-1:
                 print('Training has converged')
                 break;
@@ -204,7 +211,7 @@ if __name__ == "__main__":
         plt.plot(x, y_pred, label='Mean Prediction')
         plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
         plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|y^{*} - y|$')
-        plt.title('GPR with greedy training [n = ' + str(len(X_train)) +  ']' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE Tr: ' + str(rmse_train) + '\n' + 'RMSE Test: ' +  str(rmse_test), fontsize='small')
+        plt.title('GPR with greedy training [n = ' + str(len(X_train)) +  ']' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE Tr: ' + str(rmse_train) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='small')
         plt.legend(fontsize = 'x-small')
             
         bool_array[knot_id] = True
@@ -216,7 +223,8 @@ plt.legend()
 plt.title('Test Error ' + str(len(X_train)) + ' training points, ' + str(i) + ' iterations ', fontsize='small')
 
         
-pdf = matplotlib.backends.backend_pdf.PdfPages("Exp3.pdf")
+pdf = matplotlib.backends.backend_pdf.PdfPages("Exp4.pdf")
 for fig in xrange(1, plt.get_fignums()[-1] +1): ## will open an empty extra figure :(
     pdf.savefig(fig)
 pdf.close()
+plt.close('all')
