@@ -8,6 +8,7 @@ Created on Sat Mar 10 22:03:05 2018
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as Ck, WhiteKernel
+from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib import cm
 import matplotlib.pylab as plt
 import itertools as it
@@ -70,14 +71,14 @@ if __name__ == "__main__":
     plt.title('GPR on Full training data [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
     plt.legend(fontsize='small')
         
-    
     # GPR in 2d 
     
-    x = y = np.linspace(-2,2,500)
+    x = y = np.linspace(-2,2,200)
     X, Y = np.meshgrid(x,y)
     Z = f2(X,Y)
     
     # Plotting the true surface
+    
     X, Y = np.meshgrid(x,y)
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -93,7 +94,7 @@ if __name__ == "__main__":
     
     kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(1, (0.001, 100)) #+ WhiteKernel(2, noise_level_bounds =(1e-5, 1e2))
     #kernel = Ck(1000, (1e-10, 1e3))* Matern(1, (0.001, 100))
-    gpr = GaussianProcessRegressor(kernel=kernel,alpha=0.001)
+    gpr = GaussianProcessRegressor(kernel=kernel,alpha=0.001,optimizer=None)
     
     X_sample, Y_sample = np.meshgrid(x_sample, y_sample)
     X_ = np.array(list(it.product(x_sample,y_sample)))
@@ -104,16 +105,18 @@ if __name__ == "__main__":
     
     for i in np.arange(1, 7):
         ax = fig.add_subplot(2,3, i, projection='3d')
-        ax.plot_surface(X_sample,Y_sample,Z_samples[:,i].reshape(50,50), rstride=1, cstride=1, cmap=cm.get_cmap('jet'), alpha=0.5)
+        ax.plot_surface(X_sample,Y_sample,Z_samples[:,i].reshape(25,25), rstride=1, cstride=1, cmap=cm.get_cmap('jet'), alpha=0.5)
     plt.suptitle('Sample paths from a 2d GP Prior with kernel ' + str(gpr.kernel), fontsize='x-small')
 
     # Declaring training and test sets (ensuring they dont overlap)
     
-    XY_train = X_[0::50]
+    XY_train = X_[0::47]
     Z_train = f2_(XY_train)
     
-    XY_test = X_[0::30]
-    Z_test = f2_(XY_test)
+    ntrain = len(Z_train)
+    
+    XY_test = X_
+    Z_test = f2(X_sample, Y_sample)
     
     gpr.fit(XY_train, Z_train)     
     
@@ -122,25 +125,24 @@ if __name__ == "__main__":
     
     rmse_ = np.round(np.sqrt(np.mean(np.square(Z_pred_test - Z_test))),2)
     lml = np.round(gpr.log_marginal_likelihood_value_,2)
-    
-    # Meshes for plotting 
-    
-    #Test mesh 
-    X_test_mesh, Y_test_mesh = np.meshgrid(XY_test[:,0], XY_test[:,1]) 
+     
     
     fig = plt.figure()
     ax = fig.add_subplot(121, projection='3d')    
-    ax.plot_surface(X, Y, Z, label=u'$f(x) = xe^(-x^{2}-y^{2})$', rstride=1, cstride=1, cmap=cm.get_cmap('jet'), alpha=0.5)
-    ax.scatter(XY_train[:,0], XY_train[:,1], Z_train, s=1, color='k', depthshade=False)
-    plt.plot(X_train, y_train, 'r.', markersize=5, label=u'Observations')
-    plt.plot(X_test, y_pred_test, 'b-', label=u'Prediction')
-    plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
-    plt.title('GPR on Full training data [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
-    plt.legend(fontsize='small')
+    ax.plot_surface(X, Y, Z, label=u'$f(x) = xe^{-x^{2}-y^{2}}$', cmap=cm.get_cmap('jet'), alpha=0.5)
+    ax.plot(XY_train[:,0], XY_train[:,1], Z_train, 'ko', markersize=1,label=u'Observations')
+    plt.title('True (unknown surface) w noiseless observations', fontsize='small')
+    ax.set_zlim3d(-0.5,0.5)
+
+    
+    ax2 = fig.add_subplot(122, projection='3d')    
+    ax2.plot(XY_train[:,0], XY_train[:,1], Z_train, 'ko', markersize=1,label=u'Observations')
+    ax2.plot_surface(X_sample, Y_sample, Z_pred_test.reshape(25,25), rstride=1, cstride=1, cmap=cm.get_cmap('jet'),alpha=0.5)
+    plt.title('GPR on Full training data [n = ' + str(ntrain) + ']' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
+    ax2.set_zlim3d(-0.5,0.5)
+    plt.legend()
     
     
-
-
 # Animation stuff
 
 #fig = plt.figure()
