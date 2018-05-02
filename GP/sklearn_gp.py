@@ -18,7 +18,7 @@ import numpy as np
 
 def f(x):
     """The function to predict."""
-    return np.square(x)*np.sin(x)
+    return np.square(x)*np.sin(x) #- x*np.cos(x) 
 
 def f2(x,y):
     """ The 2 d function to predict """
@@ -42,14 +42,17 @@ if __name__ == "__main__":
     y_test = f(X_test) +  np.random.normal(0, 20, len(X_test)).reshape(len(X_test),1)
     
     # Instansiate a Gaussian Process model
-    kernel = Ck(10000.0, (1e-10, 1e3)) * RBF(2, (0.001, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
-    gpr = GaussianProcessRegressor(kernel=kernel,alpha=0.001, optimizer=None)
+    #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
+    kernel = Ck(1000.0, (1e-10, 1e8)) * RBF(2, length_scale_bounds="fixed") + WhiteKernel(0.1, noise_level_bounds='fixed')
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = True)
     
     # Plotting samples from the prior with variance estimate
     plt.figure(figsize=(10,7))
     plt.subplot(121)
     y_mean_prior, y_std_prior = gpr.predict(X_test, return_std=True) 
-    plt.plot(X_test, gpr.sample_y(X_test,5))
+    samples = gpr.sample_y(X_test,5).T
+    for i in xrange(5):
+        plt.plot(X_test, samples[i])
     plt.plot(X_test, y_mean_prior, color='k')
     plt.fill_between(np.ravel(X_test), y_mean_prior - 1.96*y_std_prior, y_mean_prior  + 1.96*y_std_prior, color='k', alpha=0.2)
     plt.title('Sample paths from GP Prior w. 95% conf. intervals', fontsize='small')
