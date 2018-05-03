@@ -12,6 +12,7 @@ from mpl_toolkits.mplot3d.axes3d import Axes3D
 from matplotlib import cm
 import matplotlib.pylab as plt
 import itertools as it
+from matplotlib.colors import LogNorm
 import numpy as np
 
 # Sklearn version of GPs
@@ -38,13 +39,13 @@ if __name__ == "__main__":
     X_train = np.atleast_2d(np.sort(np.random.uniform(0,20,10))).T
     X_test = np.atleast_2d(np.linspace(0, 20, 1000)).T
     
-    y_train = f(X_train) + np.random.normal(0, 20, len(X_train)).reshape(len(X_train),1)
-    y_test = f(X_test) +  np.random.normal(0, 20, len(X_test)).reshape(len(X_test),1)
+    y_train = f(X_train) + np.random.normal(0, 5, len(X_train)).reshape(len(X_train),1)
+    y_test = f(X_test) +  np.random.normal(0, 5, len(X_test)).reshape(len(X_test),1)
     
     # Instansiate a Gaussian Process model
     #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
-    kernel = Ck(1000.0, (1e-10, 1e8)) * RBF(2, length_scale_bounds="fixed") + WhiteKernel(0.1, noise_level_bounds='fixed')
-    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = True)
+    kernel = Ck(100.0, (1e-10, 1e4)) * RBF(2, length_scale_bounds=(1e-5, 5)) + WhiteKernel(1, noise_level_bounds=(1e-5,50))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
     
     # Plotting samples from the prior with variance estimate
     plt.figure(figsize=(10,7))
@@ -73,6 +74,28 @@ if __name__ == "__main__":
     plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
     plt.title('GPR on Full training data [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
     plt.legend(fontsize='small')
+    
+    # Plot the LML Surface ###############################
+    
+    lengthscale = np.logspace(-3,3,50)
+    noise_variance = np.logspace(-2,5,50)
+    l, n = np.meshgrid(lengthscale, noise_variance)
+    ln = np.array(list(it.product(lengthscale,noise_variance)))
+    lml_surface = []
+    for i in range(2500):
+        lml_surface.append(gpr.log_marginal_likelihood(([np.log(10000), np.log(ln[i][0]), np.log(ln[i][1])])))
+    
+    lml = np.array(lml_surface).reshape(50,50).T
+    vmin, vmax = (-lml).min(), (-lml).max() 
+    vmax = 10000
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 1000), decimals=1)
+    
+    plt.contourf(l,n, -lml, levels=level, cmap=cm.get_cmap('jet'), alpha=0.5,norm=LogNorm(vmin=vmin, vmax=vmax))
+    plt.plot(np.exp(gpr.kernel_.theta[1]), np.exp(gpr.kernel_.theta[2]), 'r+', label='LML Local Minimum')
+    plt.colorbar(format='%.1f')
+    plt.xscale("log")
+    plt.yscale("log")
+    
         
     # GPR in 2d 
     
@@ -145,6 +168,89 @@ if __name__ == "__main__":
     ax2.set_zlim3d(-0.5,0.5)
     plt.legend()
     
+    # One-dimensional simple example with log likelihood surface
+    
+    import numpy as np
+
+    from matplotlib import pyplot as plt
+    from matplotlib.colors import LogNorm
+    
+    from sklearn.gaussian_process import GaussianProcessRegressor
+    from sklearn.gaussian_process.kernels import RBF, WhiteKernel
+
+
+    rng = np.random.RandomState(0)
+    X = rng.uniform(0, 5, 20)[:, np.newaxis]
+    y = 0.5 * np.sin(3 * X[:, 0]) + rng.normal(0, 0.5, X.shape[0])
+    
+    
+    plt.figure(1)
+    kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
+        + WhiteKernel(noise_level=1e-5, noise_level_bounds=(1e-10, 1e+1))
+    gp = GaussianProcessRegressor(kernel=kernel,
+                                  alpha=0.0).fit(X, y)
+    X_ = np.linspace(0, 5, 100)
+    y_mean, y_cov = gp.predict(X_[:, np.newaxis], return_cov=True)
+    plt.plot(X_, y_mean, 'k', lw=3, zorder=9)
+    plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
+                     y_mean + np.sqrt(np.diag(y_cov)),
+                     alpha=0.5, color='k')
+    plt.plot(X_, 0.5*np.sin(3*X_), 'r', lw=3, zorder=9)
+    plt.scatter(X[:, 0], y, c='r', s=50, zorder=10, edgecolors=(0, 0, 0))
+    plt.title("Initial: %s\nOptimum: %s\nLog-Marginal-Likelihood: %s"
+              % (kernel, gp.kernel_,
+                 gp.log_marginal_likelihood(gp.kernel_.theta)), fontsize='x-small')
+    plt.tight_layout()
+    
+    #################
+    
+    # My trial to plot the stuff my own code
+    
+    lengthscale = np.logspace(-3,3,50)
+    noise_variance = np.logspace(-2,0,50)
+    l, n = np.meshgrid(lengthscale, noise_variance)
+    ln = np.array(list(it.product(lengthscale,noise_variance)))
+    lml_surface = []
+    for i in range(2500):
+        lml_surface.append(gp.log_marginal_likelihood(([np.log(0.4096), np.log(ln[i][0]), np.log(ln[i][1])])))
+    
+    lml = np.array(lml_surface).reshape(50,50).T
+    vmin, vmax = (-lml).min(), (-lml).max() 
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 50), decimals=1)
+    
+    plt.contourf(l,n, -lml, levels=level, cmap=cm.get_cmap('jet'), alpha=0.5,norm=LogNorm(vmin=vmin, vmax=vmax))
+    plt.plot(np.exp(gp.kernel_.theta[1]), np.exp(gp.kernel_.theta[2]), 'r+', label='LML Local Minimum')
+    plt.colorbar(format='%.1f')
+    plt.xscale("log")
+    plt.yscale("log")
+    
+    # Sklearn Example ditto code 
+    
+    plt.figure()
+    theta0 = np.logspace(-2, 3, 49)
+    theta1 = np.logspace(-2, 0, 50)
+    Theta0, Theta1 = np.meshgrid(theta0, theta1)
+    LML = [[gp.log_marginal_likelihood(np.log([0.36, Theta0[i, j], Theta1[i, j]]))
+            for i in range(Theta0.shape[0])] for j in range(Theta0.shape[1])]
+    LML = np.array(LML).T
+    
+    vmin, vmax = (-LML).min(), (-LML).max()
+    #vmax = 70
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 50), decimals=1)
+    plt.contourf(Theta0, Theta1, -LML, levels = level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'), alpha=0.5)
+    plt.plot(np.exp(gp.kernel_.theta[1]), np.exp(gp.kernel_.theta[2]), 'r+', label='LML Local Minimum')
+    plt.colorbar(format='%.1f')
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Length-scale")
+    plt.ylabel("Noise-level")
+    plt.title("Log-marginal-likelihood")
+    plt.tight_layout()
+
+        
+    
+    
+
     
 # Animation stuff
 

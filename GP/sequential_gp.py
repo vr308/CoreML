@@ -148,7 +148,7 @@ if __name__ == "__main__":
         y_test = y[~bool_array]
         
         # Instansiate a Gaussian Process model
-        kernel = Ck(1000.0, (1e-3, 1e4)) * RBF(3.0, (0.2, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
+        kernel = Ck(1000.0, (1e-3, 1e4)) * RBF(1.0, (1, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
         gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
@@ -168,13 +168,19 @@ if __name__ == "__main__":
         #x_knots = get_data_max_var(sigma_, X)
         #knot_id = [list(np.round(X,2)).index(s) for s in np.round(x_knots,2)]
         
-        knot_id = [np.argmax(np.abs(y_ - y))]
+        #knot_id = [np.argmax(np.abs(y_ - y))]
+        
+        factor = sigma_*np.ravel(np.abs(y_ - y)) 
+        
+        knot_id = [np.argmax(factor)]
+        
+        print(knot_id)
+        
         x_knots = X[knot_id]
         
         y_pred, sigma = gpr.predict(x, return_std = True)
         y_pred_knots, sigma_knots = gpr.predict(x_knots, return_std=True)
         
-        factor = np.ravel(np.abs(y_ - y)) 
         
         #plt.stem(sigma_*np.ravel(factor)/np.sum(factor), label=str(i))
         
@@ -193,7 +199,6 @@ if __name__ == "__main__":
         
         plot_factor = np.mod(i,8)
         
-            
         if(plot_factor == 1):
             plt.figure(figsize=(15,8))
             
@@ -213,14 +218,13 @@ if __name__ == "__main__":
         plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
         if(np.mod(i,8) == 1):
             plt.legend(fontsize = 'x-small')
-                
+            
         if i > 1:
-            if np.abs(test_err[-1] - test_err[-2]) < 0.1*((np.max(X) - np.min(X))):
+            delta_error = test_err[-2] - test_err[-1]
+            if (delta_error < 0.05*(np.max(X) - np.min(X)) and delta_error > 0):
                 
                 print('Training has converged')
-        
                 print('Conducting Hyper-parameter optimization')
-                
                 print ('Initial Kernel: ' + str(gpr.kernel_))
                 
                 gpr = GaussianProcessRegressor(kernel=kernel)
@@ -237,7 +241,12 @@ if __name__ == "__main__":
                 plt.legend(fontsize = 'x-small')
                 plt.title('Test Error ' + str(len(X_train)) + ' training points, ' + str(i) + ' iterations ', fontsize='small')
                 
-                plt.subplot(2, 4, np.mod(i+2,8))
+                if (np.mod(i+2,8) == 0):
+                     last_plot = 8
+                else:
+                    last_plot = np.mod(i+2,8)
+                
+                plt.subplot(2, 4, last_plot)
                 plt.plot(X_train, y_train, 'bo', label='Training knots')
                 plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
                 plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
