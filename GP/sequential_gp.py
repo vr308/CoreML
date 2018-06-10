@@ -22,6 +22,7 @@ import numpy as np
 def f(x):
     """The function to predict."""
     return np.square(x)*np.sin(x)
+    #return np.square(x+2)*(x+2)*(x-3)
 
 def f2(x,y):
     """ The 2 d function to predict """
@@ -117,7 +118,7 @@ if __name__ == "__main__":
 
     #  The  noisy case # ----------------------------------------------------------------------
     
-    X = np.atleast_2d(np.sort(np.random.uniform(0,20,40))).T
+    X = np.atleast_2d(np.sort(np.random.uniform(0,+20,40))).T
     x = np.atleast_2d(np.linspace(0, 20, 1000)).T
 
     noise = np.random.normal(0, 20, len(X)).reshape(len(X),1)

@@ -33,30 +33,45 @@ def f2_(X_):
 
 if __name__ == "__main__":
         
-
     # GPR in 1d
     
     X_train = np.atleast_2d(np.sort(np.random.uniform(0,20,10))).T
     X_test = np.atleast_2d(np.linspace(0, 20, 1000)).T
     
-    y_train = f(X_train) + np.random.normal(0, 5, len(X_train)).reshape(len(X_train),1)
-    y_test = f(X_test) +  np.random.normal(0, 5, len(X_test)).reshape(len(X_test),1)
+    y_train = f(X_train) + 0.1*np.std(f(X_train))*np.random.normal(0, 1, len(X_train)).reshape(len(X_train),1)
+    y_test = f(X_test) +  0.1*np.std(f(X_train))*np.random.normal(0, 1, len(X_test)).reshape(len(X_test),1)
     
     # Instansiate a Gaussian Process model
     #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
-    kernel = Ck(100.0, (1e-10, 1e4)) * RBF(2, length_scale_bounds=(1e-5, 5)) + WhiteKernel(1, noise_level_bounds=(1e-5,50))
+    kernel = Ck(100.0, (1e-10, 1e3)) * RBF(3, length_scale_bounds=(2, 5)) + WhiteKernel(1, noise_level_bounds=(1e-5,50))
     gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
     
-    # Plotting samples from the prior with variance estimate
-    plt.figure(figsize=(10,7))
-    plt.subplot(121)
+    # Plot with 3 different kernels 
+    plt.figure(figsize=(10,5))
+    plt.subplot(121)    
+    kernel = Ck(10.0, (1e-10, 1e6)) * RBF(3, length_scale_bounds=(2, 5))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
     y_mean_prior, y_std_prior = gpr.predict(X_test, return_std=True) 
     samples = gpr.sample_y(X_test,5).T
     for i in xrange(5):
         plt.plot(X_test, samples[i])
     plt.plot(X_test, y_mean_prior, color='k')
     plt.fill_between(np.ravel(X_test), y_mean_prior - 1.96*y_std_prior, y_mean_prior  + 1.96*y_std_prior, color='k', alpha=0.2)
-    plt.title('Sample paths from GP Prior w. 95% conf. intervals', fontsize='small')
+    plt.title('$\sigma_{f}^{2} = 10$' + ', ''$l = 3$', fontsize='small')
+    plt.ylim(-20,+20)
+    
+    
+    plt.subplot(122)    
+    kernel = Ck(50.0, (1e-10, 1e6)) * RBF(1, length_scale_bounds=(2, 5))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
+    y_mean_prior, y_std_prior = gpr.predict(X_test, return_std=True) 
+    samples = gpr.sample_y(X_test,5).T
+    for i in xrange(5):
+        plt.plot(X_test, samples[i])
+    plt.plot(X_test, y_mean_prior, color='k')
+    plt.fill_between(np.ravel(X_test), y_mean_prior - 1.96*y_std_prior, y_mean_prior  + 1.96*y_std_prior, color='k', alpha=0.2)
+    plt.title('$\sigma_{f}^{2} = 50$' + ', ''$l = 1$', fontsize='small')
+    plt.ylim(-20,+20)
     
     # Fit to data 
     gpr.fit(X_train, y_train)        
@@ -67,30 +82,31 @@ if __name__ == "__main__":
     rmse_ = np.round(np.sqrt(np.mean(np.square(y_pred_test - y_test))),2)
     lml = np.round(gpr.log_marginal_likelihood_value_,2)
         
-    plt.subplot(122)
+    plt.figure()
     plt.plot(X_test, f(X_test), 'r:', label=u'$f(x) = x^2\sin(x)$')
-    plt.plot(X_train, y_train, 'r.', markersize=5, label=u'Observations')
+    plt.plot(X_train, y_train, 'k.', markersize=8, label=u'Observations')
     plt.plot(X_test, y_pred_test, 'b-', label=u'Prediction')
     plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
-    plt.title('GPR on Full training data [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LML: ' +  str(lml), fontsize='small')
+    plt.title('GPR in action [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'Min value of log marginal likelihood: ' +  str(lml), fontsize='small')
     plt.legend(fontsize='small')
     
     # Plot the LML Surface ###############################
     
-    lengthscale = np.logspace(-3,3,50)
-    noise_variance = np.logspace(-2,5,50)
+    lengthscale = np.logspace(-2,3,50)
+    noise_variance = np.logspace(-4,2,50)
     l, n = np.meshgrid(lengthscale, noise_variance)
     ln = np.array(list(it.product(lengthscale,noise_variance)))
     lml_surface = []
     for i in range(2500):
-        lml_surface.append(gpr.log_marginal_likelihood(([np.log(10000), np.log(ln[i][0]), np.log(ln[i][1])])))
+        lml_surface.append(gpr.log_marginal_likelihood(([np.log(248*248), np.log(ln[i][0]), np.log(ln[i][1])])))
     
     lml = np.array(lml_surface).reshape(50,50).T
     vmin, vmax = (-lml).min(), (-lml).max() 
     vmax = 10000
-    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 1000), decimals=1)
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 2000), decimals=1)
     
-    plt.contourf(l,n, -lml, levels=level, cmap=cm.get_cmap('jet'), alpha=0.5,norm=LogNorm(vmin=vmin, vmax=vmax))
+    plt.figure()
+    plt.contourf(l,n, -lml, levels=level, cmap=cm.get_cmap('jet'),norm=LogNorm(vmin=vmin, vmax=vmax))
     plt.plot(np.exp(gpr.kernel_.theta[1]), np.exp(gpr.kernel_.theta[2]), 'r+', label='LML Local Minimum')
     plt.colorbar(format='%.1f')
     plt.xscale("log")
