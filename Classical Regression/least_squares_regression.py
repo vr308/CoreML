@@ -54,7 +54,6 @@ def analytical_multiple_leastsq(X,y):
         return Beta, std_error, std_errors_coefs, std_error_pred, std_error_mean
 
         
-
 def analytical_simple_leastsq(x,y):     
     
         n = len(x)
@@ -114,14 +113,16 @@ if __name__ == "__main__":
     #Visualize the data
     
     plt.figure()
-    plt.plot(x,y_true, 'b', label='True Function')
-    plt.scatter(x,y_noise, s=4)
-    plt.plot(x, x*slope + intercept, label = 'Fitted')
-    plt.fill_between(x, x*CI_slope[0] + CI_int[0], x*CI_slope[1] + CI_int[1], color= 'b', alpha=0.4, label = 'CI for the coefs')
-    plt.fill_between(x, PI[0], PI[1], color= 'r', alpha=0.1, label= 'PI')
-    plt.fill_between(x, CI_mean[0], CI_mean[1], color= 'g', alpha=0.1, label = 'CI for E(y)')
-    plt.title('Fitting a Linear Line')
-    plt.legend()
+    #plt.plot(x,y_true, 'b', label='True Function')
+    plt.scatter(x,y_noise, color='r', s=4, label='Data')
+    plt.plot(x, x*slope + intercept, label = 'Fitted line')
+    #plt.fill_between(x, x*CI_slope[0] + CI_int[0], x*CI_slope[1] + CI_int[1], color= 'b', alpha=0.4, label = 'CI for the coefs')
+    #plt.fill_between(x, PI[0], PI[1], color= 'r', alpha=0.1, label= 'PI')
+    #plt.fill_between(x, CI_mean[0], CI_mean[1], color= 'g', alpha=0.1, label = 'CI for E(y)')
+    plt.title('Simple Linear Regression ' + r'$y = \beta_{0} + \beta_{1}x$' + '\n' + r'$\beta_{0} = 1.21 , \beta_{1} = 0.26$', fontsize='small')
+    plt.legend(fontsize='small')
+    plt.xlabel('x')
+    plt.ylabel('y')
     
     #------------------------------------------------------------------------------------------------------------------------
     
@@ -144,6 +145,12 @@ if __name__ == "__main__":
     
     Beta, std_error, std_errors_coefs, std_error_pred, std_error_mean = analytical_multiple_leastsq(X,y_noise)
     fitted = coef0*(x**3) + coef1*(x**2) + coef2*(x) + intercept
+                   
+                   
+    #Linear and non-linear fits to data 
+    
+    
+    
     
     # Confidence Intervals
 
@@ -168,9 +175,53 @@ if __name__ == "__main__":
     plt.plot(x, fitted)
     #plt.fill_between(x, lower_CI_limit, upper_CI_limit, color= 'b', alpha=0.4)
     plt.fill_between(x, pred_lower, pred_upper, color= 'b', alpha=0.1)
- #   plt.fill_between(x, PI_lower, PI_upper, color= 'r', alpha=0.1)
+ #  plt.fill_between(x, PI_lower, PI_upper, color= 'r', alpha=0.1)
     plt.fill_between(x, CI_lower_mean, CI_upper_mean, color= 'g', alpha=0.1)
     plt.title('Fitting a Curve')
+    
+    #Visualize the data
+    
+    from sklearn import linear_model
+    
+    
+    np.c_[X, np.ones(100)]
+    br = linear_model.BayesianRidge()
+    model = br.fit(X,list(y_noise))
+    
+    cov = [[0.07, 0], [0, 0.07]]
+    bi = np.random.multivariate_normal([0.263921,1.2231419], cov, 2000)
+    samples = []
+    for i in np.arange(0,100):
+        
+    
+    
+    slope = bi[:,0]
+    intercept = bi[:,1]
+    
+    slope_sub = bi[idx][:,0]
+    intercept_sub = bi[idx][:,1]
+    
+    plt.figure()
+    plt.subplot(121)
+    plt.hist(slope, bins=100, alpha=0.7)
+    plt.title('Distribution of ' + r'$\beta_{0}$')
+    plt.axvline(x=np.mean(slope), color='r')
+    
+    plt.subplot(122)
+    plt.hist(intercept, bins=100, alpha=0.7)
+    plt.title('Distribution of ' + r'$\beta_{1}$')
+    plt.axvline(x=np.mean(intercept), color='r')
+    
+    plt.figure()
+    #plt.plot(x,y_true, 'b', label='True Function')
+    plt.scatter(x,y_noise, s=4, label='Data')
+    for i in np.arange(0,100):
+        plt.plot(x, x*slope_sub[i] + intercept_sub[i], alpha=0.2)
+   
+    plt.title('Bayesian Linear Regression ' + r'$y = \beta_{0} + \beta_{1}x$' + '\n' + r'$(\beta_{0}, \beta_{1}) = \mathcal{N}(\mu, \Sigma)$', fontsize='small')
+    plt.legend(fontsize='small')
+    plt.xlabel('x')
+    plt.ylabel('y')
     
     
    
