@@ -43,8 +43,8 @@ if __name__ == "__main__":
     
     # Instansiate a Gaussian Process model
     #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
-    kernel = Ck(100.0, (1e-10, 1e3)) * RBF(3, length_scale_bounds=(2, 5)) + WhiteKernel(1, noise_level_bounds=(1e-5,50))
-    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
+    kernel = Ck(100.0, (1e-10, 1e3)) * RBF(3, length_scale_bounds=(2, 5)) + WhiteKernel(10, noise_level_bounds=(1e-5,50))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
     
     # Plot with 3 different kernels 
     plt.figure(figsize=(10,5))
@@ -264,9 +264,33 @@ if __name__ == "__main__":
     plt.tight_layout()
 
         
+    # GP Regression on real high d data
     
+    import sklearn.datasets as data
     
+    df = data.load_boston()
+    
+    train_index = range(0,400)
+    test_index = range(400, 506)
+    
+    X_train = df.data[train_index]
+    X_test = df.data[test_index]
+    
+    y_train = df.target[train_index]
+    y_test = df.target[test_index]
 
+    kernel = Ck(1.0, (1e-10, 1e3)) * RBF(np.ones(13), length_scale_bounds=(0.2, 1.5)) + WhiteKernel(1, noise_level_bounds=(1e-5,50))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = True)
+    
+    gpr.fit(X_train, y_train)
+    
+    y_test_pred = gpr.predict(X_test)
+    
+    plt.plot(y_test)
+    plt.plot(y_test_pred)
+    
+    err = y_test - y_test_pred
+    rmse = np.sqrt(np.sum())
     
 # Animation stuff
 
