@@ -1,4 +1,4 @@
-na#!/usr/bin/env python2
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
 Created on Fri Apr 13 19:22:13 2018
@@ -22,7 +22,9 @@ import numpy as np
 def f(x):
     """The function to predict."""
     return np.square(x)*np.sin(x)
-    #return np.square(x+2)*(x+2)*(x-3)
+    #return x*np.sin(x)
+    #return 0.5*np.sin(x) + 0.5*x -0.02(x-5)^2
+    #return -np.cos(np.pi*x) + np.sin(4*np.pi*x)
 
 def f2(x,y):
     """ The 2 d function to predict """
@@ -153,6 +155,7 @@ if __name__ == "__main__":
         gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
+        
         gpr.fit(X_train, y_train)        
         y_,  sigma_ = gpr.predict(X, return_std = True)
         y_pred_train, sigma_train = y_[bool_array], sigma_[bool_array] #gpr.predict(X_train, return_std = True)
