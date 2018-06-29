@@ -11,7 +11,7 @@ import GPy as gp
 
 M = 3
 cov = np.identity(3)
-x = np.sort(np.random.uniform(-8,8, 200))
+x = np.sort(np.random.uniform(-8,8, 2))
 
 # Sampling from a univariate gaussian
 
@@ -27,32 +27,42 @@ plt.scatter(s,np.zeros(25), marker='x')
 
 # Sampling from a GP prior 
 
-k = gp.kern.RBF(input_dim=1,lengthscale=0.2)
+k = gp.kern.RBF(input_dim=1,lengthscale=2)
 k = gp.kern.Brownian()
-k = gp.kern.Matern32(input_dim=1, variance=1, lengthscale=0.2)
+k = gp.kern.Matern32(input_dim=1, variance=1, lengthscale=1)
 
 
 # Select input points
-X = np.linspace(0.,1.,500) # define X to be 500 points evenly spaced over [0,1]
+X = np.linspace(0.0,20,80) # define X to be 500 points evenly spaced over [0,1]
 X = X[:,None] 
 
 # Set the mean and covariance function 
 
-mu = np.zeros((500))
+mu = np.zeros((80))
 C = k.K(X,X)
 
 # Generate 20 samples from the multivariate Gaussian with mean mu and covariance C
 
-Z = np.random.multivariate_normal(mu,C,20)
+Z = np.random.multivariate_normal(mu,C,10)
 
-plt.figure(figsize=(5,5))    
-for i in range(20):
-    plt.plot(X[:],Z[i,:])
+plt.figure()    
+for i in range(10):
+    plt.plot(X[:],Z[i,:],alpha=0.6)
 plt.xlabel('x')
 plt.ylabel('f(x)')
-#plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = \frac{-1}{2l^{2}}(x_{i} - x_{j})^{2}$'  + ' and 'r'$l = 0.2$' + '[RBF kernel]', fontsize='x-small')
+plt.title('10 samples from a GP prior with RBF covariance function [$\mu = 0$]', fontsize='small')
+plt.axhline(y=0, color='r', label='mean function')
+plt.fill_between(np.ravel(X), y1=-2*np.diag(C), y2=2*np.diag(C), color='k', alpha=0.2)
+
+plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = \frac{-1}{2l^{2}}(x_{i} - x_{j})^{2}$'  + ' and 'r'$l = 0.2$' + '[RBF kernel]', fontsize='x-small')
 #plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = min(x_{i}, x_{j})$' + '[Brownian kernel]', fontsize='x-small')
-plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = (1 + \sqrt{3}r)\exp(-\sqrt{3}r)$' + ' and 'r'$r = \sqrt{\sum_{i=1}^{n}\frac{x_{i} - y_{i}}{l_{i}^{2}}}$' + '[Matern32 kernel]', fontsize='x-small')
+#plt.title('Samples from ' + r'$\mu(x) = 0$' + ' and '+ r'$k(x_{i}, x_{j}) = (1 + \sqrt{3}r)\exp(-\sqrt{3}r)$' + ' and 'r'$r = \sqrt{\sum_{i=1}^{n}\frac{x_{i} - y_{i}}{l_{i}^{2}}}$' + '[Matern32 kernel]', fontsize='x-small')
+
+plt.figure(figsize=(5,5))    
+for i in range(2):
+    plt.plot(Z[i,:],1/(1 + np.exp(-Z[i,:])))
+plt.xlabel('x')
+plt.ylabel('g(f(x))')
 
 # Basis function representation of a GP
 
@@ -65,7 +75,6 @@ def sample_paths(x, cov, gamma):
 def phi_gauss(x,m, gamma):
     return np.exp(-gamma*np.square(x - m))
     
-   
 mu = [-4,0,4.0]
 gamma = [0.2,0.2,0.2]
 x = np.sort(np.random.uniform(-8,8, 200))
