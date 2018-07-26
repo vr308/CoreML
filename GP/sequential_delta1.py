@@ -125,146 +125,145 @@ def plot_seq_gp():
     return
 
 if __name__ == "__main__":
-
-    #  The  noisy case # ----------------------------------------------------------------------
     
     X = np.atleast_2d(np.sort(np.random.uniform(0,+20,40))).T
     x = np.atleast_2d(np.linspace(0, 20, 1000)).T
 
     noise = np.random.normal(0, 20, len(X)).reshape(len(X),1)
-    
     y = f(X) + noise
-    
-    #random.randint(0,len(X))
-    
+        
     i = 1
-    #y_pred_evolutions = []
-    #sigma_evolutions = []
     bool_array = np.array([False]*len(X))
     bool_array[[30]] = True
     
-    test_err = []
+    remainder_err = []
+    
+    delta = 3
         
     while i < len(X):
     
-        #dist_matrix = distance.cdist(np.atleast_2d(seq_).T, X_train)
-        #closest_index = [x.argmin() for x in dist_matrix]
-        
         print ('Iteration number ' + str(i))
 
-        X_train = X[bool_array]
-        y_train = y[bool_array]
+        X_active = X[bool_array]
+        y_active = y[bool_array]
         
-        X_test = X[~bool_array]
-        y_test = y[~bool_array]
+        X_remainder = X[~bool_array]
+        y_remainder = y[~bool_array]
         
         # Instansiate a Gaussian Process model
         kernel = Ck(1000.0, (1e-3, 1e4)) * RBF(1.0, (1, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
         gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
-        
-        gpr.fit(X_train, y_train)        
+        gpr.fit(X_active, y_active)        
         y_,  sigma_ = gpr.predict(X, return_std = True)
-        y_pred_train, sigma_train = y_[bool_array], sigma_[bool_array] #gpr.predict(X_train, return_std = True)
-        y_pred_test, sigma_test = y_[~bool_array], sigma_[~bool_array] #gpr.predict(X_test, return_std=True)
+        y_pred_active, sigma_active = y_[bool_array], sigma_[bool_array] #gpr.predict(X_train, return_std = True)
+        y_pred_remainder, sigma_remainder = y_[~bool_array], sigma_[~bool_array] #gpr.predict(X_test, return_std=True)
         
-        rmse_test = np.round(np.sqrt(np.mean(np.square(y_pred_test - y_test))),2)
+        rmse_remainder = np.round(np.sqrt(np.mean(np.square(y_pred_remainder - y_remainder))),2)
 
-        print 'Test error : ' + str(rmse_test)
-        
-        #training_err.append(rmse_train)
-        test_err.append(rmse_test)
+        print 'Remainder error : ' + str(rmse_remainder)
+        remainder_err.append(rmse_remainder)
 
-        # Extract the knots with max sigma
-        #x_knots = get_data_max_var(sigma_, X)
-        #knot_id = [list(np.round(X,2)).index(s) for s in np.round(x_knots,2)]
+
+        if delta == 1:
+            
+            # Extract the knots with max sigma
+            
+            x_knots = get_data_max_var(sigma_, X)
+            knot_id = [list(np.round(X,2)).index(s) for s in np.round(x_knots,2)]
+            
+        elif delta == 2:
+            
+            #Compute deviation from the mean
+            knot_id = [np.argmax(np.abs(y_ - y))]
+            y_min_array = []
+            y_max_array = []
         
-        #knot_id = [np.argmax(np.abs(y_ - y))]
+            for k in np.arange(len(y_)):
+                y_min_array.append(np.min((y_[k],y[k])))
+                y_max_array.append(np.max((y_[k],y[k])))
+            
+        elif delta == 3:
+            
+            factor = sigma_ + np.ravel(np.abs(y_ - y)) 
+            knot_id = [np.argmax(factor)]
+            
+            y_min_factor_array = []
+            y_max_factor_array = []
         
-        factor = sigma_*np.ravel(np.abs(y_ - y)) 
+            draw_factor = sigma_ + np.abs(np.ravel(y - y_))
+
+            for k in np.arange(len(y_)):
+                y_min_factor_array.append(np.min((y_[k],draw_factor[k])))
+                y_max_factor_array.append(np.max((y_[k],draw_factor[k])))
         
-        knot_id = [np.argmax(factor)]
-        
-        #print(knot_id)
-        
+        print(knot_id)
         x_knots = X[knot_id]
         
         y_pred, sigma = gpr.predict(x, return_std = True)
-        y_pred_knots, sigma_knots = gpr.predict(x_knots, return_std=True)
+        y_pred_knot, sigma_knots = gpr.predict(x_knots, return_std=True)
         
-        
-        dr = np.max(factor)
-        draw_factor = (sigma_*np.ravel(y - y_))*1000/dr
         #plt.stem(draw_factor, label=str(i))
+    
+        plot_factor = np.mod(i,8)
         
-        #lml = np.round(gpr.log_marginal_likelihood_value_,2)
+        if(plot_factor == 1):
+            plt.figure(figsize=(15,8))
         
-        #y_pred_evolutions.append(y_pred)
-        #sigma_evolutions.append(sigma)
-        
-#        y_min_array = []
-#        y_max_array = []
-#        
-#        for k in np.arange(len(y_)):
-#            y_min_array.append(np.min((y_[k],y[k])))
-#            y_max_array.append(np.max((y_[k],y[k])))
-            
-        
-        y_min_factor_array = []
-        y_max_factor_array = []
-        
-        for k in np.arange(len(y_)):
-            y_min_factor_array.append(np.min((y_[k],draw_factor[k])))
-            y_max_factor_array.append(np.max((y_[k],draw_factor[k])))
-            
-        
-        #plot_factor = np.mod(i,8)
-        
-        #if(plot_factor == 1):
-        #    plt.figure(figsize=(15,8))
-            
-        #if (plot_factor == 0):
-        #    plt.subplot(2, 4, 8)
-        #else:
-        #    plt.subplot(2, 4, np.mod(i,8))
+        if (plot_factor == 0):
+            plt.subplot(2, 4, 8)
+        else:
+            plt.subplot(2, 4, np.mod(i,8))
 
-        plt.figure()
-        plt.plot(X_train, y_train, 'bo', label='Active set ' + r'$\mathbf{y}(I_{t})$')
-        plt.plot(x_knots, y_pred_knots, 'ms', markersize=5, label='Next active point')
+        #plt.figure()
+        plt.plot(X_active, y_active, 'bo', label='Active set ' + r'$\mathbf{y}(I_{t})$')
+        plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Next active point')
         plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
         plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
         plt.plot(x, y_pred, label='Mean ' + r'$\mu_{t}$')
-        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label=r'$2 \sqrt{diag(\Sigma_{t})}$')
-        #plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|\mu_{t} - y(R_{t})|$')
-        plt.vlines(np.ravel(X), ymin=y_min_factor_array, ymax=y_max_factor_array, alpha=0.7, color='y', label=r'$diag(\Sigma_{t})|\mu_{t} - y(R_{t})|$')
-        #plt.title('RMSE Test: ' +  str(rmse_test) + '\n'  , fontsize='x-small')
-        plt.title('GPR with progressive training ' + '[Stage t = ' + str(len(X_train)) + ']' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_) + '\n' + 'RMSE Test: ' +  str(rmse_test), fontsize='x-small')
-        plt.legend(fontsize='x-small')
-        #if(np.mod(i,8) == 1):
-        #    plt.legend(fontsize = 'x-small')
+        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 2*sigma, np.ravel(y_pred) + 2*sigma, alpha=0.2, color='c', label=r'$2 \sqrt{diag(\Sigma_{t})}$')
+        if delta == 2:
+            plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|\mu_{t} - y(R_{t})|$')
+        elif delta == 3:
+            plt.errorbar(np.ravel(X_remainder), y_remainder, yerr=factor[~bool_array] , fmt='none', ecolor='orange')
+            #plt.vlines(np.ravel(X), ymin=y_min_factor_array, ymax=y_max_factor_array, alpha=0.7, color='y', label=r'$\sqrt{diag(\Sigma_{t})} + |\mu_{t} - y(R_{t})|$')
+        plt.title('GPR with progressive training ' + '[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
+        #plt.legend(fontsize='x-small')
+        if(np.mod(i,8) == 1):
+            plt.legend(fontsize = 'x-small')
             
         if i > 1:
-            delta_error = test_err[-2] - test_err[-1]
+            delta_error = remainder_err[-2] - remainder_err[-1]
             if (delta_error < 0.05*(np.max(X) - np.min(X)) and delta_error > 0):
                 
                 print('Training has converged')
                 print('Conducting Hyper-parameter optimization')
                 print ('Initial Kernel: ' + str(gpr.kernel_))
                 
-                gpr = GaussianProcessRegressor(kernel=kernel)
-                gpr.fit(X_train, y_train)
+                rmse_test = np.round(np.sqrt(np.mean(np.square(y_pred - f(x)))),2)
+                print ('Test error on hold out set: ' + str(rmse_test))
                 
-                print('Optimised Kernel: ' + str(gpr.kernel_))
+                #gpr = GaussianProcessRegressor(kernel=kernel)
+                #gpr.fit(X_active, y_active)
                 
-                y_pred, sigma = gpr.predict(x, return_std=True)
+                #print('Optimised Kernel: ' + str(gpr.kernel_))
+                
+                #y_pred_opt, sigma = gpr.predict(x, return_std=True)
                    
                 # Plot the evolution of test error
-                
-                #plt.subplot(2, 4, np.mod(i+1,8))               
-                #plt.plot(test_err, label='Test error')
-                #plt.legend(fontsize = 'x-small')
-                #plt.title('Test Error ' + str(len(X_train)) + ' training points, ' + str(i) + ' iterations ', fontsize='small')
+#                plot_factor = np.mod(i,8)
+#                if(plot_factor == 0):
+#                    plt.figure(figsize=(15,8))
+#                    plt.subplot(2, 4, np.mod(i+1,8))  
+#                else:
+#                    plt.subplot(2, 4, np.mod(i+1,8))
+#                    
+#                #plt.subplot(2, 4, np.mod(i+1,8))  
+#                #plt.figure()
+#                plt.plot(remainder_err, label='Test error')
+#                plt.legend(fontsize = 'x-small')
+#                plt.title('Evolution of Remainder Error ' + str(len(X_active)) + ' active points ', fontsize='small')
                 
                 #if (np.mod(i+2,8) == 0):
                 #     last_plot = 8
@@ -280,13 +279,32 @@ if __name__ == "__main__":
 #                plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='x-small')
 #                plt.suptitle('GPR with greedy training ' + '\n' +  'Optimised Kernel: ' + str(gpr.kernel_), fontsize='x-small')
 #                if(np.mod(i,8) == 1):
-#                    plt.legend(fontsize = 'x-small')             
-                
-                break;
-                
+#                    plt.legend(fontsize = 'x-small')                        
+                break;           
         bool_array[knot_id] = True
         i = i + 1
             
+# Testing out on hold out set
+
+gpr = GaussianProcessRegressor(kernel=kernel)
+
+#Full GP
+
+gpr_full = gpr.fit(X,y) 
+y_pred_full, sigma_full = gpr_full.predict(x, return_std = True)
+
+# Random subset GP 
+
+gpr_subset = gpr.fit()
+ 
+
+y_pred_pgp, sigma = gpr.predict(x, return_std=True)
+test_err_pgp = np.sqrt(np.square(f(x) - y_pred_pgp))
+
+
+
+
+        
 
 #pdf = matplotlib.backends.backend_pdf.PdfPages("/home/raid/vr308/PHD/Code/Explorations/GP/Exp6.pdf")
 #for fig in xrange(1, plt.get_fignums()[-1] +1): ## will open an empty extra figure :(

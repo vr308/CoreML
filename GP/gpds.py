@@ -54,9 +54,6 @@ if __name__ == "__main__":
     plt.plot(X[0:10], Z[0,:])
     plt.vlines(X[0:10],ymin=-6, ymax=4, lw=1)
     
-    
-    
-    
     # Regressing on points drawn from a pdf
     
     
@@ -69,14 +66,14 @@ if __name__ == "__main__":
     plt.plot(x_grid[::100], pdf[::100], 'bo')
     plt.hist(X, bins=50, normed=True)
     
-    X = np.atleast_2d(x_grid[::100]).T
+    Xt = np.atleast_2d(x_grid[::100]).T
     y = np.atleast_2d(pdf[::100]).T
     
     kernel = Ck(1.0, (1e-10, 1e3)) * RBF(2, length_scale_bounds=(2, 5))
     gpr = GaussianProcessRegressor(kernel=kernel, optimizer=None, normalize_y = True)
 
     # Fit to data 
-    gpr.fit(X, y)       
+    gpr.fit(Xt, y)       
     
     plt.figure()
     plt.plot(x_grid[::100], pdf[::100], 'bo')
@@ -87,7 +84,7 @@ if __name__ == "__main__":
 
   
     dpgmm = mixture.BayesianGaussianMixture(n_components=5,
-                                        covariance_type='full').fit(X)
+                                        covariance_type='full').fit(Xt)
     
     import itertools
 
@@ -124,9 +121,17 @@ if __name__ == "__main__":
         
     plot_results(X, dpgmm.predict(X), dpgmm.means_, dpgmm.covariances_, 1,
              'Bayesian Gaussian Mixture with a Dirichlet process prior')
-
-
     plt.plot(X, dpgmm.predict(X))
+    
+    # Dirichlet distribution and Dirichlet process
+    
+    import numpy.random as rd
+    
+    
+    
+    
+    
+    
     
     
     
