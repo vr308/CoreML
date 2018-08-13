@@ -76,4 +76,33 @@ fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
 ax.scatter(sd[:,0],sd[:,1],sd[:,2], c='k', depthshade=False)
 
+# Dirichlet process
+
+import pymc3 as pm
+import scipy as sp
+import seaborn as sns
+from theano import tensor as tt
+import pandas as pd
+
+N = 20
+K = 30
+
+alpha = 2.
+P0 = sp.stats.norm
+
+# Sampling using the stick breaking process
+
+beta = sp.stats.beta.rvs(1, 2, size=(N, K))
+w = np.empty_like(beta)
+
+w[:,0] = beta[:,0]
+w[:, 1:] = beta[:, 1:] * (1 - beta[:, :-1]).cumprod(axis=1)
+omega = P0.rvs(size=(N, K))
+x_plot = np.linspace(-3, 3, 200)
+sample_cdfs = (w[..., np.newaxis] * np.less.outer(omega, x_plot)).sum(axis=1)
+
+
+def dirichlet_process()
+
+
 
