@@ -17,6 +17,18 @@ from mpl_toolkits.mplot3d import Axes3D
 c1 = st.cauchy.rvs(loc=-1,scale=0.2, size=10)
 c2 = st.cauchy.rvs(loc=0.8,scale=0.2, size=10)
 
+x_grid = np.linspace(-4,10, 10000)
+pdf1= st.cauchy.pdf(x_grid, -1, 2)
+pdf2= st.cauchy.pdf(x_grid, 4, 1.2)
+
+plt.figure()
+plt.plot(x_grid, 0.5*pdf1,linestyle='--', color='b', label='components')
+plt.plot(x_grid, 0.5*pdf2, linestyle='--', color='b')
+plt.plot(x_grid, 0.5*pdf1 + 0.5*pdf2, color='o', label='True dist')
+
+
+
+
 plt.figure()
 plt.hist(c1, bins=50)
 plt.hist(c2, bins=50)
@@ -28,7 +40,6 @@ plt.hist(c, bins=50, density=True)
 kde = KDEUnivariate(c)
 kde.fit(bw=0.2)
 
-x_grid = np.linspace(-4,10, 10000)
 plt.plot(x_grid, kde.evaluate(x_grid))
 
 plt.title('Mixture of Cauchy\'s and KDE estimate')
@@ -98,11 +109,25 @@ w = np.empty_like(beta)
 w[:,0] = beta[:,0]
 w[:, 1:] = beta[:, 1:] * (1 - beta[:, :-1]).cumprod(axis=1)
 omega = P0.rvs(size=(N, K))
+
+plt.hist(omega[2],weights=w[2], bins=100, normed=False)
+
+
 x_plot = np.linspace(-3, 3, 200)
 sample_cdfs = (w[..., np.newaxis] * np.less.outer(omega, x_plot)).sum(axis=1)
 
+fig, ax = plt.subplots(figsize=(8, 6))
 
-def dirichlet_process()
+ax.plot(x_plot, sample_cdfs[0], c='gray', alpha=0.75,
+        label='DP sample CDFs');
+ax.plot(x_plot, sample_cdfs[1:].T, c='gray', alpha=0.75);
+ax.plot(x_plot, P0.cdf(x_plot), c='k', label='Base CDF');
+
+ax.set_title(r'$\alpha = {}$'.format(alpha));
+ax.legend(loc=2);
+
+
+# Estimating a pdf using a mixture dirichlet
 
 
 
