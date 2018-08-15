@@ -14,8 +14,8 @@ import matplotlib.pylab as plt
 from statsmodels.nonparametric.kde import KDEUnivariate
 from mpl_toolkits.mplot3d import Axes3D
 
-c1 = st.cauchy.rvs(loc=-1,scale=0.2, size=10)
-c2 = st.cauchy.rvs(loc=0.8,scale=0.2, size=10)
+c1 = st.cauchy.rvs(loc=-1,scale=2, size=1000)
+c2 = st.cauchy.rvs(loc=4,scale=1.2, size=1000)
 
 x_grid = np.linspace(-4,10, 10000)
 pdf1= st.cauchy.pdf(x_grid, -1, 2)
@@ -24,21 +24,16 @@ pdf2= st.cauchy.pdf(x_grid, 4, 1.2)
 plt.figure()
 plt.plot(x_grid, 0.5*pdf1,linestyle='--', color='b', label='components')
 plt.plot(x_grid, 0.5*pdf2, linestyle='--', color='b')
-plt.plot(x_grid, 0.5*pdf1 + 0.5*pdf2, color='o', label='True dist')
-
-
-
-
-plt.figure()
-plt.hist(c1, bins=50)
-plt.hist(c2, bins=50)
+plt.plot(x_grid, 0.5*pdf1 + 0.5*pdf2, color='y', label='True dist')
+plt.title('Mixture of 1d Cauchy variables')
+plt.legend()
 
 # Mixture of 2 Cauchy dist. 
 c = np.ravel(np.vstack((c1,c2)))
-plt.hist(c, bins=50, density=True)
+plt.hist(c, bins=100, density=True, alpha=0.4)
 
 kde = KDEUnivariate(c)
-kde.fit(bw=0.2)
+kde.fit(bw=1)
 
 plt.plot(x_grid, kde.evaluate(x_grid))
 
