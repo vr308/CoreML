@@ -7,12 +7,10 @@ This is a temporary script file.
 
 import numpy as np
 import scipy.stats as st 
-import sklearn as skt
+import scipy as sp
 from scipy.stats import beta
-from scipy.stats import dirichlet
 import matplotlib.pylab as plt
 from statsmodels.nonparametric.kde import KDEUnivariate
-from mpl_toolkits.mplot3d import Axes3D
 
 c1 = st.cauchy.rvs(loc=-1,scale=2, size=1000)
 c2 = st.cauchy.rvs(loc=4,scale=1.2, size=1000)
@@ -75,7 +73,8 @@ plt.figure()
 plt.plot(x, prior_beta)
 plt.plot(x, posterior_beta)
 
-# Dirichlet
+# Dirichlet dist. 
+
 sd = np.random.dirichlet(alpha=(5,5,5), size=10000)
 
 fig = plt.figure()
@@ -83,43 +82,74 @@ ax = fig.add_subplot(111, projection='3d')
 ax.scatter(sd[:,0],sd[:,1],sd[:,2], c='k', depthshade=False)
 
 # Dirichlet process
+# Sampling using a stick breaking view
 
-import pymc3 as pm
-import scipy as sp
-import seaborn as sns
-from theano import tensor as tt
-import pandas as pd
 
-N = 20
+import matplotlib.pyplot as plt
+from scipy.stats import beta, norm
+import numpy as np
+
+def dirichlet_sample_approximation(base_measure, alpha, tol=0.01):
+    betas = []
+    pis = []
+    betas.append(beta(1, alpha).rvs())
+    pis.append(betas[0])
+    while sum(pis) < (1.-tol):
+        s = np.sum([np.log(1 - b) for b in betas])
+        new_beta = beta(1, alpha).rvs() 
+        betas.append(new_beta)
+        pis.append(new_beta * np.exp(s))
+    pis = np.array(pis)
+    thetas = np.array([base_measure() for _ in pis])
+    return pis, thetas
+
+def plot_dp_draws(alpha):
+    plt.figure()
+    plt.title("Dirichlet Process Sample with N(0,1) Base Measure")
+    plt.suptitle("alpha: %s" % alpha)
+    pis, thetas = dirichlet_sample_approximation(lambda: norm().rvs(), alpha)
+    pis = pis * (norm.pdf(0) / pis.max())
+    plt.vlines(thetas, 0, pis, )
+    X = np.linspace(-4,4,100)
+    plt.plot(X, norm.pdf(X))
+
+plot_dp_draws(.1)
+plot_dp_draws(1)
+plot_dp_draws(10)
+plot_dp_draws(1000)
+
+
+# Draws from a DPMM
+
+N = 5
 K = 30
 
-alpha = 2.
+alpha = 2
 P0 = sp.stats.norm
+f = lambda x, theta: sp.stats.norm.pdf(x, theta, 0.3)
 
-# Sampling using the stick breaking process
 
-beta = sp.stats.beta.rvs(1, 2, size=(N, K))
+beta = sp.stats.beta.rvs(1, alpha, size=(N, K))
 w = np.empty_like(beta)
-
-w[:,0] = beta[:,0]
+w[:, 0] = beta[:, 0]
 w[:, 1:] = beta[:, 1:] * (1 - beta[:, :-1]).cumprod(axis=1)
-omega = P0.rvs(size=(N, K))
 
-plt.hist(omega[2],weights=w[2], bins=100, normed=False)
 
+
+
+
+theta = P0.rvs(size=(N, K))
 
 x_plot = np.linspace(-3, 3, 200)
-sample_cdfs = (w[..., np.newaxis] * np.less.outer(omega, x_plot)).sum(axis=1)
+
+dpm_pdf_components = f(x_plot[np.newaxis, np.newaxis, :], theta[..., np.newaxis])
+dpm_pdfs = (w[..., np.newaxis] * dpm_pdf_components).sum(axis=1)
+
 
 fig, ax = plt.subplots(figsize=(8, 6))
+ax.plot(x_plot, dpm_pdfs.T, c='gray');
 
-ax.plot(x_plot, sample_cdfs[0], c='gray', alpha=0.75,
-        label='DP sample CDFs');
-ax.plot(x_plot, sample_cdfs[1:].T, c='gray', alpha=0.75);
-ax.plot(x_plot, P0.cdf(x_plot), c='k', label='Base CDF');
 
-ax.set_title(r'$\alpha = {}$'.format(alpha));
-ax.legend(loc=2);
 
 
 # Estimating a pdf using a mixture dirichlet
