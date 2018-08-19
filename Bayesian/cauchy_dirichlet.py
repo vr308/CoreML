@@ -84,7 +84,6 @@ ax.scatter(sd[:,0],sd[:,1],sd[:,2], c='k', depthshade=False)
 # Dirichlet process
 # Sampling using a stick breaking view
 
-
 import matplotlib.pyplot as plt
 from scipy.stats import beta, norm
 import numpy as np
@@ -118,7 +117,6 @@ plot_dp_draws(1)
 plot_dp_draws(10)
 plot_dp_draws(1000)
 
-
 # Draws from a DPMM
 
 N = 5
@@ -128,15 +126,10 @@ alpha = 2
 P0 = sp.stats.norm
 f = lambda x, theta: sp.stats.norm.pdf(x, theta, 0.3)
 
-
 beta = sp.stats.beta.rvs(1, alpha, size=(N, K))
 w = np.empty_like(beta)
 w[:, 0] = beta[:, 0]
 w[:, 1:] = beta[:, 1:] * (1 - beta[:, :-1]).cumprod(axis=1)
-
-
-
-
 
 theta = P0.rvs(size=(N, K))
 
@@ -145,14 +138,69 @@ x_plot = np.linspace(-3, 3, 200)
 dpm_pdf_components = f(x_plot[np.newaxis, np.newaxis, :], theta[..., np.newaxis])
 dpm_pdfs = (w[..., np.newaxis] * dpm_pdf_components).sum(axis=1)
 
-
 fig, ax = plt.subplots(figsize=(8, 6))
-ax.plot(x_plot, dpm_pdfs.T, c='gray');
+ax.plot(x_plot, dpm_pdfs.T, c='gray')
 
 
+# Components of a mixture
 
+x = (w[..., np.newaxis]*dpm_pdf_components)[2]
+
+plt.figure(figsize=(12,6))
+plt.subplot(121)
+for i in range(30):
+    plt.plot(x_plot, x[i])
+plt.title('Weighted Mixture Components', fontsize='x-small')
+
+plt.subplot(122)
+plt.plot(x_plot, dpm_pdfs[2], c='gray')
+plt.title('Density', fontsize='x-small')
 
 # Estimating a pdf using a mixture dirichlet
 
+import pandas as pd
+import pymc3 as pm
+from theano import tensor as tt
 
+sunspot_df = pd.read_csv(pm.get_data('sunspot.csv'), sep=';', names=['time', 'sunspot.year'], usecols=[0, 1])
+
+K = 50
+N = sunspot_df.shape[0]
+
+def stick_breaking(beta):
+    portion_remaining = tt.concatenate([[1], tt.extra_ops.cumprod(1 - beta)[:-1]])
+    return beta * portion_remaining
+
+with pm.Model() as model:
+    alpha = pm.Gamma('alpha',1,1)
+    beta = pm.Beta('beta', 1, alpha, shape=K)
+    w = pm.Deterministic('w', stick_breaking(beta))
+    mu = pm.Uniform('mu', 0., 300., shape=K)
+    obs = pm.Mixture('obs', w, pm.Poisson.dist(mu), observed=sunspot_df['sunspot.year'])
+    
+with model:
+    step = pm.Metropolis()
+    trace = pm.sample(1000, step=step)
+    
+x_plot = np.arange(250)
+post_pmf_contribs = sp.stats.poisson.pmf(np.atleast_3d(x_plot),
+                                         trace['mu'][:, np.newaxis, :])
+post_pmfs = (trace['w'][:, np.newaxis, :] * post_pmf_contribs).sum(axis=-1)
+post_pmf_low, post_pmf_high = np.percentile(post_pmfs, [2.5, 97.5], axis=0)
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.hist(sunspot_df['sunspot.year'].values, bins=40, normed=True, lw=0, alpha=0.75);
+ax.fill_between(x_plot, post_pmf_low, post_pmf_high,
+                 color='gray', alpha=0.45)
+ax.plot(x_plot, post_pmfs[0],
+        c='gray', label='Posterior sample densities');
+ax.plot(x_plot, post_pmfs[::200].T, c='gray');
+ax.plot(x_plot, post_pmfs.mean(axis=0),
+        c='k', label='Posterior expected density');
+ax.set_xlabel('Yearly sunspot count');
+ax.set_yticklabels([]);
+ax.legend(loc=1);
+
+
+    
 

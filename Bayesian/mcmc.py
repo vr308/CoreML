@@ -52,7 +52,7 @@ def sampler(data, samples=4, mu_init=0.5, proposal_width=0.5, mu_prior_mu =0, mu
         prior_current = norm(mu_prior_mu, mu_prior_sd).pdf(mu_current)
         prior_proposal = norm(mu_prior_mu, mu_prior_sd).pdf(mu_proposal)
     
-        # Nominator of Bayes formula
+        # Numerator of Bayes formula
         p_current = likelihood_current * prior_current
         p_proposal = likelihood_proposal * prior_proposal
     
@@ -75,7 +75,7 @@ pos = sampler(data, 1000, 0, 1)
 def plot_posterior_result(posterior, analytical):
     
     plt.figure()
-    plt.hist(posterior, bins=100, normed=True)
+    plt.hist(pos, bins=100, normed=True)
     plt.plot(analytical)
 
 
@@ -90,5 +90,5 @@ with pm.Model():
     trace = pm.sample(15000, step)
     
 sns.distplot(trace[2000:]['mu'], label='PyMC3 sampler');
-sns.distplot(posterior[500:], label='Hand-written sampler');
+sns.distplot(pos[500:], label='Hand-written sampler');
 plt.legend();
