@@ -21,8 +21,8 @@ import numpy as np
 
 def f(x):
     """The function to predict."""
-    return np.square(x)*np.sin(x)
-    #return x*np.sin(x)
+    #return np.square(x)*np.sin(x)
+    return x*np.sin(x)
     #return 0.5*np.sin(x) + 0.5*x -0.02(x-5)^2
     #return -np.cos(np.pi*x) + np.sin(4*np.pi*x)
 
@@ -123,7 +123,7 @@ if __name__ == "__main__":
     X = np.atleast_2d(np.sort(np.random.uniform(0,+20,40))).T
     x = np.atleast_2d(np.linspace(0, 20, 1000)).T
 
-    noise = np.random.normal(0, 20, len(X)).reshape(len(X),1)
+    noise = np.random.normal(0, 1.4, len(X)).reshape(len(X),1)
     
     y = f(X) + noise
     
@@ -139,9 +139,7 @@ if __name__ == "__main__":
         
     while i < len(X):
     
-        #dist_matrix = distance.cdist(np.atleast_2d(seq_).T, X_train)
-        #closest_index = [x.argmin() for x in dist_matrix]
-        
+     
         print ('Iteration number ' + str(i))
 
         X_train = X[bool_array]
@@ -151,7 +149,7 @@ if __name__ == "__main__":
         y_test = y[~bool_array]
         
         # Instansiate a Gaussian Process model
-        kernel = Ck(1000.0, (1e-3, 1e4)) * RBF(1.0, (1, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
+        kernel = Ck(10.0, (1e-3, 1e5)) * RBF(1.4, (1, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
         gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
@@ -163,7 +161,7 @@ if __name__ == "__main__":
         
         rmse_test = np.round(np.sqrt(np.mean(np.square(y_pred_test - y_test))),2)
 
-        print 'Test error : ' + str(rmse_test)
+        print('Test error : ' + str(rmse_test))
         
         #training_err.append(rmse_train)
         test_err.append(rmse_test)
@@ -174,58 +172,65 @@ if __name__ == "__main__":
         
         #knot_id = [np.argmax(np.abs(y_ - y))]
         
-        factor = sigma_*np.ravel(np.abs(y_ - y)) 
-        
+        factor = sigma_ + np.ravel(np.abs(y_ - y)) 
         knot_id = [np.argmax(factor)]
+            
+        y_min_factor_array = []
+        y_max_factor_array = []
         
-        print(knot_id)
+        draw_factor = sigma_ + np.abs(np.ravel(y - y_))
+
+        for k in np.arange(len(y_)):
+            y_min_factor_array.append(np.min((y_[k],draw_factor[k])))
+            y_max_factor_array.append(np.max((y_[k],draw_factor[k])))
+        
         
         x_knots = X[knot_id]
         
         y_pred, sigma = gpr.predict(x, return_std = True)
         y_pred_knots, sigma_knots = gpr.predict(x_knots, return_std=True)
         
-        
-        #plt.stem(sigma_*np.ravel(factor)/np.sum(factor), label=str(i))
-        
-        #lml = np.round(gpr.log_marginal_likelihood_value_,2)
-        
-        #y_pred_evolutions.append(y_pred)
-        #sigma_evolutions.append(sigma)
-        
-        y_min_array = []
-        y_max_array = []
-        
-        for k in np.arange(len(y_)):
-            y_min_array.append(np.min((y_[k],y[k])))
-            y_max_array.append(np.max((y_[k],y[k])))
+        if i == 1:
+            plt.figure(figsize=(8,8))
             
-        
-        plot_factor = np.mod(i,8)
-        
-        if(plot_factor == 1):
-            plt.figure(figsize=(15,8))
-            
-        if (plot_factor == 0):
-            plt.subplot(2, 4, 8)
-        else:
-            plt.subplot(2, 4, np.mod(i,8))
+        if i < 5:
+            plt.subplot(2,2,i)           
+            plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test), fontsize='x-small')
+            plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
+            plt.plot(X_train, y_train, 'bo', label='Training knots')
+            plt.plot(x_knots, y_pred_knots, 'ms', markersize=5, label='Proposed Knots')
+            plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
+            plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
+            plt.plot(x, y_pred, label='Mean Prediction')
+            plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
+            plt.errorbar(np.ravel(X_remainder), y_remainder, yerr=factor[~bool_array] , fmt='none', ecolor='orange', alpha=0.5)
 
-        plt.plot(X_train, y_train, 'bo', label='Training knots')
-        plt.plot(x_knots, y_pred_knots, 'ms', markersize=5, label='Proposed Knots')
-        plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
-        plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
-        plt.plot(x, y_pred, label='Mean Prediction')
-        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
-        plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|y^{*} - y|$')
-        plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='x-small')
-        plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
-        if(np.mod(i,8) == 1):
-            plt.legend(fontsize = 'x-small')
+
+#        plot_factor = np.mod(i,8)
+#        
+#        if(plot_factor == 1):
+#            plt.figure(figsize=(15,8))
+#            
+#        if (plot_factor == 0):
+#            plt.subplot(2, 4, 8)
+#        else:
+#            plt.subplot(2, 4, np.mod(i,8))
+#
+#        plt.plot(X_train, y_train, 'bo', label='Training knots')
+#        plt.plot(x_knots, y_pred_knots, 'ms', markersize=5, label='Proposed Knots')
+#        plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
+#        plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
+#        plt.plot(x, y_pred, label='Mean Prediction')
+#        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
+#        plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|y^{*} - y|$')
+#        plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='x-small')
+#        plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
+#        if(np.mod(i,8) == 1):
+#            plt.legend(fontsize = 'x-small')
             
         if i > 1:
             delta_error = test_err[-2] - test_err[-1]
-            if (delta_error < 0.05*(np.max(X) - np.min(X)) and delta_error > 0):
+            if (delta_error < 0.001*(np.max(X) - np.min(X)) and delta_error > 0):
                 
                 print('Training has converged')
                 print('Conducting Hyper-parameter optimization')
@@ -240,26 +245,26 @@ if __name__ == "__main__":
                    
                 # Plot the evolution of test error
                 
-                plt.subplot(2, 4, np.mod(i+1,8))               
-                plt.plot(test_err, label='Test error')
-                plt.legend(fontsize = 'x-small')
-                plt.title('Test Error ' + str(len(X_train)) + ' training points, ' + str(i) + ' iterations ', fontsize='small')
-                
-                if (np.mod(i+2,8) == 0):
-                     last_plot = 8
-                else:
-                    last_plot = np.mod(i+2,8)
-                
-                plt.subplot(2, 4, last_plot)
-                plt.plot(X_train, y_train, 'bo', label='Training knots')
-                plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
-                plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
-                plt.plot(x, y_pred, label='Mean Prediction')
-                plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
-                plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='x-small')
-                plt.suptitle('GPR with greedy training ' + '\n' +  'Optimised Kernel: ' + str(gpr.kernel_), fontsize='x-small')
-                if(np.mod(i,8) == 1):
-                    plt.legend(fontsize = 'x-small')             
+#                plt.subplot(2, 4, np.mod(i+1,8))               
+#                plt.plot(test_err, label='Test error')
+#                plt.legend(fontsize = 'x-small')
+#                plt.title('Test Error ' + str(len(X_train)) + ' training points, ' + str(i) + ' iterations ', fontsize='small')
+#                
+#                if (np.mod(i+2,8) == 0):
+#                     last_plot = 8
+#                else:
+#                    last_plot = np.mod(i+2,8)
+#                
+#                plt.subplot(2, 4, last_plot)
+#                plt.plot(X_train, y_train, 'bo', label='Training knots')
+#                plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
+#                plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
+#                plt.plot(x, y_pred, label='Mean Prediction')
+#                plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$\sigma^{*}$')
+#                plt.title('n = ' + str(len(X_train)) + '\n' + 'RMSE Test: ' +  str(rmse_test) + '\n' + 'Hyp opt: ' + str(np.bool(gpr.optimizer)), fontsize='x-small')
+#                plt.suptitle('GPR with greedy training ' + '\n' +  'Optimised Kernel: ' + str(gpr.kernel_), fontsize='x-small')
+#                if(np.mod(i,8) == 1):
+#                    plt.legend(fontsize = 'x-small')             
                 
                 break;
                 

@@ -97,7 +97,7 @@ if __name__ == "__main__":
         
         # Instansiate a Gaussian Process model
         #kernel = Ck(1000, (1e-3, 1e4)) * RBF(1.0, (1, 1e2)) + WhiteKernel(noise_level=10, noise_level_bounds="fixed")
-        kernel = Ck(10, (1e-3, 1e4)) * RBF(2.0, (1, 1e2)) + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
+        kernel = Ck(10, (1e-3, 1e4)) * RBF(2.5, (1, 1e2)) + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
         gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
         # Fit to data using Maximum Likelihood Estimation of the parameters
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         
         rmse_remainder = np.round(np.sqrt(np.mean(np.square(y_pred_remainder - y_remainder))),2)
 
-        print 'Remainder error : ' + str(rmse_remainder)
+        print('Remainder error : ' + str(rmse_remainder))
         remainder_err.append(rmse_remainder)
 
 
@@ -151,33 +151,51 @@ if __name__ == "__main__":
         y_pred_knot, sigma_knots = gpr.predict(x_knots, return_std=True)
         
         #plt.stem(draw_factor, label=str(i))
-    
-        plot_factor = np.mod(i,8)
         
-        if(plot_factor == 1):
-            plt.figure(figsize=(15,8))
-        
-        if (plot_factor == 0):
-            plt.subplot(2, 4, 8)
-        else:
-            plt.subplot(2, 4, np.mod(i,8))
-
-        #plt.figure()
-        plt.plot(X_active, y_active, 'bo', label='Active set ' + r'$\mathbf{y}(I_{t})$')
-        plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Next active point')
-        plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
-        plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
-        plt.plot(x, y_pred, label='Mean ' + r'$\mu_{t}$')
-        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 2*sigma, np.ravel(y_pred) + 2*sigma, alpha=0.2, color='c', label=r'$2 \sqrt{diag(\Sigma_{t})}$')
-        if delta == 2:
-            plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|\mu_{t} - y(R_{t})|$')
-        elif delta == 3:
+        if i == 1:
+            plt.figure(figsize=(8,8))
+            
+        if i < 5:
+            plt.subplot(2,2,i)           
+            plt.title('GPR with greedy training ' + '[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
+            #plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
+            plt.plot(X_active, y_active, 'bo', label='Training knots')
+            plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Proposed Knots')
+            plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
+            plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
+            plt.plot(x, y_pred, label='Mean Prediction')
+            plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$2\sigma^{*}$')
             plt.errorbar(np.ravel(X_remainder), y_remainder, yerr=factor[~bool_array] , fmt='none', ecolor='orange', alpha=0.5)
-            #plt.vlines(np.ravel(X), ymin=y_min_factor_array, ymax=y_max_factor_array, alpha=0.7, color='y', label=r'$\sqrt{diag(\Sigma_{t})} + |\mu_{t} - y(R_{t})|$')
-        plt.title('GPR with progressive training ' + '[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
-        #plt.legend(fontsize='x-small')
-        if(np.mod(i,8) == 1):
-            plt.legend(fontsize = 'x-small')
+            
+        
+        
+    
+#        plot_factor = np.mod(i,8)
+#        
+#        if(plot_factor == 1):
+#            plt.figure(figsize=(15,8))
+#        
+#        if (plot_factor == 0):
+#            plt.subplot(2, 4, 8)
+#        else:
+#            plt.subplot(2, 4, np.mod(i,8))
+#
+#        #plt.figure()
+#        plt.plot(X_active, y_active, 'bo', label='Active set ' + r'$\mathbf{y}(I_{t})$')
+#        plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Next active point')
+#        plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
+#        plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
+#        plt.plot(x, y_pred, label='Mean ' + r'$\mu_{t}$')
+#        plt.fill_between(np.ravel(x), np.ravel(y_pred) - 2*sigma, np.ravel(y_pred) + 2*sigma, alpha=0.2, color='c', label=r'$2 \sqrt{diag(\Sigma_{t})}$')
+#        if delta == 2:
+#            plt.vlines(np.ravel(X), ymin=y_min_array, ymax=y_max_array,alpha=0.7, color='y', label='$|\mu_{t} - y(R_{t})|$')
+#        elif delta == 3:
+#            plt.errorbar(np.ravel(X_remainder), y_remainder, yerr=factor[~bool_array] , fmt='none', ecolor='orange', alpha=0.5)
+#            #plt.vlines(np.ravel(X), ymin=y_min_factor_array, ymax=y_max_factor_array, alpha=0.7, color='y', label=r'$\sqrt{diag(\Sigma_{t})} + |\mu_{t} - y(R_{t})|$')
+#        plt.title('GPR with progressive training ' + '[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
+#        #plt.legend(fontsize='x-small')
+#        if(np.mod(i,8) == 1):
+#            plt.legend(fontsize = 'x-small')
             
         if i > 1:
             delta_error = remainder_err[-2] - remainder_err[-1]
@@ -201,19 +219,19 @@ if __name__ == "__main__":
                 #y_pred_opt, sigma = gpr.predict(x, return_std=True)
                    
                 # Plot the evolution of test error
-                plot_factor = np.mod(i,8)
-                if(plot_factor == 0):
-                    plt.figure(figsize=(15,8))
-                    plt.subplot(2, 4, np.mod(i+1,8))  
-                else:
-                    plt.subplot(2, 4, np.mod(i+1,8))
-                    
-                plt.subplot(2, 4, np.mod(i+1,8))  
-                #plt.figure()
-                plt.plot(remainder_err, label='Remainder error')
-                plt.legend(fontsize = 'x-small')
-                plt.title('Evolution of Remainder Error ' + str(len(X_active)) + ' active points ' + '\n' + 'Test error: ' + str(rmse_test), fontsize='x-small')
-                
+#                plot_factor = np.mod(i,8)
+#                if(plot_factor == 0):
+#                    plt.figure(figsize=(15,8))
+#                    plt.subplot(2, 4, np.mod(i+1,8))  
+#                else:
+#                    plt.subplot(2, 4, np.mod(i+1,8))
+#                    
+#                plt.subplot(2, 4, np.mod(i+1,8))  
+#                #plt.figure()
+#                plt.plot(remainder_err, label='Remainder error')
+#                plt.legend(fontsize = 'x-small')
+#                plt.title('Evolution of Remainder Error ' + str(len(X_active)) + ' active points ' + '\n' + 'Test error: ' + str(rmse_test), fontsize='x-small')
+#                
                 #if (np.mod(i+2,8) == 0):
                 #     last_plot = 8
                 #else:
