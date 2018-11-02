@@ -153,20 +153,21 @@ if __name__ == "__main__":
         #plt.stem(draw_factor, label=str(i))
         
         if i == 1:
-            plt.figure(figsize=(8,8))
+            plt.figure(figsize=(9,6))
             
         if i < 5:
             plt.subplot(2,2,i)           
-            plt.title('GPR with greedy training ' + '[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
+            plt.title('[Stage t = ' + str(len(X_active)) + ']' + '\n' + r'$RMSE (X(R_{t})): $' +  str(rmse_remainder), fontsize='x-small')
             #plt.suptitle('GPR with greedy training ' + '\n' + 'Initial Kernel: ' + str(gpr.kernel_), fontsize='x-small')
-            plt.plot(X_active, y_active, 'bo', label='Training knots')
-            plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Proposed Knots')
+            plt.plot(X_active, y_active, 'bo', label='Active set')
+            plt.plot(x_knots, y_pred_knot, 'ms', markersize=5, label='Next active point')
             plt.plot(X, y, 'ro', markersize=1, label='Noisy data')
             plt.plot(x, f(x), 'r', alpha=0.3, label='True function')
             plt.plot(x, y_pred, label='Mean Prediction')
             plt.fill_between(np.ravel(x), np.ravel(y_pred) - 1.96*sigma, np.ravel(y_pred) + 1.96*sigma, alpha=0.2, color='c', label='$2\sigma^{*}$')
             plt.errorbar(np.ravel(X_remainder), y_remainder, yerr=factor[~bool_array] , fmt='none', ecolor='orange', alpha=0.5)
-            
+            if i == 4:
+                plt.legend(fontsize='x-small')
         
         
     
