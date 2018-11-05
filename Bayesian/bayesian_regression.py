@@ -57,7 +57,7 @@ if __name__ == "__main__":
     plt.plot(x,y_true, 'b')
     plt.plot(x,y_noise, 'ko',markersize=2)
     
-    #Design ma Matrix
+    #Design Matrix
     
     bw = 0.4 # basis hyperparameter
     BASIS = np.matrix(np.exp(-distSquared(x,x)/(bw**2)))
@@ -71,28 +71,79 @@ if __name__ == "__main__":
     mu = 0
     A = alpha*np.identity(100)
     
-    
-   # Sparsity Prior 
+  
    
-   
-   # Posterior 
-   
-   
-
-
-
 # Bayesian Regression using pymc
 
-import pymc3 as pm
-from scipy.stats import norm
+from pymc3 import  *
 
-k = 100 #number of data points
-x_data = norm(0,1).rvs(k)
-y_data = x_data + norm(0,0.35).rvs(k) + 0.5
+import numpy as np
+import matplotlib.pyplot as plt
 
-alpha = pm.Uniform(lower=-5, upper=5)
-beta = pm.Uniform(lower=-5, upper=5)
+size = 200
+true_intercept = 1
+true_slope = 2
 
+x = np.linspace(0, 1, size)
+# y = a + b*x
+true_regression_line = true_intercept + true_slope * x
+# add noise
+y = true_regression_line + np.random.normal(scale=.5, size=size)
 
+data = dict(x=x, y=y)
 
+with Model() as model: # model specifications in PyMC3 are wrapped in a with-statement
     
+    # Define priors
+    #sigma = HalfCauchy('sigma', beta=10, testval=1.)
+    sigma = 0.5
+    intercept = Normal('Intercept', 0, sd=20)
+    x_coeff = Normal('x', 0, sd=20)
+    
+    # Define likelihood
+    likelihood = Normal('y', mu=intercept + x_coeff * x, 
+                        sd=sigma, observed=y)
+    
+    # Inference!
+    trace = sample(progressbar=False) # draw posterior samples using NUTS sampling
+    
+traceplot(trace)
+plt.tight_layout();
+        
+plt.figure(figsize=(7, 7))
+plt.plot(x, y, 'x', label='data')
+plots.plot_posterior_predictive_glm(trace, samples=100, 
+                                    label='posterior predictive regression lines')
+plt.plot(x, true_regression_line, label='true regression line', lw=1., c='y')
+
+plt.title('Posterior predictive regression lines')
+plt.legend(loc=0)
+plt.xlabel('x')
+plt.ylabel('y');
+
+
+# Testing with hand-written code
+
+from scipy.stats import multivariate_normal as mv_norm
+
+noise_var = 0.25
+beta = 1.0/noise_var
+prior_mean = np.asarray([0,0]).reshape(-1,1)
+prior_var = np.asarray([400,400])*np.identity(2)
+
+X = np.ones((len(data['x']), 2))
+X[:, 1] = data['x']
+y = data['y'].reshape(data['y'].shape + (1,))
+
+def get_conjugate_normal_posterior(X, y, prior_mean, prior_var):
+    
+    # note - prior mean and variance is two-dimensional owing to slope and intercept terms
+   pos_var = np.linalg.inv(np.linalg.inv(prior_var) + beta*X.T.dot(X))
+   pos_mean = pos_var.dot(np.linalg.inv(prior_var).dot(prior_mean) + beta*X.T.dot(y))
+   return pos_mean, pos_var
+
+pos_mean, pos_var = get_conjugate_normal_posterior(X, y, prior_mean, prior_var)
+
+print(pos_mean)
+print(pos_var)
+

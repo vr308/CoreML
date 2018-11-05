@@ -52,7 +52,7 @@ def plot_results(data, x_,true_density, estimator, model):
     plt.plot(x_,true_density, 'k', alpha=0.2, label='True Density')
     plt.plot(x_, estimated_density, alpha=0.7, label='Estimated Density')
     plt.plot(data, [0]*len(data), 'kx', markersize=2, label='Observations')
-    plt.title(model + ' K = ' + str(len(weights)), fontsize='small')
+    plt.title(model, fontsize='small')
     plt.legend(fontsize='small')
     
 # Gaussian non-Bayesian mixture
@@ -60,7 +60,6 @@ estimator_gmm = GaussianMixture(n_components=5,
                                 covariance_type='full',
                                   verbose=1, n_init=5).fit(data)
                                 
-
 # Finite Bayesian mixture
 
 estimator_bgmm = BayesianGaussianMixture(n_components=5, 
@@ -74,7 +73,7 @@ estimator_bgmm = BayesianGaussianMixture(n_components=5,
 estimator_dpgmm = BayesianGaussianMixture(n_components=4, 
                                     covariance_type='full', 
                                     weight_concentration_prior_type='dirichlet_process',
-                                    weight_concentration_prior=1000,
+                                    weight_concentration_prior=10,
                                     verbose=1).fit(data)
 
 plot_results(data, x_, mixture, estimator_gmm, 'GMM, Inference: EM')

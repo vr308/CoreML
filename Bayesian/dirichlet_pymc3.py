@@ -36,9 +36,9 @@ with pm.Model() as model:
     w = pm.Deterministic('w', stick_breaking(beta))
     
     tau = pm.Gamma('tau', 1., 1., shape=K)
-    lambda_ = pm.Uniform('lambda', 0, 5, shape=K)
-    mu = pm.Normal('mu', 0, tau=lambda_ * tau, shape=K)
-    obs = pm.NormalMixture('obs', w, mu, tau=lambda_ * tau,
+    #lambda_ = pm.Uniform('lambda', 0, 5, shape=K)
+    mu = pm.Normal('mu', 0, tau=tau, shape=K)
+    obs = pm.NormalMixture('obs', w, mu, tau=tau,
                            observed=old_faithful_df.std_waiting.values)
 with model:
     trace = pm.sample(500)
@@ -49,10 +49,9 @@ n_bins = 20
 
 post_pdf_contribs = sp.stats.norm.pdf(np.atleast_3d(x_plot),
                                       trace['mu'][:, np.newaxis, :],
-                                      1. / np.sqrt(trace['lambda'] * trace['tau'])[:, np.newaxis, :])
+                                      1. / np.sqrt(trace['tau'])[:, np.newaxis, :])
 post_pdfs = (trace['w'][:, np.newaxis, :] * post_pdf_contribs).sum(axis=-1)
 post_pdf_low, post_pdf_high = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
-
 
 
 ax.hist(old_faithful_df.std_waiting.values, bins=n_bins, normed=True,
@@ -61,7 +60,7 @@ ax.fill_between(x_plot, post_pdf_low, post_pdf_high,
                 color='gray', alpha=0.45);
 ax.plot(x_plot, post_pdfs[0],
         c='gray', label='Posterior sample densities');
-ax.plot(x_plot, post_pdfs[::100].T, c='gray');
+ax.plot(x_plot, post_pdfs[::2].T, c='gray');
 ax.plot(x_plot, post_pdfs.mean(axis=0),
         c='k', label='Posterior expected density');
 ax.set_xlabel('Standardized waiting time between eruptions');
