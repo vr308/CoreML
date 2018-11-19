@@ -150,3 +150,23 @@ plot_results(X, dpgmm.predict(X), dpgmm.means_, dpgmm.covariances_, 1,
              'Bayesian Gaussian Mixture with a Dirichlet process prior')
 
 plt.show()
+
+
+
+# Chris data 
+import pandas as pd
+
+data = pd.read_csv('1dDensity.csv', sep=',', names=['x','density'])
+log_data = np.log(data)
+probabilities = log_data['density']/np.sum(log_data['density'])
+
+
+plt.figure()
+plt.plot(log_data['x'], probabilities, '-')
+
+samples = np.random.choice(log_data['x'], 10000, p=probabilities)
+
+plt.figure()
+plt.hist(samples, 10, density=True)
+
+

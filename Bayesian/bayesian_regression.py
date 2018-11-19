@@ -112,17 +112,17 @@ plt.tight_layout();
         
 plt.figure(figsize=(7, 7))
 plt.plot(x, y, 'x', label='data')
-plots.plot_posterior_predictive_glm(trace, samples=100, 
+plots.plot_posterior_predictive_glm(trace, samples=1000, 
                                     label='posterior predictive regression lines')
 plt.plot(x, true_regression_line, label='true regression line', lw=1., c='y')
-
 plt.title('Posterior predictive regression lines')
 plt.legend(loc=0)
 plt.xlabel('x')
 plt.ylabel('y');
 
+plots.plot_posterior(trace, alpha_level=0.05)
 
-# Testing with hand-written code
+# Testing with hand-written code - known variance 
 
 from scipy.stats import multivariate_normal as mv_norm
 
@@ -147,3 +147,10 @@ pos_mean, pos_var = get_conjugate_normal_posterior(X, y, prior_mean, prior_var)
 print(pos_mean)
 print(pos_var)
 
+# Deriving the high probability density region 
+
+arr = []
+for i in [0,1,2,3]:
+    arr.append(f[i]['x'][0])
+    
+    
