@@ -73,11 +73,6 @@ p = [0.2,0.1,0.1,0.3,0.3]
 q = stats.rv_discrete(name='q', values=(x,[1.0/len(x)]*5))
 M = 1.8
 
-plt.figure()
-plt.plot(x,p,'r-')
-plt.bar(x, p, color='g')
-plt.plot(x, M*q.pmf(x),'b-')
-
 x_samples = np.random.randint(1, 6, (N,))
 
 # A number of samples in the interval [0, 1]
@@ -90,9 +85,10 @@ sumt = len(samples)
 counts = [samples.value_counts()[x]/sumt for x in [1,2,3,4,5]]
 
 plt.figure()
-plt.bar(x,counts)
 plt.plot(x,p,'r-')
-
+plt.bar(x, p, color='g')
+plt.plot(x, M*q.pmf(x),'b-')
+plt.bar(x,counts, alpha=0.4)
 
 
 

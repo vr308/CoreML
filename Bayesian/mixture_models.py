@@ -39,7 +39,7 @@ plt.plot(m1, [0]*len(m1), 'kx', markersize=1)
 plt.plot(m2, [0]*len(m2), 'kx', markersize=1)
 plt.plot(m3, [0]*len(m3), 'kx', markersize=1)
 
-def plot_results(data, x_,true_density, estimator, model):
+def plot_results(data, x_, estimator, model_name):
     
     weights = estimator.weights_
     means = estimator.means_
@@ -49,10 +49,11 @@ def plot_results(data, x_,true_density, estimator, model):
             components.append(weights[counter]*st.norm.pdf(x_, value[0], np.sqrt(value[1])).reshape(1000,))     
     estimated_density = np.sum(components, axis=0)
     plt.figure()
-    plt.plot(x_,true_density, 'k', alpha=0.2, label='True Density')
+    #plt.plot(x_,true_density, 'k', alpha=0.2, label='True Density')
     plt.plot(x_, estimated_density, alpha=0.7, label='Estimated Density')
-    plt.plot(data, [0]*len(data), 'kx', markersize=2, label='Observations')
-    plt.title(model, fontsize='small')
+    #plt.plot(data, [0]*len(data), 'kx', markersize=2, label='Observations')
+    plt.title(model_name, fontsize='small')
+    plt.hist(data, bins=400, density=True)
     plt.legend(fontsize='small')
     
 # Gaussian non-Bayesian mixture
@@ -76,17 +77,76 @@ estimator_dpgmm = BayesianGaussianMixture(n_components=4,
                                     weight_concentration_prior=10,
                                     verbose=1).fit(data)
 
-plot_results(data, x_, mixture, estimator_gmm, 'GMM, Inference: EM')
-plot_results(data, x_, mixture, estimator_bgmm, 'Bayesian GMM')
-plot_results(data, x_, mixture, estimator_dpgmm, 'Dirichlet Process prior GMM')
+plot_results(data, x_, estimator_gmm, 'GMM, Inference: EM')
+plot_results(data, x_, estimator_bgmm, 'Bayesian GMM')
+plot_results(data, x_, estimator_dpgmm, 'Dirichlet Process prior GMM')
 
 
 # Sample posterior densities from estimated mixtures - in the sklearn framework 
 # Construct a density from a histogram and sample from it
 # Fit DPGMM and BGM to the cms data.
 
-# 2d example from sklearn website
+# Chris data 
+import pandas as pd
+from scipy import stats
+import numpy as np
 
+N=100000
+
+data = pd.read_csv('1dDensity.csv', sep=',', names=['x','density'])
+
+log_data = np.log(data)
+probabilities = log_data['density']/np.sum(log_data['density'])
+x = log_data['x']
+
+q = lambda x: stats.cauchy.pdf(x,-1, 10)
+M = 0.05
+
+plt.figure()
+plt.plot(log_data['x'], probabilities, '-')
+plt.plot(log_data['x'], M*q(log_data['x']))
+
+x_samples = np.random.choice(x,N)
+
+u = np.random.uniform(0, 1, (N, ))
+
+samples = pd.Series([(x_samples[i]) for i in range(N) if u[i] < probabilities[np.where(x == x_samples[i])[0][0]] / (M * q(x_samples[i]))])
+
+plt.figure()
+plt.hist(samples, bins=100, density=True)
+plt.plot(x, probabilities*2000)
+plt.title('Sampling from a discrete distribution - Rejection sampling')
+
+X = np.asarray(samples).reshape(-1,1)
+
+#GMM
+
+estimator_gmm = mixture.GaussianMixture(n_components=5,
+                                        covariance_type='full').fit(X)
+
+
+#BGMM
+
+estimator_bgmm = BayesianGaussianMixture(n_components=5, 
+                                    covariance_type='full', 
+                                    weight_concentration_prior_type='dirichlet_distribution',
+                                    weight_concentration_prior=None,
+                                    verbose=1).fit(X)
+
+# Infinite Bayesian mixture 
+
+estimator_dpgmm = BayesianGaussianMixture(n_components=4, 
+                                    covariance_type='full', 
+                                    weight_concentration_prior_type='dirichlet_process',
+                                    weight_concentration_prior=10,
+                                    verbose=1).fit(X)
+
+x_ = np.linspace(-1,5,1000)
+plot_results(X, x_, estimator_gmm, 'GMM, Inference: EM')
+plot_results(X, x_, estimator_bgmm, 'Bayesian GMM')
+plot_results(X,x_, estimator_dpgmm, 'Dirichlet process mixture model')
+
+# 2d GMM example from sklearn website
 
 import itertools
 import numpy as np
@@ -150,23 +210,3 @@ plot_results(X, dpgmm.predict(X), dpgmm.means_, dpgmm.covariances_, 1,
              'Bayesian Gaussian Mixture with a Dirichlet process prior')
 
 plt.show()
-
-
-
-# Chris data 
-import pandas as pd
-
-data = pd.read_csv('1dDensity.csv', sep=',', names=['x','density'])
-log_data = np.log(data)
-probabilities = log_data['density']/np.sum(log_data['density'])
-
-
-plt.figure()
-plt.plot(log_data['x'], probabilities, '-')
-
-samples = np.random.choice(log_data['x'], 10000, p=probabilities)
-
-plt.figure()
-plt.hist(samples, 10, density=True)
-
-
