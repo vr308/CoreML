@@ -92,9 +92,21 @@ plt.bar(x,counts, alpha=0.4)
 
 
 
+# Inverse CDF sampling combined with rejection sampling 
 
 
+N = 30000
 
+x = [1,2,3,4,5]
+p = [0.2,0.1,0.2,0.3,0.2]
+p2 = [0.4,0.2,0.4,0.6,0.4]
+
+plt.figure()
+plt.bar(x, p, align='edge', width=1.0,alpha=0.5,edgecolor='k', label='True')
+plt.bar(x, p2, align='edge', width=1.0,alpha=0.5,edgecolor='k', label='Scaled up by factor 2')
+plt.plot(x,p,'bo')
+plt.plot(x,p,'r-')
+plt.legend()
 
 
 

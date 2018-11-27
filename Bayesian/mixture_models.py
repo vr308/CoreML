@@ -97,27 +97,44 @@ data = pd.read_csv('1dDensity.csv', sep=',', names=['x','density'])
 
 log_data = np.log(data)
 probabilities = log_data['density']/np.sum(log_data['density'])
+cprob = np.cumsum(probabilities)
 x = log_data['x']
+log_data['prob'] = probabilities
+log_data['cdf'] = cprob
 
-q = lambda x: stats.cauchy.pdf(x,-1, 10)
-M = 0.05
-
-plt.figure()
-plt.plot(log_data['x'], probabilities, '-')
-plt.plot(log_data['x'], M*q(log_data['x']))
-
-x_samples = np.random.choice(x,N)
-
-u = np.random.uniform(0, 1, (N, ))
-
-samples = pd.Series([(x_samples[i]) for i in range(N) if u[i] < probabilities[np.where(x == x_samples[i])[0][0]] / (M * q(x_samples[i]))])
+#q = lambda x: stats.cauchy.pdf(x,-1, 10)
+#M = 0.05
 
 plt.figure()
-plt.hist(samples, bins=100, density=True)
-plt.plot(x, probabilities*2000)
-plt.title('Sampling from a discrete distribution - Rejection sampling')
+plt.plot(log_data['x'], 200*probabilities, '-')
+#plt.plot(log_data['x'], M*q(log_data['x']))
 
-X = np.asarray(samples).reshape(-1,1)
+#x_samples = np.random.choice(x,N)
+
+u = np.random.uniform(np.min(cprob), 1, (N, ))
+
+#Find the location 
+
+samples = []
+for i in u:
+    loc = np.where(log_data['cdf'] <= i)[0][-1]
+    samples.append(log_data['x'][loc])
+
+
+
+
+#samples = pd.Series([(x_samples[i]) for i in range(N) if u[i] < probabilities[np.where(x == x_samples[i])[0][0]] / (M * q(x_samples[i]))])
+
+plt.figure()
+#plt.hist(samples, bins=100, density=True)
+plt.plot(x, probabilities*2000, 'bo', markersize=2)
+plt.plot(x, probabilities*2000, 'r-', markersize=0.2)
+plt.vlines(x, ymin=0, ymax=probabilities*2000, alpha=0.2)
+#plt.bar(x, probabilities*2000, align='edge', alpha=0.2)
+
+#plt.title('Sampling from a discrete distribution - Rejection sampling')
+#
+#X = np.asarray(samples).reshape(-1,1)
 
 #GMM
 
