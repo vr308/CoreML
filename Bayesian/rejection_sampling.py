@@ -91,7 +91,6 @@ plt.plot(x, M*q.pmf(x),'b-')
 plt.bar(x,counts, alpha=0.4)
 
 
-
 # Inverse CDF sampling combined with rejection sampling 
 
 
@@ -108,7 +107,21 @@ plt.plot(x,p,'bo')
 plt.plot(x,p,'r-')
 plt.legend()
 
+x = [0.26,1.21]
+y = [1,1]
 
+xt = ['']
+
+plt.figure()
+plt.vlines(x=[0.26,1.21], ymin=0, ymax=[1,1], color='b')
+plt.plot(x, y, 'ro')
+plt.xticks(x)
+plt.xlim(0, 1.8)
+plt.ylim(0,2.5)
+plt.xlabel('')
+plt.title('Point estimates of ' + r'$\beta_{0}, \beta_{1}$')
+plt.text(x=0.26, y=1.4, s=r'$\beta_{0}$')
+plt.text(x=1.21, y=1.4, s= r'$\beta_{1}$')
 
 
 
