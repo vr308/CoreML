@@ -15,7 +15,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
 
 # set the seed
-np.random.seed(1)
+np.random.seed(12564)
 
 # Setting up a GP model 
 n = 30 # The number of data points
@@ -47,7 +47,7 @@ ax.set_xlabel("X"); ax.set_ylabel("The true f(x)"); plt.legend();
 
 # Instansiate a Gaussian Process model
 
-kernel = Ck(4, (1e-10, 1e2)) * RBF(1.5, length_scale_bounds=(1, 3)) + WhiteKernel(10, noise_level_bounds=(1e-5,50))
+kernel = Ck(4, (1e-10, 1e2)) * RBF(1.5, length_scale_bounds=(0.8, 3)) + WhiteKernel(10, noise_level_bounds=(1,50))
 gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
 gpr.fit(X, y)   
 
@@ -70,7 +70,7 @@ plt.legend(fontsize='small')
 with pm.Model() as marginal_gp_model:
 
    # prior on lengthscale 
-   l = pm.Uniform('lengthscale', 0, 10)
+   l = pm.Uniform('lengthscale', 0, 5)
    
    #prior on signal variance
    log_n = pm.Uniform('log_n', lower=-10, upper=5)

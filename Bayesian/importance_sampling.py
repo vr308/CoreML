@@ -3,6 +3,10 @@
 Spyder Editor
 
 Importance sampling
+
+This script shows that if the sd of the proposal density is less than or equal to 1/sqrt(2) of the target density then 
+importance sampling does not converge.
+ 
 """
 
 import numpy as np
