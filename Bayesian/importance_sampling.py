@@ -17,7 +17,7 @@ target_sd = 1
 
 proposal_mu = 3
 proposal_sd = (1/np.sqrt(2))*target_sd
-proposal_sd = 1.3*target_sd
+#proposal_sd = 1.3*target_sd
 
 target = lambda x : st.norm.pdf(x,target_mu, target_sd)
 proposal = lambda x:  st.norm.pdf(x, proposal_mu, proposal_sd)
@@ -45,6 +45,7 @@ samples = importance_sampling(target, proposal, proposal_mu, proposal_sd)
 plt.figure()
 plt.plot(x_, target(x_), label='target')
 plt.plot(x_, proposal(x_), label='proposal')
-plt.hist(samples, density=True, bins=100)
+plt.hist(samples, normed=True, bins=100)
 plt.legend()
+plt.title(r'$\sigma_{proposal} = (1/\sqrt{2})\sigma_{target}$' + '\n' + 'No good!')
 
