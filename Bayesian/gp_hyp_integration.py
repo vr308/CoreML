@@ -201,6 +201,9 @@ with vfe_gp_model:
 with vfe_gp_model:
    pred_samples = pm.sample_ppc(trace, vars=[y_pred], samples=50)
    
+# Plotting
+   
+
 
 
 
