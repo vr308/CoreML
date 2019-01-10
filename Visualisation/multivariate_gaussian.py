@@ -6,7 +6,6 @@ Spyder Editor
 import numpy as np
 import matplotlib.pylab as plt
 import seaborn as sns
-import scipy.stats as st
 from matplotlib import cm
 sns.set_palette(sns.color_palette('hls',8))
 
@@ -65,17 +64,3 @@ ax.set_zticks(np.linspace(0,0.2,5))
 ax.view_init(27, -21)
 
 
-######################## Bi-variate Contour ##########################################
-
-
-def gaussian_function(x, mu, var):
-    
-    normalisation = 1/np.sqrt(2*np.pi*var)
-    return normalisation*np.exp(-0.5*np.power((x - mu),2)/var)
-
-x = np.linspace(0,10, 1000)
-pdf1 = st.norm.pdf(x, 4, 0.7)
-pdf2 = st.norm.pdf(x, 4, 1.0)
-unnorm_pdf3 = pdf1*pdf2
-scaling_factor = gaussian_function(3, 4, 0.7*0.7+1.5*1.5)
-norm_pdf3 = unnorm_pdf3/scaling_factor

@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib.pylab as plt
 import scipy.stats as st
 import scipy.optimize as so
-import statsmodels.api as smt
 import pandas as pd
 import numdifftools as ndt
 

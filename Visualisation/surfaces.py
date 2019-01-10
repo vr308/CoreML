@@ -23,8 +23,8 @@ x = y = np.linspace(-4,4,1000)
 X, Y = np.meshgrid(x,y)
 Z = sample_surface(X,Y)
 
-x_sample = random.sample(x,100)
-y_sample = random.sample(y,100)
+x_sample = random.sample(set(x),100)
+y_sample = random.sample(set(y),100)
 z_sample = sample_surface(x_sample,y_sample) + 0.2*np.random.randn(100)
 
 # 3D rendering of the function along with scatter
@@ -42,7 +42,7 @@ plt.plot(x_sample,y_sample,'ko')
 # Multivariate interpolation using rbf technique applied to scatter data
 
 rbf_interp = intp.Rbf(x_sample,y_sample,z_sample,smooth=0.2, epsilon=1)
-X_int, Y_int = np.meshgrid(np.linspace(-4,4,700), np.linspace(-4,4,700)) 
+X_int, Y_int = np.meshgrid(np.linspace(-4,4,100), np.linspace(-4,4,100)) 
 Z_interp = rbf_interp(X_int,Y_int)
 
 # Multivariate interpolation using nearest neighbour technique applied to scatter data
@@ -51,7 +51,6 @@ inputs = np.array([x_sample,y_sample]).reshape(100,2)
 outputs = z_sample
 ninterp = intp.NearestNDInterpolator(inputs, outputs)
 Z_interp = ninterp(X_int,Y_int)
-
 
 # Plot the interpolated surface
 

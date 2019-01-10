@@ -7,8 +7,7 @@ Created on Sat Mar 10 22:03:05 2018
 """
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as Ck, WhiteKernel
-from mpl_toolkits.mplot3d.axes3d import Axes3D
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
 from matplotlib import cm
 import matplotlib.pylab as plt
 import itertools as it
@@ -19,7 +18,7 @@ import numpy as np
 
 def f(x):
     """The function to predict."""
-    return np.square(x)*np.sin(x) #- x*np.cos(x) 
+    return x*np.sin(x) #- x*np.cos(x) 
 
 def f2(x,y):
     """ The 2 d function to predict """
@@ -43,47 +42,21 @@ if __name__ == "__main__":
     
     # Instansiate a Gaussian Process model
     #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
-    kernel = Ck(100.0, (1e-10, 1e3)) * RBF(3, length_scale_bounds=(2, 5)) + WhiteKernel(10, noise_level_bounds=(1e-5,50))
+    kernel = Ck(100.0, (1e-10, 1e3)) * RBF(3, length_scale_bounds=(2, 5)) + WhiteKernel(0.01, noise_level_bounds=(1e-5,10))
     gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
-    
-    # Plot with 3 different kernels 
-    plt.figure(figsize=(10,5))
-    plt.subplot(121)    
-    kernel = Ck(10.0, (1e-10, 1e6)) * RBF(3, length_scale_bounds=(2, 5))
-    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
-    y_mean_prior, y_std_prior = gpr.predict(X_test, return_std=True) 
-    samples = gpr.sample_y(X_test,5).T
-    for i in xrange(5):
-        plt.plot(X_test, samples[i])
-    plt.plot(X_test, y_mean_prior, color='k')
-    plt.fill_between(np.ravel(X_test), y_mean_prior - 1.96*y_std_prior, y_mean_prior  + 1.96*y_std_prior, color='k', alpha=0.2)
-    plt.title('$\sigma_{f}^{2} = 10$' + ', ''$l = 3$', fontsize='small')
-    plt.ylim(-20,+20)
-    
-    
-    plt.subplot(122)    
-    kernel = Ck(50.0, (1e-10, 1e6)) * RBF(1, length_scale_bounds=(2, 5))
-    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20, normalize_y = False)
-    y_mean_prior, y_std_prior = gpr.predict(X_test, return_std=True) 
-    samples = gpr.sample_y(X_test,5).T
-    for i in xrange(5):
-        plt.plot(X_test, samples[i])
-    plt.plot(X_test, y_mean_prior, color='k')
-    plt.fill_between(np.ravel(X_test), y_mean_prior - 1.96*y_std_prior, y_mean_prior  + 1.96*y_std_prior, color='k', alpha=0.2)
-    plt.title('$\sigma_{f}^{2} = 50$' + ', ''$l = 1$', fontsize='small')
-    plt.ylim(-20,+20)
     
     # Fit to data 
     gpr.fit(X_train, y_train)        
     
-    # Predict on the test set
+    # Predict on the test set and draw samples from the posterior
     y_pred_test, sigma = gpr.predict(X_test, return_std = True)
+    posterior_samples = gpr.sample_y(X_test, 50)
     
     rmse_ = np.round(np.sqrt(np.mean(np.square(y_pred_test - y_test))),2)
     lml = np.round(gpr.log_marginal_likelihood_value_,2)
         
     plt.figure()
-    plt.plot(X_test, f(X_test), 'r:', label=u'$f(x) = x^2\sin(x)$')
+    plt.plot(X_test, f(X_test), 'r:', label=u'$f(x) = x\sin(x)$')
     plt.plot(X_train, y_train, 'k.', markersize=8, label=u'Observations')
     plt.plot(X_test, y_pred_test, 'b-', label=u'Prediction')
     plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
@@ -240,30 +213,6 @@ if __name__ == "__main__":
     plt.xscale("log")
     plt.yscale("log")
     
-    # Sklearn Example ditto code 
-    
-    plt.figure()
-    theta0 = np.logspace(-2, 3, 49)
-    theta1 = np.logspace(-2, 0, 50)
-    Theta0, Theta1 = np.meshgrid(theta0, theta1)
-    LML = [[gp.log_marginal_likelihood(np.log([0.36, Theta0[i, j], Theta1[i, j]]))
-            for i in range(Theta0.shape[0])] for j in range(Theta0.shape[1])]
-    LML = np.array(LML).T
-    
-    vmin, vmax = (-LML).min(), (-LML).max()
-    #vmax = 70
-    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 50), decimals=1)
-    plt.contourf(Theta0, Theta1, -LML, levels = level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'), alpha=0.5)
-    plt.plot(np.exp(gp.kernel_.theta[1]), np.exp(gp.kernel_.theta[2]), 'r+', label='LML Local Minimum')
-    plt.colorbar(format='%.1f')
-    plt.xscale("log")
-    plt.yscale("log")
-    plt.xlabel("Length-scale")
-    plt.ylabel("Noise-level")
-    plt.title("Log-marginal-likelihood")
-    plt.tight_layout()
-
-        
     # GP Regression on real high d data
     
     import sklearn.datasets as data

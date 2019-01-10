@@ -48,8 +48,8 @@ for iter in xrange(1000):
     # update weights
     syn0 = syn0 + np.dot(l0.T,l1_delta)
     
-print "Output After Training:"
-print l1
+print('Output After Training:')
+print(l1)
 
 # 3-Layer Neural Network
 

@@ -43,7 +43,6 @@ plt.show()
 
 
 import matplotlib.pyplot as plt
-import numpy  as np
 import time
 
 class DynamicUpdate():
@@ -88,8 +87,6 @@ class DynamicUpdate():
 d = DynamicUpdate()
 d()
 
-
-import numpy as np
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -155,8 +152,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-fig = gcf()
-ax = gca()
+fig = plt.gcf()
+ax = plt.gca()
 x = np.linspace(0, 2*np.pi, 256)
 line, ( bottoms, tops), verts =  ax.errorbar(x, np.sin(x), yerr=1)
 
@@ -206,57 +203,3 @@ im = ax.imshow(img_data, aspect='auto', origin='lower', cmap=plt.cm.Reds_r, exte
 
 im.set_clip_path(poly)
 
-
-###############################################
-
-
-plt.figure()
-
-ax = plt.axes(xlim=(0,20), ylim=(-40,40))
-poly, = ax.fill(x_array, y_lower, 'b', x_array, y_upper, 'r')
-
-# get the extent of the axes
-xmin, xmax = ax.get_xlim()
-ymin, ymax = ax.get_ylim()
-
-img_data = np.arange()
-
-
-z1 = [[z[i] for i in np.arange(1000)] for j in np.arange(1000)]
-
-CS = plt.contourf(x_array, y_upper, z1, 200, # \[-1, -0.1, 0, 0.1\],
-                        cmap=plt.cm.viridis)
-
-
-
-from scipy import interpolate
-
-def draw_tangent(x,y,a):
- # interpolate the data with a spline
- spl = interpolate.splrep(x,y)
- small_t = np.arange(a-1,a+2)
- fa = interpolate.splev(a,spl,der=0)     # f(a)
- fprime = interpolate.splev(a,spl,der=1) # f'(a)
- tan = fa+fprime*(small_t-a) # tangent
- plt.plot(a,fa,'om',small_t,tan,'--r')
- 
-
-plt.figure()
-plt.plot(x_array[id], y_lower[id])
-plt.plot(x_array[id], y_upper[id])
- 
-draw_tangent(x_array, y_lower, 17)
-draw_tangent(x_array, y_upper, 17)
-
-upper_coords = np.column_stack((x_array, y_upper))
-lower_coords = np.column_stack((x_array, y_lower))
-
-dist_matrix = distance.cdist(upper_coords, lower_coords, metric='euclidean')
-
-z=[np.min(dist_matrix[i]) for i in np.arange(len(upper_coords))]
-
-plt.plot(x_array, y_upper)
-plt.plot(x_array, y_lower)
-
-plt.figure()
-plt.plot(x_array, z)

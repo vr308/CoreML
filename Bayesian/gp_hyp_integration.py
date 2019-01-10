@@ -9,23 +9,26 @@ import pymc3 as pm
 import theano.tensor as tt
 import pandas as pd
 import numpy as np
+from matplotlib import cm
 import matplotlib.pyplot as plt
 from pymc3.gp.util import plot_gp_dist
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
+from matplotlib.colors import LogNorm
+
 
 # set the seed
 np.random.seed(12564)
 
 # Setting up a GP model 
-n = 30 # The number of data points
+n = 20 # The number of data points
 X = np.sort(np.linspace(0, 10, n))[:, None] # The inputs to the GP, they must be arranged as a column vector
 X_star = np.linspace(0,10,1000)[:,None]
 
 # Define the true covariance function and its parameters
 l_true = 1.0
 sig_var_true = 2.0
-noise_var_true = 2.0
+noise_var_true = 0.5
 cov_func = sig_var_true**2 * pm.gp.cov.ExpQuad(1, l_true)
 cov_func_noise = sig_var_true**2 * pm.gp.cov.ExpQuad(1, l_true) + pm.gp.cov.WhiteNoise(sigma=0.1)
 
@@ -35,7 +38,7 @@ mean_func = pm.gp.mean.Zero()
 # The latent function values are one sample from a multivariate normal
 f_true = np.random.multivariate_normal(mean_func(X).eval(),
                                        cov_func(X).eval() + 1e-8*np.eye(n), 1).flatten()
-y = f_true + noise_var_true*np.random.randn(n)
+y = f_true + np.random.normal(loc=0,scale=np.sqrt(noise_var_true), size=n)
 
 ## Plot the data and the unobserved latent function
 fig = plt.figure(figsize=(12,5)); ax = fig.gca()
@@ -51,19 +54,90 @@ kernel = Ck(4, (1e-10, 1e2)) * RBF(1.5, length_scale_bounds=(0.8, 3)) + WhiteKer
 gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
 gpr.fit(X, y)   
 
-y_pred_test, sigma = gpr.predict(X_star, return_std = True)
+y_pred_test, sigma = gpr.predict(X_star, return_cov = True)
 
-plt.figure()
+sample=np.random.multivariate_normal(y_pred_test.flatten(), sigma)
+post_samples = gpr.sample_y(X_star, n_samples=1)
+
+
+#PLotting
+fig = plt.figure(figsize=(12,5)); ax = fig.gca()
 plt.plot(X, f_true, 'dodgerblue', label='True')
-plt.plot(X, y, 'k.', markersize=8, label=u'Observations')
+plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Observed data")
 plt.plot(X_star, y_pred_test, 'r-', label=u'Prediction')
+plot_gp_dist(ax, post_samples.T, X_star)
+plot_gp_dist(ax, pred_samples["y_pred"], X_star);
 plt.fill_between(np.ravel(X_star), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
 plt.title('GPR ' + '\n' + str(gpr.kernel_) + '\n' + 'Method: Type II ML', fontsize='small')
 plt.legend(fontsize='small')
 
-# Extracting ML hyp. from gpr.kernel_ object
+signal_var = np.sqrt(gpr.kernel_.k1.k1.constant_value)
+lengthscale = gpr.kernel_.k1.k2.length_scale
+noise_var = gpr.kernel_.k2.noise_level
 
-# TODO 
+# Plot the LML surface (2-way plots)
+
+plt.figure(figsize=(15,6))
+plt.subplot(131)
+l_log = np.logspace(-2, 3, 100)
+noise_log  = np.logspace(-2, 2, 100)
+l_log_mesh, noise_log_mesh = np.meshgrid(l_log, noise_log)
+LML = [[gpr.log_marginal_likelihood(np.log([signal_var, l_log_mesh[i, j], noise_log_mesh[i, j]]))
+        for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+LML = np.array(LML).T
+
+vmin, vmax = (-LML).min(), (-LML).max()
+#vmax = 50
+level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+plt.contourf(l_log_mesh, noise_log_mesh, -LML,
+            levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+plt.plot(lengthscale, noise_var, 'rx')
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Length-scale")
+plt.ylabel("Noise-level")
+
+plt.subplot(132)
+l_log = np.logspace(-2, 3, 100)
+signal_log  = np.logspace(-3, 5, 100)
+l_log_mesh, signal_log_mesh = np.meshgrid(l_log, signal_log)
+LML = [[gpr.log_marginal_likelihood(np.log([signal_log_mesh[i,j], l_log_mesh[i, j], noise_var]))
+        for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+LML = np.array(LML).T
+
+vmin, vmax = (-LML).min(), (-LML).max()
+#vmax = 50
+level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+plt.contourf(l_log_mesh, signal_log_mesh, -LML,
+            levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+plt.plot(lengthscale, signal_var, 'rx')
+#plt.colorbar()
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Length-scale")
+plt.ylabel("Signal-Var")
+
+plt.subplot(133)
+noise_log = np.logspace(-2, 3, 100)
+signal_log  = np.logspace(-3, 5, 100)
+noise_log_mesh, signal_log_mesh = np.meshgrid(noise_log, signal_log)
+LML = [[gpr.log_marginal_likelihood(np.log([signal_log_mesh[i,j], lengthscale, noise_log_mesh[i,j]]))
+        for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+LML = np.array(LML).T
+
+vmin, vmax = (-LML).min(), (-LML).max()
+#vmax = 50
+level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+plt.contourf(noise_log_mesh, signal_log_mesh, -LML,
+            levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+plt.plot(noise_var, signal_var, 'rx')
+#plt.colorbar()
+plt.xscale("log")
+plt.yscale("log")
+plt.xlabel("Noise-level")
+plt.ylabel("Signal-Var")
+
+plt.suptitle('LML Surface ' + '\n' + str(gpr.kernel_), fontsize='small')
 
 # Type II ML / Plug-in approach (Flat prior on hyp and find MAP -> same as type 2 ML)
 
