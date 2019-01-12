@@ -182,9 +182,8 @@ linbayes = LinearBayes(v_m0, m_S0, beta)
 N = 1000
 linbayes.set_posterior(x_real[0:N], t_real[0:N])
 
-
 X = linbayes.get_phi(x_real)
-y = v_t
+y = t_real.reshape(t_real.shape + (1,))
 
 prior_mean = v_m0.reshape(-1,1)
 prior_var = m_S0
@@ -200,3 +199,6 @@ pos_mean, pos_var = get_conjugate_normal_posterior(X, y, prior_mean, prior_var)
 
 print(pos_mean)
 print(pos_var)
+
+print(linbayes.v_mN)
+print(linbayes.m_SN)

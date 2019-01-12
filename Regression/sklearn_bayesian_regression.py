@@ -95,11 +95,11 @@ if __name__ == "__main__":
     
     plt.figure()
     plt.subplot(211)
-    plt.errorbar(x=xrange(100), y=fitted_model_ridge.coef_,yerr=sd1_weights_ridge,fmt='o',color='r',ecolor='b', label = 'Ridge',markersize=2)
+    plt.errorbar(x=np.arange(100), y=fitted_model_ridge.coef_,yerr=sd1_weights_ridge,fmt='o',color='r',ecolor='b', label = 'Ridge',markersize=2)
     plt.hlines(y=0, xmin=0, xmax=100)
     plt.legend(loc=1)
     plt.subplot(212)
-    plt.errorbar(x=xrange(100),y=fitted_model_ard.coef_, yerr=sd1_weights_ard, fmt='o', color='r', ecolor='g', label='ARD',markersize=2)
+    plt.errorbar(x=np.arange(100),y=fitted_model_ard.coef_, yerr=sd1_weights_ard, fmt='o', color='r', ecolor='g', label='ARD',markersize=2)
     plt.legend(loc=1)
     plt.hlines(y=0, xmin=0,xmax=100)
     plt.suptitle('Weights under Ridge and ARD', fontsize='small')

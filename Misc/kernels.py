@@ -74,7 +74,3 @@ plt.title('Periodic ' + r'$k(x,y) = (-\frac{2}{l^{2}}sin^{2}(\pi\frac{(x-y)}{p})
 plt.subplot(144)
 plt.plot(x, rational_quadratic(x,0,2,1))
 plt.title('Rational Quadratic ' + r'$k(x,y) = (1 +  \frac{(x-y)^{2}}{2\alpha l^{2}})^{-\alpha}$', fontsize='small')
-
-plt.subplot(235)
-plt.plot(brownian(x_random,y_random))
-plt.title('Brownian ' + r'$k(x,y) = min(x,y)$')
