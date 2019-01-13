@@ -157,42 +157,7 @@ if __name__ == "__main__":
     ax2.set_zlim3d(-0.5,0.5)
     plt.legend()
     
-    # One-dimensional simple example with log likelihood surface
-    
-    import numpy as np
 
-    from matplotlib import pyplot as plt
-    from matplotlib.colors import LogNorm
-    
-    from sklearn.gaussian_process import GaussianProcessRegressor
-    from sklearn.gaussian_process.kernels import RBF, WhiteKernel
-
-
-    rng = np.random.RandomState(0)
-    X = rng.uniform(0, 5, 20)[:, np.newaxis]
-    y = 0.5 * np.sin(3 * X[:, 0]) + rng.normal(0, 0.5, X.shape[0])
-    
-    
-    plt.figure(1)
-    kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
-        + WhiteKernel(noise_level=1e-5, noise_level_bounds=(1e-10, 1e+1))
-    gp = GaussianProcessRegressor(kernel=kernel,
-                                  alpha=0.0).fit(X, y)
-    X_ = np.linspace(0, 5, 100)
-    y_mean, y_cov = gp.predict(X_[:, np.newaxis], return_cov=True)
-    plt.plot(X_, y_mean, 'k', lw=3, zorder=9)
-    plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
-                     y_mean + np.sqrt(np.diag(y_cov)),
-                     alpha=0.5, color='k')
-    plt.plot(X_, 0.5*np.sin(3*X_), 'r', lw=3, zorder=9)
-    plt.scatter(X[:, 0], y, c='r', s=50, zorder=10, edgecolors=(0, 0, 0))
-    plt.title("Initial: %s\nOptimum: %s\nLog-Marginal-Likelihood: %s"
-              % (kernel, gp.kernel_,
-                 gp.log_marginal_likelihood(gp.kernel_.theta)), fontsize='x-small')
-    plt.tight_layout()
-    
-    #################
-    
     # My trial to plot the stuff my own code
     
     lengthscale = np.logspace(-3,3,50)
@@ -201,14 +166,14 @@ if __name__ == "__main__":
     ln = np.array(list(it.product(lengthscale,noise_variance)))
     lml_surface = []
     for i in range(2500):
-        lml_surface.append(gp.log_marginal_likelihood(([np.log(0.4096), np.log(ln[i][0]), np.log(ln[i][1])])))
+        lml_surface.append(gpr.log_marginal_likelihood(([np.log(0.4096), np.log(ln[i][0]), np.log(ln[i][1])])))
     
     lml = np.array(lml_surface).reshape(50,50).T
     vmin, vmax = (-lml).min(), (-lml).max() 
     level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 50), decimals=1)
     
     plt.contourf(l,n, -lml, levels=level, cmap=cm.get_cmap('jet'), alpha=0.5,norm=LogNorm(vmin=vmin, vmax=vmax))
-    plt.plot(np.exp(gp.kernel_.theta[1]), np.exp(gp.kernel_.theta[2]), 'r+', label='LML Local Minimum')
+    plt.plot(np.exp(gpr.kernel_.theta[1]), np.exp(gpr.kernel_.theta[2]), 'r+', label='LML Local Minimum')
     plt.colorbar(format='%.1f')
     plt.xscale("log")
     plt.yscale("log")
@@ -241,50 +206,4 @@ if __name__ == "__main__":
     err = y_test - y_test_pred
     rmse = np.sqrt(np.sum())
     
-# Animation stuff
 
-#fig = plt.figure()
-#ax = plt.axes(xlim=(0,20), ylim=(-40,40))
-#line, = ax.plot([], [], lw=1, color='b')
-#line2, = ax.plot([],[], 'r.', markersize=10, label=u'Observations')
-##path, = ax.fill_between([],[],[],[], alpha=0.7)
-#fills = ax.fill_between([],[],[],[])
-#xdata, ydata = [], []
-#    
-#def init():
-#    ax.plot(x, f(x), 'r:', label=u'$f(x) = x\,\sin(x)$')
-#    #ax.title('Sequential GP Training (adaptive centers)', fontsize='small')
-#    #ax.plot(X, y, 'r.', markersize=10, label=u'Observations')
-#    return line, line2, 
-#    
-#def data_gen(i=0):
-#    i = 0
-#    while i < len(y_pred_evolutions):
-#        i += 1
-#        yield x, y_pred_evolutions[i-1], sigma_evolutions[i-1], X[i-1], y[i-1] 
-#    
-#def animate(data):
-#    x_curve, y_pred_curve, sigma_curve, X, y = data
-#    xdata.append(X)
-#    ydata.append(y)
-#    line2.set_data(xdata, ydata)
-#    line.set_data(x_curve, y_pred_curve)
-#    
-#    y_upper = y_pred_curve + 2*sigma_curve
-#    y_lower = y_pred_curve - 2*sigma_curve
-#    z = y_upper - y_lower  
-#    
-#    cmap = cm.get_cmap('viridis')
-#    x_array = x_curve.reshape(len(y_pred_curve),)
-#    normalize = mpl.colors.Normalize(vmin = z.min(), vmax=z.max())
-#    fills.remove()
-#    for i in range(999):
-#        fills = ax.fill_between([x_array[i],x_array[i+1]], y_lower[i], y_upper[i], color = cmap(normalize(z[i])), alpha=0.7)
-#        
-#    return line, line2, fills
-#
-## call the animator.  blit=True means only re-draw the parts that have changed.
-#anim = animation.FuncAnimation(fig, func=animate, frames=data_gen, init_func=init,
-#           repeat=False, interval=500, blit=False)
-#
-#plt.show()

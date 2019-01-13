@@ -1,26 +1,17 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Mon Jul  2 15:34:16 2018
-
-@author: vr308
-"""
-
-#!/usr/bin/env python2
-# -*- coding: utf-8 -*-
-"""
 Created on Fri Apr 13 19:22:13 2018
 
 @author: vr308
 """
 
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, Matern, ConstantKernel as Ck, WhiteKernel
-from matplotlib import cm
-import matplotlib as mpl
-from mpl_toolkits.mplot3d.axes3d import Axes3D
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
+#import matplotlib as mpl
+#from mpl_toolkits.mplot3d.axes3d import Axes3D
 import matplotlib.pylab as plt
-import matplotlib.backends.backend_pdf
+#import matplotlib.backends.backend_pdf
 #from matplotlib import animation
 import numpy as np
 
