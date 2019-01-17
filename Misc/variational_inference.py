@@ -12,6 +12,8 @@ os.chdir('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/')
 import uninorm
 import numpy as np
 import matplotlib.pyplot as plt
+import pymc3 as pm
+import seaborn as sns
 
 def plot_posterior(posterior, axes, xlim=None, ylim=None, color='red'):
     if xlim is None or ylim is None:
@@ -88,3 +90,16 @@ qposterior_infer_results = uninorm.infer_qposterior(x, pprior_params, init, maxi
 plot_infer_results(pposterior, qposterior_infer_results, maxit=5, xlim=[-0.4, 0.4], ylim=[0.2, 1.5])
 plot_costs(qposterior_infer_results)
 print(qposterior_infer_results)
+
+
+
+with pm.Model() as model:
+    mu = pm.Normal('mu', mu=0, sd=1)
+    sd = pm.Gamma('sd', alpha=0.001, beta=0.001)
+    obs = pm.Normal('obs', mu=mu, sd=sd, observed=x)
+    approx_ADVI = pm.fit()
+    approx_fullrankADVI = pm.fit(method='fullrank_advi')
+
+
+pm.traceplot(approx_ADVI.sample(500))
+sns.kdeplot(approx_ADVI.sample(500)['mu'], approx_ADVI.sample(500)['sd'])
