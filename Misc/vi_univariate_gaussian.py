@@ -7,7 +7,7 @@ This script uses VI to infer the parameters of a univariate Gaussian
 """
 import os
 
-os.chdir('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/')
+os.chdir('/home/vidhi/Desktop/Workspace/CoreML/Misc/')
 
 import uninorm
 import numpy as np
@@ -76,7 +76,6 @@ qposterior_infer_results = uninorm.infer_qposterior(x, pprior_params, init, maxi
 plot_infer_results(pposterior, qposterior_infer_results, maxit=5, xlim=[-0.5, 1.8], ylim=[0.01, 2.5])
 plot_costs(qposterior_infer_results)
 print(qposterior_infer_results)
-
 
 # Setting 2    
 

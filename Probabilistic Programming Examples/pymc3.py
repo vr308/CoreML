@@ -10,7 +10,6 @@ import pymc3 as pm
 import numpy as np
 import matplotlib.pylab as plt
 from matplotlib.animation import ArtistAnimation
-from matplotlib.patches import Ellipse
 import seaborn as sns
 import scipy as sp
 
@@ -153,21 +152,3 @@ with pm.Model() as model:
     trace = approx.sample(200)
 
 sns.jointplot(trace['x'][:,0], trace['x'][:,1], kind='kde')
-
-# Figuring out how to plot covariance ellipse from covariance matrix on top of the approximatied posterior
-
-eig_val, eig_vec = np.linalg.eig(cov)
-e1 =  eig_vec[:,0]
-e2 = eig_vec[:,1]
-
-angle = 180. / np.pi * np.arccos(np.abs(eig_vec[0, 0]))
-
-e = Ellipse((0,0), width=2*np.sqrt(eig_val[0]), height=2*np.sqrt(eig_val[1]), angle=angle)
-
-fig = plt.figure()
-ax = fig.gca()
-
-e.set_alpha(0.2)
-ax.add_artist(e)
-ax.set_xlim(-2,2)
-ax.set_ylim(-1,1)
