@@ -18,8 +18,9 @@ x_ = np.linspace(-2,8,1000)
 
 # Ground truth parameters
 
-random_m = np.array([[1,-1],[2,1]])
+random_m = np.array([[1,0.5],[0.5,1]])
 pos_semi_def_m = np.dot(random_m.T, random_m)
+eigv = np.linalg.eigvals(pos_semi_def_m)
 
 mu_v = [2,2]
 cov_m = pos_semi_def_m
@@ -27,7 +28,7 @@ precision_m = np.linalg.inv(cov_m)
 
 # Generate data from a bi-variate Gaussian with ground truth params
 
-np.random.multivariate_normal(mu_v, cov_m, size=10)
+bi_gaussian_data = np.random.multivariate_normal(mu_v, cov_m, size=1000)
 
 # Params for factorized Gaussian
 
