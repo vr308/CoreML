@@ -21,14 +21,14 @@ from matplotlib.colors import LogNorm
 np.random.seed(12564)
 
 # Setting up a GP model 
-n = 20 # The number of data points
+n = 50 # The number of data points
 X = np.sort(np.linspace(0, 10, n))[:, None] # The inputs to the GP, they must be arranged as a column vector
 X_star = np.linspace(0,10,1000)[:,None]
 
 # Define the true covariance function and its parameters
 l_true = 1.0
 sig_var_true = 2.0
-noise_var_true = 0.5
+noise_var_true = 0.5 #0.7
 cov_func = sig_var_true**2 * pm.gp.cov.ExpQuad(1, l_true)
 cov_func_noise = sig_var_true**2 * pm.gp.cov.ExpQuad(1, l_true) + pm.gp.cov.WhiteNoise(sigma=0.1)
 
@@ -50,7 +50,7 @@ ax.set_xlabel("X"); ax.set_ylabel("The true f(x)"); plt.legend();
 
 # Instansiate a Gaussian Process model
 
-kernel = Ck(4, (1e-10, 1e2)) * RBF(1.5, length_scale_bounds=(0.8, 3)) + WhiteKernel(10, noise_level_bounds=(1,50))
+kernel = Ck(4, (1e-10, 1e2)) * RBF(1.5, length_scale_bounds=(0.8, 3)) + WhiteKernel(10, noise_level_bounds=(0.1,10))
 gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
 gpr.fit(X, y)   
 
@@ -59,8 +59,7 @@ y_pred_test, sigma = gpr.predict(X_star, return_cov = True)
 sample=np.random.multivariate_normal(y_pred_test.flatten(), sigma)
 post_samples = gpr.sample_y(X_star, n_samples=1)
 
-
-#PLotting
+#Plotting
 fig = plt.figure(figsize=(12,5)); ax = fig.gca()
 plt.plot(X, f_true, 'dodgerblue', label='True')
 plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Observed data")

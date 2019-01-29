@@ -38,7 +38,7 @@ if __name__ == "__main__":
     X_test = np.atleast_2d(np.linspace(0, 20, 1000)).T
     
     y_train = f(X_train) + 0.1*np.std(f(X_train))*np.random.normal(0, 1, len(X_train)).reshape(len(X_train),1)
-    y_test = f(X_test) +  0.1*np.std(f(X_train))*np.random.normal(0, 1, len(X_test)).reshape(len(X_test),1)
+    y_test = f(X_test)  +  0.1*np.std(f(X_train))*np.random.normal(0, 1, len(X_test)).reshape(len(X_test),1)
     
     # Instansiate a Gaussian Process model
     #kernel = Ck(1000.0, (1e-10, 1e3)) * RBF(2, (1, 100)) + WhiteKernel(0.1, noise_level_bounds =(1e-5, 1e2))
@@ -51,6 +51,7 @@ if __name__ == "__main__":
     # Predict on the test set and draw samples from the posterior
     y_pred_test, sigma = gpr.predict(X_test, return_std = True)
     posterior_samples = gpr.sample_y(X_test, 50)
+    posterior_samples = posterior_samples.reshape(1000,50)
     
     rmse_ = np.round(np.sqrt(np.mean(np.square(y_pred_test - y_test))),2)
     lml = np.round(gpr.log_marginal_likelihood_value_,2)
@@ -59,6 +60,7 @@ if __name__ == "__main__":
     plt.plot(X_test, f(X_test), 'r:', label=u'$f(x) = x\sin(x)$')
     plt.plot(X_train, y_train, 'k.', markersize=8, label=u'Observations')
     plt.plot(X_test, y_pred_test, 'b-', label=u'Prediction')
+    plt.plot(X_test, posterior_samples)
     plt.fill_between(np.ravel(X_test), np.ravel(y_pred_test) - 1.96*sigma, np.ravel(y_pred_test) + 1.96*sigma, alpha=0.2, color='k')
     plt.title('GPR in action [n = 10]' + '\n' + str(gpr.kernel_) + '\n' + 'Min value of log marginal likelihood: ' +  str(lml), fontsize='small')
     plt.legend(fontsize='small')
