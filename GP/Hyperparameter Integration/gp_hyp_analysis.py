@@ -22,7 +22,7 @@ from matplotlib.colors import LogNorm
 
 n = 30 # The number of data points
 X = np.sort(np.linspace(0, 10, n))[:, None] # The inputs to the GP, they must be arranged as a column vector
-X_star = np.linspace(0,10,1000)[:,None]
+X_star = np.linspace(0,13,1000)[:,None]
 
 # Covariance kernel parameters 
 
@@ -84,6 +84,7 @@ plt.title('GPR')
 # Vanilla analytical GP in pymc3
 
 with pm.Model() as latent_gp_model:
+      
     # Specify the covariance function.
     cov_func = pm.gp.cov.ExpQuad(1, ls=1)
 
@@ -96,20 +97,60 @@ with pm.Model() as latent_gp_model:
     f_star = gp.conditional("f_star", X_star)
     
     plt.figure()
-    plt.plot(X, f, "dodgerblue", lw=1.4, label="True f",alpha=0.7);
-    plt.plot(X_star, f_star, color='r', lw=2, label='Posterior mean')
+    plt.plot(X, f.eval(), "dodgerblue", lw=1.4, label="True f",alpha=0.7);
+    plt.plot(X_star, f_star.eval(), color='r', lw=2, label='Posterior mean')
    
-    
-    
-
 # Type II ML estimation 
 
-
+#TODO in sklearn
 
 # HMC Sampling -> lengthscale
 
+with pm.Model() as hmc_gp_model:
+    
+   # prior on lengthscale 
+   l = pm.Gamma('lengthscale', alpha=2, beta=1)
+         
+   #prior on signal variance
+   #sig_var = pm.HalfCauchy('sig_var', beta=5)
+   sig_var = 2.0
+   
+   #prior on noise variance
+   noise_var = 0.5
+   
+   # covariance functions for the function f and the noise
+   f_cov = n*pm.gp.cov.ExpQuad(1, l)
+   
+   gp = pm.gp.Marginal(cov_func=f_cov)
+   y_obs = gp.marginal_likelihood("y", X=X, y=y, noise=noise_var)
+  
+   trace = pm.sample(500)  
+   
+with hmc_gp_model:
+   y_pred = gp.conditional("y_pred", X_star, pred_noise=False)
+   
+with hmc_gp_model:
+   pred_samples = pm.sample_posterior_predictive(trace, vars=[y_pred], samples=30)
 
 
+# Plotting
+   
+fig = plt.figure(figsize=(12,5)); ax = fig.gca()
+
+# plot the samples from the gp posterior with samples and shading
+plot_gp_dist(ax, pred_samples["y_pred"], X_star);
+
+# plot the data and the true latent function
+plt.plot(X, f, "dodgerblue", lw=1.4, label="True f",alpha=0.7);
+plt.plot(X, y, 'rx', ms=3, alpha=0.8, color='r');
+
+# axis labels and title
+plt.xlabel("X")
+plt.ylim([-4,8])
+plt.title("Posterior distribution over $f(x)$ w. HMC sampling for " + r'$\{l\}$')
+plt.legend()
+
+#r'$\{l, \sigma^{2}_{f}, \sigma^{2}_{n}\}$'
 
 # HMC Sampling -> noise var
 
