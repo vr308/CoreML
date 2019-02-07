@@ -16,12 +16,13 @@ import scipy.stats as st
 from sklearn.mixture import BayesianGaussianMixture
 from sklearn.mixture import GaussianMixture
 import pandas as pd
+import scipy 
 
 N=100000
 
 # Chris data 
 
-data = pd.read_csv('1dDensity.csv', sep=',', names=['x','density'])
+data = pd.read_csv('Data/1dDensity.csv', sep=',', names=['x','density'])
 
 log_data = np.log(data)
 probabilities = log_data['density']/np.sum(log_data['density'])
@@ -34,7 +35,10 @@ log_data['cdf'] = cprob
 #M = 0.05
 
 plt.figure()
-plt.plot(log_data['x'], 200*probabilities, '-')
+plt.plot(log_data['x'], probabilities, '-')
+plt.xlabel('log_x')
+plt.ylabel('log_density')
+plt.title('Raw data')
 #plt.plot(log_data['x'], M*q(log_data['x']))
 
 #x_samples = np.random.choice(x,N)
@@ -51,15 +55,73 @@ for i in u:
 #samples = pd.Series([(x_samples[i]) for i in range(N) if u[i] < probabilities[np.where(x == x_samples[i])[0][0]] / (M * q(x_samples[i]))])
 
 plt.figure()
-#plt.hist(samples, bins=100, density=True)
+plt.hist(samples, bins=1000, density=True)
 plt.plot(x, probabilities*2000, 'bo', markersize=2)
 plt.plot(x, probabilities*2000, 'r-', markersize=0.2)
-plt.vlines(x, ymin=0, ymax=probabilities*2000, alpha=0.2)
+#plt.vlines(x, ymin=0, ymax=probabilities*2000, alpha=0.2)
 #plt.bar(x, probabilities*2000, align='edge', alpha=0.2)
 
-#plt.title('Sampling from a discrete distribution - Rejection sampling')
-#
-#X = np.asarray(samples).reshape(-1,1)
+# Given 2 points of a discrete distribution, form a continuous pdf connecting the two points
+
+point_A = (log_data['x'][19], log_data['density'][19])
+point_B = (log_data['x'][30], log_data['density'][30])
+
+x = [point_A[0], point_B[0]]
+h = [point_A[1], point_B[1]]
+
+def slope_(point_A, point_B):
+      
+      x1 = point_A[0]
+      h1 = point_A[1]
+      x2 = point_B[0]
+      h2 = point_B[1]
+      slope = (h2 - h1)/(x2 - x1)
+      return slope
+
+slope = slope_(point_A, point_B) 
+
+normalizer = 0.5*(point_A[1] + point_B[1])*(point_B[0] - point_A[0])
+
+func = lambda x : x*slope + point_A[1] - slope*point_A[0]
+pdf = lambda x : (x*slope + point_A[1] - slope*point_A[0])/normalizer
+
+# Check if the pdf is valid 
+scipy.integrate.quad(pdf, x[0], x[1])
+
+cdf = lambda x : ((h[0]*x[1] - h[1]*x[0])/(normalizer*(x[1] - x[0])))*((h[1] - h[0])/2)*(x**2 - x[0]*x[0])
+cdf = lambda x : (slope/normalizer)*(x**2/2 - x*x[0] + h[0]*(x - x[0]) + x[0]**2/2)
+cdf = lambda x : 1/normalizer * (h[0]*(x - x[0]) + slope*(x**2/2 - x*x[0] + x[0]**2/2))
+
+
+x_range = np.arange(point_A[0],point_B[0],0.01)
+y_range = func(x_range)
+y_pdf = pdf(x_range)
+y_cdf = cdf(x_range)
+
+plt.figure()
+plt.plot(point_A[0], point_A[1], 'bo')
+plt.plot(point_B[0], point_B[1], 'bo')
+plt.plot(x, h, 'r-')
+plt.plot(x_range, y_range)
+plt.plot(x_range, y_pdf)
+plt.plot(x_range, y_cdf)
+
+
+      
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #GMM
 
