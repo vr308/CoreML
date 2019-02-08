@@ -88,10 +88,8 @@ pdf = lambda x : (x*slope + point_A[1] - slope*point_A[0])/normalizer
 # Check if the pdf is valid 
 scipy.integrate.quad(pdf, x[0], x[1])
 
-cdf = lambda x : ((h[0]*x[1] - h[1]*x[0])/(normalizer*(x[1] - x[0])))*((h[1] - h[0])/2)*(x**2 - x[0]*x[0])
-cdf = lambda x : (slope/normalizer)*(x**2/2 - x*x[0] + h[0]*(x - x[0]) + x[0]**2/2)
 cdf = lambda x : 1/normalizer * (h[0]*(x - x[0]) + slope*(x**2/2 - x*x[0] + x[0]**2/2))
-
+cdf_inv = lambda x : np.sqrt((x*normalizer + h[0]**2/(2*slope))/(slope/2)) - h[0]/slope + x[0]
 
 x_range = np.arange(point_A[0],point_B[0],0.01)
 y_range = func(x_range)
