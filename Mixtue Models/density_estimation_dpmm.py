@@ -23,43 +23,45 @@ N=100000
 # Chris data 
 
 data = pd.read_csv('Data/1dDensity.csv', sep=',', names=['x','density'])
+data['prob'] = data['density']/ np.sum(data['density'])
+data['cdf'] = np.cumsum(data['prob'])
 
 log_data = np.log(data)
-probabilities = log_data['density']/np.sum(log_data['density'])
-cprob = np.cumsum(probabilities)
-x = log_data['x']
-log_data['prob'] = probabilities
-log_data['cdf'] = cprob
+log_data['prob'] = log_data['density']/np.sum(log_data['density'])
+log_data['cdf'] = np.cumsum(log_data['prob'])
 
-#q = lambda x: stats.cauchy.pdf(x,-1, 10)
-#M = 0.05
 
 plt.figure()
-plt.plot(log_data['x'], probabilities, '-')
+plt.plot(data['x'], data['prob'], '-')
+plt.plot(data['x'], data['density'], '-')
+plt.yscale('log')
+plt.xscale('log')
 plt.xlabel('log_x')
 plt.ylabel('log_density')
 plt.title('Raw data')
-#plt.plot(log_data['x'], M*q(log_data['x']))
 
-#x_samples = np.random.choice(x,N)
+plt.figure()
+plt.plot(np.log(data['x']), np.log(data['density']))
+plt.xlabel('log_x')
+plt.ylabel('log_density')
+plt.yscale('log')
 
-u = np.random.uniform(np.min(cprob), 1, (N, ))
+u = np.random.uniform(np.min(log_data['cdf']), 1, (N, ))
 
 #Find the location 
-
+   
 samples = []
 for i in u:
     loc = np.where(log_data['cdf'] <= i)[0][-1]
-    samples.append(log_data['x'][loc])
+    lower_limit = log_data['x'][loc]
+    upper_limit = log_data['x'][loc+1]
+    samples.append(np.random.uniform(lower_limit, upper_limit))
 
-#samples = pd.Series([(x_samples[i]) for i in range(N) if u[i] < probabilities[np.where(x == x_samples[i])[0][0]] / (M * q(x_samples[i]))])
 
 plt.figure()
-plt.hist(samples, bins=1000, density=True)
-plt.plot(x, probabilities*2000, 'bo', markersize=2)
-plt.plot(x, probabilities*2000, 'r-', markersize=0.2)
-#plt.vlines(x, ymin=0, ymax=probabilities*2000, alpha=0.2)
-#plt.bar(x, probabilities*2000, align='edge', alpha=0.2)
+plt.hist(samples, bins=500, density=True, log=True, alpha=0.8)
+plt.title('Samples generated using inverse CDF', fontsize='small')
+plt.xscale('log')
 
 # Given 2 points of a discrete distribution, form a continuous pdf connecting the two points
 

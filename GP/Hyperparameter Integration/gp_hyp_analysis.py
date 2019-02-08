@@ -27,7 +27,7 @@ X_star = np.linspace(0,13,1000)[:,None]
 # Covariance kernel parameters 
 
 lengthscale = 1.0
-noise_var = 0.5
+noise_var = 0.2
 sig_var = 2.0
 
 cov = sig_var*pm.gp.cov.ExpQuad(1, lengthscale)
@@ -66,7 +66,6 @@ post_mean = np.dot(K_s.T.eval(), alpha)
 
 post_cov = K_ss.eval() - K_s.T.dot(K_inv).dot(K_s)
 post_std = np.sqrt(np.diag(post_cov.eval()))
-#ost_cov = K_ss.eval() - np.dot(v.T, v)
 
 samples = np.random.multivariate_normal(post_mean, post_cov.eval(), 10)
 
@@ -94,11 +93,15 @@ with pm.Model() as latent_gp_model:
     # Place a GP prior over the function f.
     f = gp.prior("f", X=X)
     
+    y = 
     f_star = gp.conditional("f_star", X_star)
     
-    plt.figure()
-    plt.plot(X, f.eval(), "dodgerblue", lw=1.4, label="True f",alpha=0.7);
-    plt.plot(X_star, f_star.eval(), color='r', lw=2, label='Posterior mean')
+    trace = pm.sample(100)
+
+mu, cov = gp.predict(X_star, point)
+    #plt.figure()
+    #plt.plot(X, f.eval(), "dodgerblue", lw=1.4, label="True f",alpha=0.7);
+    #plt.plot(X_star, f_star.eval(), color='r', lw=2, label='Posterior mean')
    
 # Type II ML estimation 
 
