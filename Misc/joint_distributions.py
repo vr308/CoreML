@@ -12,9 +12,7 @@ import scipy.stats as st
 import matplotlib.pylab as plt
 import scipy as sp
 from matplotlib import cm
-import pymc3 as pm
 import seaborn as sns
-from scipy.stats import rv_continuous
 plt.style.use("ggplot")
 
 # Mixture of  bivariate normals
@@ -90,17 +88,15 @@ sns.jointplot(y_[:,0], y_[:,1], kind='kde')
 
 # Joint density of the banana shaped posterior
 
-joint_density = lambda x1_, x2_ : density_1(x1_)*density_2(x2_)
+x1_ = np.linspace(-3, 4, 1000)
+x2_ = np.linspace(-6, 2, 1000)
+X1, X2 = np.meshgrid(x1_, x2_)
 
-joint = []
+joint_density = lambda x1_, x2_ : (1/(2*np.pi*np.sqrt(0.51)))*np.exp((-1/(2*0.51))*(x1_**2 + (x2_ + x1_**2 + 1)**2 - 2*0.7*x1_*(x2_ + x1_**2 + 1)))
 
-for i in np.arange(1000):
-      joint.append(st.multivariate_normal.pdf(y_[i], mean, cov))
+plt.contourf(X1, X2, joint_density(X1, X2), cmap=cm.get_cmap('jet'),alpha=0.5)
 
-
-
-
-
+sp.integrate.dblquad(joint_density, -3, 4, lambda x: -6, lambda x: 2)
 
 
 
