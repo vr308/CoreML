@@ -59,19 +59,30 @@ sns.jointplot(x1, x2, kind='kde')
 
 #---------------------------------------------------------------------
 
+y1 = np.random.uniform(-1,1, 100)
+y2 = np.random.uniform(-1,1, 100)
 
+x1 = np.sqrt(1 - y1**2)
+x2 = -np.sqrt(1 - y2**2)
 
+y = np.concatenate((y1,y2))
+x = np.concatenate((x1, x2)) + np.random.normal(0,0.1, 200)
 
+plt.plot(x, y, 'bo')
+plt.ylim(-2,2)
+plt.xlim(-2,2)
+
+sns.jointplot(x,y, kind='kde')
 
 
 #----------------------------------------------------------------------------
-# Banana shaped distribution 
+# Horseshoe shaped distribution 
 
 # It is obtained by applying a simple transformation to a bi-variate Gaussian
 #----------------------------------------------------------------------------
 
-mean = [1,2]
-cov = np.array(([1, 0.7], [0.7, 1]))
+mean = [0,0]
+cov = np.array(([1, 0.95], [0.95, 1]))
 x_ = np.random.multivariate_normal(mean, cov, size=1000)
 
 def b_transformation(x_):
@@ -89,14 +100,17 @@ sns.jointplot(y_[:,0], y_[:,1], kind='kde')
 # Joint density of the banana shaped posterior
 
 x1_ = np.linspace(-3, 4, 1000)
-x2_ = np.linspace(-6, 2, 1000)
+x2_ = np.linspace(-10, 2, 1000)
 X1, X2 = np.meshgrid(x1_, x2_)
 
-joint_density = lambda x1_, x2_ : (1/(2*np.pi*np.sqrt(0.51)))*np.exp((-1/(2*0.51))*(x1_**2 + (x2_ + x1_**2 + 1)**2 - 2*0.7*x1_*(x2_ + x1_**2 + 1)))
+normalization_const = (1/(2*np.pi*np.sqrt(0.0975)))
+
+joint_density = lambda x1_, x2_ : np.exp((-1/(2*0.0975))*((x1_)**2 + (x2_ + x1_**2 + 1)**2 - (2*0.95*(x1_)*(x2_ + x1_**2 + 1))))
 
 plt.contourf(X1, X2, joint_density(X1, X2), cmap=cm.get_cmap('jet'),alpha=0.5)
 
-sp.integrate.dblquad(joint_density, -3, 4, lambda x: -6, lambda x: 2)
+# Note: Haven't figured out the normalisation constant properly 
 
+sp.integrate.dblquad(joint_density, -3, 4, lambda x: -10, lambda x: 2)
 
 
