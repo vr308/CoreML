@@ -15,7 +15,7 @@ from matplotlib import cm
 import seaborn as sns
 plt.style.use("ggplot")
 
-# Mixture of  bivariate normals
+# Bivariate normals
 
 x_ = np.linspace(-5,5, 1000)
 density_1 = lambda x_ : 0.4*st.norm.pdf(x_, 2, 1) + 0.6*st.norm.pdf(x_, -1, 1)
@@ -112,5 +112,48 @@ plt.contourf(X1, X2, joint_density(X1, X2), cmap=cm.get_cmap('jet'),alpha=0.5)
 # Note: Haven't figured out the normalisation constant properly 
 
 sp.integrate.dblquad(joint_density, -3, 4, lambda x: -10, lambda x: 2)
+
+#----------------------------------------------------------------------------
+# Mixture of bi-variate normals
+#----------------------------------------------------------------------------
+
+mean1 = [0,2]
+cov1 = [[1, 0.8], [0.8,1]]
+
+mean2 = [3,4]
+cov2 = [[1, -0.4], [-0.4,1]]
+
+x1_ = np.linspace(-5, 5, 1000)
+x2_ = np.linspace(-8, 8, 1000)
+
+X1, X2 = np.meshgrid(x1_, x2_)
+
+points = np.vstack([X1.ravel(), X2.ravel()]).T
+
+p1 = points[:,0]
+p2 = points[:,1]
+
+Z1 = st.multivariate_normal.pdf(points.T, mean1, cov1) 
+Z2 = st.multivariate_normal.pdf(points.T, mean2, cov2)
+
+mixture = lambda points : 0.5*st.multivariate_normal.pdf(points, mean1, cov1) + 0.5*st.multivariate_normal.pdf(points, mean2, cov2)
+
+def bivariate_mixture(p1,p2):
+      
+     return 0.5*st.multivariate_normal.pdf((p1,p2), mean1, cov1) + 0.5*st.multivariate_normal.pdf((p1,p2), mean2, cov2)
+      
+#plt.contourf(X1, X2, Z1.reshape(1000,1000))
+#plt.contourf(X1, X2, Z2.reshape(1000,1000))
+
+plt.contourf(X1, X2, mixture(points).reshape(1000,1000))
+
+# Note: The convex combination does result in a mixture that integrates to 1
+
+sp.integrate.dblquad(bivariate_mixture, -7, 7, lambda x: -5, lambda x: 10)
+
+moment_1 = np.add([0,1], [1.5, 2])
+moment_2 = np.multiply(0.5,cov1) + np.multiply(0.5,cov1) + 
+
+
 
 
