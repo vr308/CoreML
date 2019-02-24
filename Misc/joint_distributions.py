@@ -151,9 +151,16 @@ plt.contourf(X1, X2, mixture(points).reshape(1000,1000))
 
 sp.integrate.dblquad(bivariate_mixture, -7, 7, lambda x: -5, lambda x: 10)
 
+# Computing the moments of a mixture distribution
+
 moment_1 = np.add([0,1], [1.5, 2])
-moment_2 = np.multiply(0.5,cov1) + np.multiply(0.5,cov1) + 
+d1 = mean1 - moment_1
+d2 = mean2 - moment_1
+moment_2 = np.multiply(0.5,cov1) + np.multiply(0.5,cov2) + np.multiply(0.5, np.outer(d1, d1)) + np.multiply(0.5, np.outer(d2, d2))
 
+pdf_final = st.multivariate_normal.pdf(points, moment_1, moment_2)
 
+plt.figure()
+plt.contourf(X1, X2, pdf_final.reshape(1000,1000))
 
 
