@@ -163,4 +163,3 @@ pdf_final = st.multivariate_normal.pdf(points, moment_1, moment_2)
 plt.figure()
 plt.contourf(X1, X2, pdf_final.reshape(1000,1000))
 
-
