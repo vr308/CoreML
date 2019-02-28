@@ -22,20 +22,28 @@ import configparser
 config = configparser.ConfigParser()
 config.read('kernel_experiments_config.ini')
 
-def generate_gp_latent(X_star, cov):
+def generate_gp_latent(X_star, mean, cov):
     
     return np.random.multivariate_normal(mean(X_star).eval(), cov=cov(X_star, X_star).eval())
 
-def generate_gp_training(X_star, f_star, n, xmax, noise_var):
+def generate_gp_training(n_train, xmin, xmax, noise_var, uniform, mean, cov):
     
-    X_index = np.random.randint(0,xmax,30)
-    X = X_star[X_index]
-    f = f_star[X_index]
-    y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n)
+    if uniform == True:
+         X = np.random.choice(X_star.ravel(), n_train, replace=False)
+    else:
+         pdf = 0.5*st.norm.pdf(X_star, 2, 0.7) + 0.5*st.norm.pdf(X_star, 7.5,1)
+         prob = pdf/np.sum(pdf)
+         X = np.random.choice(X_star.ravel(), n_train, replace=False,  p=prob.ravel())
+     
+    index = []
+    for i in X:
+          index.append(X_star.ravel().tolist().index(i))
+    X = X_star[index]
+    f = f_star[index]
+    y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
     return X, y
 
 #---------------GP Framework--------------------------------------------------
-    
     
 def get_kernel(kernel_type, hyper_params):
     
@@ -44,7 +52,7 @@ def get_kernel(kernel_type, hyper_params):
         sig_var = hyper_params[0]
         lengthscale = hyper_params[1]
         
-        return sig_var*pm.gp.cov.ExpQuad(1, lengthscale)
+        return pm.gp.cov.Constant(sig_var)*pm.gp.cov.ExpQuad(1, lengthscale)
 
     elif kernel_type == 'PER':
         
@@ -119,7 +127,7 @@ def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
     
 def posterior_predictive_samples(post_mean, post_cov):
     
-    return np.random.multivariate_normal(post_mean, post_cov.eval(), 10)
+    return np.random.multivariate_normal(post_mean, post_cov, 10)
 
 # Metrics for assessing fit in Regression 
 
@@ -133,7 +141,7 @@ def log_predictive_density(predictive_density):
 
 #-------------Plotting----------------------------------------------------
 
-def plot_noisy_data(y, X_star, f_star, title):
+def plot_noisy_data(X, y, X_star, f_star, title):
 
     fig = plt.figure(figsize=(12,5))
     ax = fig.gca()
@@ -155,8 +163,8 @@ def plot_prior_samples(X_star, K_ss):
       std = np.sqrt(np.diag(K_ss))
       plt.figure()
       plt.plot(X_star,st.multivariate_normal.rvs(cov=K_ss, size=10).T)
-      plt.fill_between(np.ravel(X_star), post_mean - 1.96*std, 
-                     post_mean + 1.96*std, alpha=0.2, color='r',
+      plt.fill_between(np.ravel(X_star), 0 - 1.96*std, 
+                     0 + 1.96*std, alpha=0.2, color='r',
                      label='95% CR')
 
 def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
@@ -249,8 +257,6 @@ if __name__ == "__main__":
 #    f = np.asarray(pd.read_csv('f.csv', header=None)).reshape(30,)
 #    y = np.asanyarray(pd.read_csv('y.csv', header=None)).reshape(30,)
     
-    
-
     # Data
 
     n_train = 30
@@ -274,9 +280,11 @@ if __name__ == "__main__":
     cov = get_kernel('SE', [sig_var, lengthscale])
     hyp_string = get_kernel_hyp_string('SE', [sig_var, lengthscale, noise_var])
     
-    f_star = generate_gp_latent(X_star, cov)
-    X, y = generate_gp_training(X_star, f_star, n_train, 800, noise_var)
+    f_star = generate_gp_latent(X_star, mean, cov)
+    #X, y = generate_gp_training(X_star, f_star, n_train, 800, noise_var)
     
+    uniform = True
+    X, y = generate_gp_training(n_train, xmin, xmax, noise_var, uniform, mean, cov)
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var)
     
     # Add very slight perturbation to the covariance matrix diagonal to improve numerical stability
@@ -295,7 +303,7 @@ if __name__ == "__main__":
     
     # Plot the data, kernel matrix and the unobserved latent function
     
-    plot_noisy_data(y, X_star, f_star, 'Data + iid noise')
+    plot_noisy_data(X, y, X_star, f_star, 'Data + iid noise')
     
     # Note: The below function returns theano variables that need to be evaluated to draw values
     post_mean, post_cov, post_std = analytical_gp(y, K_stable, K_s, K_ss, K_noise, K_inv)
@@ -303,7 +311,7 @@ if __name__ == "__main__":
     rmse_ = rmse(post_mean, f_star)
     lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean, post_cov.eval(), allow_singular=True))
     
-    kernel = 'Kernel: 2.0* RBF(lenghtscale = 1) + WhiteKernel(noise_level=0.2)'
+    kernel = 'Kernel: 5.0* RBF(lenghtscale = 1) + WhiteKernel(noise_level=0.2)'
     title = 'GPR' + '\n' + kernel + '\n' + 'RMSE: ' + str(rmse_)
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
     plot_kernel_matrix(post_cov.eval(),'')
@@ -314,7 +322,7 @@ if __name__ == "__main__":
     
     #---------------------------------------------------------------------
     
-    kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 3)) + WhiteKernel(0.01, noise_level_bounds=(1e-5,10))
+    kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(0.01, noise_level_bounds=(1e-5,10))
     gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
         
     # Fit to data 
@@ -326,8 +334,10 @@ if __name__ == "__main__":
     lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))
     title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) 
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
+    plot_kernel_matrix(post_cov,'')
 
     ml_deltas = np.exp(gpr.kernel_.theta)
+    ml_deltas_dict = {'lengthscale': ml_deltas[1], 'noise_var': ml_deltas[2], 'sig_var': ml_deltas[0]}
 
     #---------------------------------------------------------------------
     
@@ -337,13 +347,12 @@ if __name__ == "__main__":
 
     with pm.Model() as model:
         
-        #sig_var = ml_deltas[0]
-        sig_var = 2.06284
+        sig_var = ml_deltas[0]
         lengthscale = ml_deltas[1]
         noise_var = ml_deltas[2]
     
         # Specify the covariance function.
-        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
+        cov_func = pm.gp.cov.Constant(sig_var)*sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
     
         # Specify the GP.  The default mean function is `Zero`.
         gp = pm.gp.Marginal(cov_func=cov_func)
@@ -353,25 +362,27 @@ if __name__ == "__main__":
         
     with model:
         f_cond = gp.conditional("f_cond", Xnew=X_star)
-        #pred_samples = pm.sample_posterior_predictive(trace, vars=[f_cond], samples=10)
+        #pred_samples = pm.sample_posterior_predictive(vars=[f_cond], samples=10)
 
 
 post_pred_mean, post_pred_cov = gp.predict(X_star, pred_noise=True)
-title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_)
-plot_gp(X_star, f_star, X, y, post_pred_mean, post_std, [], title)
+post_pred_std = np.sqrt(np.diag(post_pred_cov))
+pred_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov)
+title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) 
+plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, [], title)
 
 #TODO: How to sample the posterior predictive 
     
-    #-----------------------------------------------------
+#-----------------------------------------------------
 
-    #       Hybrid Monte Carlo
+#       Hybrid Monte Carlo
     
-    #-----------------------------------------------------
+#-----------------------------------------------------
 
   with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
-       l = pm.Gamma('lengthscale', alpha=2, beta=1)
+       lengthscale = pm.Gamma('lengthscale', alpha=2, beta=1)
        
        sig_var = pm.HalfCauchy('sig_var', beta=3)
        
@@ -379,50 +390,113 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_std, [], title)
        noise_var = pm.HalfCauchy('noise_var', beta=5)
        
        # Specify the covariance function.
-       cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=l)
+       cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
     
-       # Specify the GP.  The default mean function is `Zero`.
-       gp = pm.gp.Latent(cov_func=cov_func)
-    
-       # Place a GP prior over the function f.
-       f = gp.prior("f", X=X)
-        
-       # Likelihood
-       y_obs = pm.MvNormal('y', mu=f, cov=noise_var * tt.eye(n_train), shape=n_train, observed=y)        
-         
-       
-       step = pm.hmc.HamiltonianMC(path_length=2.0, 
-                                   adapt_step_size=True)
-       
-       trace = pm.sample(step=step)
+       gp = pm.gp.Marginal(cov_func=cov_func)
+            
+       # Marginal Likelihood
+       y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
+                
+       trace = pm.sample()
               
   with hmc_gp_model:
        y_pred = gp.conditional("y_pred", X_star)
        
-  with hmc_gp_model:
-       pred_samples = pm.sample_ppc(trace, vars=[y_pred], samples=30)
+# Box standard Traceplot on log axis with deltas and means highlighted
        
-       
-ml_deltas = {l: 1.03,
-             noise_var: 0.151,
-             sig_var: 8.5
-             }
-priors = [l.distribution, sig_var.distribution, noise_var.distribution]
+ml_deltas_dict = {lengthscale: ml_deltas[1], noise_var: ml_deltas[2], sig_var: ml_deltas[0]}
+priors = [lengthscale.distribution, sig_var.distribution, noise_var.distribution]
+pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], priors=priors, lines=ml_deltas_dict, bw=2, combined=True)
 
-pm.traceplot(trace, varnames=[l, noise_var, sig_var], priors=priors, lines=ml_deltas, bw=4, combined=True)
+# Write out trace summary & autocorrelation plots
 
-post_pred_mean = np.mean(pred_samples["y_pred"].T, axis=1)
+prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+summary_df = pm.summary(trace)
+summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif.csv')
 
-rmse_ = rmse(f_star, post_pred_mean)
+pm.autocorrplot(trace)
+
+# Compute posterior predictive mean and covariance - careful (not so obvious)
+
+def get_trace_means(trace, varnames):
+      
+      trace_means = []
+      for i in varnames:
+            trace_means.append(trace[i].mean())
+      return trace_means
+
+def get_post_mean_theta(theta, X, X_star, n_train):
+      
+      cov = get_kernel('SE', [theta[0], theta[1]])
+      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
+      K_stable = K + 1e-12 * tt.eye(n_train)
+      L = np.linalg.cholesky(K_noise.eval())
+      alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+      post_mean_trace = np.dot(K_s.T.eval(), alpha)
+      return post_mean_trace
+
+def get_mean_cov(theta, X, X_star, n_train):
+      
+     cov = get_kernel('SE', [theta[0], theta[1]])
+     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
+     K_ss.eval() - K_s.T.dot(K_inv).dot(K_s)
+     return post_mean_cov
+
+def get_joint_value_from_trace(trace, varnames, i):
+      
+      joint = []
+      for v in varnames:
+            joint.append(trace[v][i])
+      return joint
+
+def get_post_cov(trace, post_mean_trace, mean_cov, varnames):
+      
+      mean_is = []
+      for i in range(len(trace)):
+            theta = get_joint_value_from_trace(trace, varnames, i)
+            mean_i = get_post_mean_theta(theta, X, X_star, n_train)
+            mean_is.append(np.outer(mean_i, mean_i))
+      post_cov_trace = mean_cov + np.mean(mean_is)
+      
+      
+      
+
+varnames = ['sig_var', 'lengthscale','noise_var']
+theta = get_trace_means(trace, varnames=['sig_var', 'lengthscale','noise_var'])
+post_s_mean = get_post_mean_theta(theta,X, X_star, n_train)
+
+mean_cov = get_mean_cov(theta, X, X_star, n_train)
+post_s_cov = (post_i_cov + np.outer(post_s_mean, post_s_mean)).eval() - np.outer(post_s_mean, post_s_mean)
+post_s_std = np.sqrt(np.diag(post_s_cov))
+post_i_std = np.sqrt(np.diag(post_i_cov.eval()))
+
+plt.figure()
+plt.fill_between(np.ravel(X_star), post_pred_mean - 1.96*post_pred_std, 
+                     post_pred_mean + 1.96*post_pred_std, alpha=0.2, color='r',
+                     label='95% CR')
+plt.fill_between(np.ravel(X_star), post_s_mean - 1.96*post_i_std, 
+                     post_s_mean + 1.96*post_i_std, alpha=0.2, color='b',
+                     label='95% CR')
+plt.plot(X_star, post_s_mean, color='b')
+plt.plot(X_star, post_pred_mean, color='r')
+
+
+
+post_samples = posterior_predictive_samples(post_mean, post_cov)
+
+
+# Fit metrics
+
+rmse_ = rmse(f_star, post_mean)
 lpd_ = log_predictive_density(st.multivariate_normal.pdf())
 
-title = "GPR $f(x)$ w. HMC sampling for " + r'$\{\sigma_{f}^{2}\, \sigma_{n}^{2}, l\}$' + '\n' + \
-                                    'RMSE: ' + str(rmse_)
-                                    
+# Plot fit with mean and variance 
 
+title = "GPR $f(x)$ w. HMC sampling for " + r'$\{\sigma_{f}^{2}\, \sigma_{n}^{2}, l\}$' + '\n' + \
+                                    'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)
+                                    
 fig = plt.figure() 
-ax = fig.gca()
-plot_gp_dist(ax, pred_samples["y_pred"], X_star);
 plt.plot(X_star, post_pred_mean, color='g', lw=2, label='Posterior mean')
 plt.plot(X_star, f_star, "dodgerblue", lw=1.4, label="True f",alpha=0.7)
 plt.plot(X, y, 'bx', ms=3, alpha=0.8)
