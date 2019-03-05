@@ -44,7 +44,7 @@ def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
     X_star = X_all[test_index]
     f_star = f_all[test_index]
     y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
-    return X, y, X_star, f_star, index
+    return X, y, X_star, f_star, train_index
 
 #---------------GP Framework----------------------------------------------
     
@@ -85,25 +85,24 @@ def get_kernel_hyp_string(kernel_type, hyper_params):
         sig_var = hyper_params[0]
         lengthscale = hyper_params[1]
         noise_var = hyper_params[2]
-        return r'$\{\sigma_{f}^{2}$: ' + str(sig_var) + r',$\gamma$: ' + str(lengthscale) + r',$\sigma_{n}^{2}$: ' + str(noise_var) + '}'
+        return r'$\{\sigma_{f}^{2}$: ' + str(sig_var) + r', $\gamma$: ' + str(lengthscale) + r', $\sigma_{n}^{2}$: ' + str(noise_var) + '}'
 
     elif kernel_type == 'PER':
         
         period = hyper_params[0]
         lengthscale = hyper_params[1]
-        return r'$\{p$: ' + str(period) + r',$\gamma$: ' + str(lengthscale) + '}'
+        return r'$\{p$: ' + str(period) + r', $\gamma$: ' + str(lengthscale) + '}'
         
-    elif kernel_type == 'MATERN':
+    elif kernel_type == 'MATERN32':
         
         lengthscale = hyper_params[0]
-        return r',$\gamma$: ' + str(lengthscale)  + '}'
-        
+        return r'$\gamma$: ' + str(lengthscale)  + '}'
         
     elif kernel_type == 'RQ':
         
         alpha = hyper_params[0]
         lengthscale = hyper_params[0]
-        return r'$\{\alpha$: ' + str(alpha) + r',$\gamma$: ' + str(lengthscale) + '}'
+        return r'$\{\alpha$: ' + str(alpha) + r', $\gamma$: ' + str(lengthscale) + '}'
     
 
 def get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var):
@@ -133,21 +132,21 @@ def posterior_predictive_samples(post_mean, post_cov):
 
 def rmse(post_mean, f_star):
     
-    return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),2)
+    return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),3)
 
 def log_predictive_density(predictive_density):
 
-      return np.round(np.sum(np.log(predictive_density)), 2)
+      return np.round(np.sum(np.log(predictive_density)), 3)
 
 #-------------Plotting----------------------------------------------------
 
 def plot_noisy_data(X, y, X_star, f_star, title):
 
-    fig = plt.figure(figsize=(12,5))
-    ax = fig.gca()
-    ax.plot(X_star, f_star, "dodgerblue", lw=3, label="True f")
-    ax.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-    ax.set_xlabel("X"); ax.set_ylabel("The true f(x)") 
+    plt.figure()
+    plt.plot(X_star, f_star, "dodgerblue", lw=3, label="True f")
+    plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
+    plt.set_xlabel("X"); 
+    plt.set_ylabel("The true f(x)") 
     plt.legend()
     plt.title(title, fontsize='x-small')
 
@@ -182,7 +181,7 @@ def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
     plt.title(title, fontsize='x-small')
     
     
-def plot_lml_surface_3way(gpr, sig_var):
+def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     
     plt.figure(figsize=(15,6))
     plt.subplot(131)
@@ -242,12 +241,26 @@ def plot_lml_surface_3way(gpr, sig_var):
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Noise-level")
-    plt.ylabel("Signal-Var")
-    
+    plt.ylabel("Signal-Var")    
     plt.suptitle('LML Surface ' + '\n' + str(gpr.kernel_), fontsize='small')
+    
+def persist_datasets(X,X_star, f, f_star, index):
+      
+     X.tocsv('X.csv', sep=',')
+     X_star.tocsv('X_star.csv', sep=',')
+     y.tocsv('y.csv', sep=',')
+     f_star.tocsv('f_star.csv', sep=',')
+
+def load_datasets():
+      
+      X = np.asarray(pd.read_csv('X.csv', header=None))
+      y = np.asarray(pd.read_csv('y.csv', header=None))
+      X_star = np.asarray(pd.read_csv('X_star.csv', header=None))
+      f_star = np.asarray(pd.read_csv('f_star.csv', header=None))
+      return X.reshape(len(X[0]),1), y.reshape(len(y[0]),), X_star.reshape(len(X_star[0]),1), f_star.reshape(len(f_star[0]),)
+      
 
 if __name__ == "__main__":
-
 
     # If pre-loading 
 
@@ -256,7 +269,7 @@ if __name__ == "__main__":
     
     # Data
 
-    n_train = 20
+    n_train = 10
     n_star = 200
     
     xmin = 0
@@ -270,18 +283,19 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_var = 5.0
-    lengthscale = 1.0
-    noise_var = 0.2
-    hyp = [sig_var, lengthscale, noise_var]
-    cov = get_kernel('SE', [sig_var, lengthscale])
-    hyp_string = get_kernel_hyp_string('SE', [sig_var, lengthscale, noise_var])
+    sig_var_true = 5.0
+    lengthscale_true = 1.5
+    noise_var_true = 1.0
+    hyp = [sig_var_true, lengthscale_true, noise_var_true]
+    cov = get_kernel('SE', [sig_var_true, lengthscale_true])
+    hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
     
     f_all = generate_gp_latent(X_all, mean, cov)
     
-    uniform = True
-    X, y, X_star, f_star, index = generate_gp_training(X_all, f_all, n_train, noise_var, uniform)
-    K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var)
+    uniform = False
+    X, y, X_star, f_star, train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
+    #X, y, X_star, f_star = load_datasets()
+    K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
     
     # Add very slight perturbation to the covariance matrix diagonal to improve numerical stability
     
@@ -332,16 +346,16 @@ if __name__ == "__main__":
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
     #plot_kernel_matrix(post_cov,'')
     
-    plot_lml_surface_3way(gpr, sig_var)
+    plot_lml_surface_3way(gpr, sig_var_true, lengthscale_true, noise_var_true)
 
     ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
     ml_deltas_dict = {'lengthscale': ml_deltas[1], 'noise_var': ml_deltas[2], 'sig_var': ml_deltas[0]}
 
-    #---------------------------------------------------------------------
-    
-    # Vanilla GP - pymc3
-    
-    #---------------------------------------------------------------------
+      #---------------------------------------------------------------------
+          
+      # Vanilla GP - pymc3
+          
+      #---------------------------------------------------------------------
 
     with pm.Model() as model:
         
@@ -374,11 +388,11 @@ pred_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov_nf)
 title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) 
 plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
     
-#-----------------------------------------------------
-
-#       Hybrid Monte Carlo
-    
-#-----------------------------------------------------
+      #-----------------------------------------------------
+      
+      #       Hybrid Monte Carlo
+          
+      #-----------------------------------------------------
 
   with pm.Model() as hmc_gp_model:
         
@@ -416,9 +430,9 @@ traces[2][0].axvline(x=hyp_map[0], color='b', alpha=0.5, label='HMC ' + str(hyp_
 traces[0][0].axvline(x=ml_deltas[1], color='r',alpha=0.5, label='ML ' + str(ml_deltas[1]))
 traces[1][0].axvline(x=ml_deltas[2], color='r', alpha=0.5, label='ML ' + str(ml_deltas[2]))
 traces[2][0].axvline(x=ml_deltas[0], color='r', alpha=0.5, label='ML ' + str(ml_deltas[0]))
-traces[0][0].axvline(x=1.0, color='g',alpha=0.5, label='True ' + str(1.0))
-traces[1][0].axvline(x=0.2, color='g', alpha=0.5, label= 'True ' + str(0.2))
-traces[2][0].axvline(x=5.0, color='g', alpha=0.5, label='True ' + str(5.0))
+traces[0][0].axvline(x=lengthscale_true, color='g',alpha=0.5, label='True ' + str(lengthscale_true))
+traces[1][0].axvline(x=noise_var_true, color='g', alpha=0.5, label= 'True ' + str(noise_var_true))
+traces[2][0].axvline(x=sig_var_true, color='g', alpha=0.5, label='True ' + str(sig_var_true))
 traces[0][1].axhline(y=hyp_map[1], color='b', alpha=0.5)
 traces[1][1].axhline(y=hyp_map[2], color='b', alpha=0.5)
 traces[2][1].axhline(y=hyp_map[0], color='b', alpha=0.5)
@@ -436,7 +450,7 @@ for j, k in [(0,0), (1,0), (2,0)]:
 prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
-np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif.csv')
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif_med_noise.csv')
 pm.autocorrplot(trace)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
@@ -476,79 +490,115 @@ def get_joint_value_from_trace(trace, varnames, i):
 
 def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
       
-      #sum_means = np.zeros(test_size)
-      sum_means = []
-      #sum_cov = np.zeros((test_size, test_size))
-      sum_cov = []
-      #sum_mean_sq = np.zeros((test_size, test_size))
-      for i in range(0,len(trace_df)):
+      list_means = []
+      list_cov = []
+      list_mean_sq = []
+      for i in range(0,len(trace_df), 10):
             print(i)
             theta = get_joint_value_from_trace(trace_df, varnames, i) 
             cov = get_kernel('SE', [theta[0], theta[1]])
             K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-            print('Done at ' + str(i))
             mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv)
             cov_i = get_post_cov_theta(theta, K_s, K_ss, K_inv)
-            print('Done here too')
-            sum_means.append(mean_i)
-            sum_cov.append(cov_i)
-            #sum_mean_sq += np.outer(mean_i.eval(), mean_i.eval())
-            #sum_means += mean_i.eval()
-            #sum_cov += cov_i.eval()
-            print('Done adding too')
-      post_mean_trace = sum_means/len(trace_df)
-      post_cov_mean =  sum_cov/len(trace_df) + sum_mean_sq/len(trace_df)  - np.outer(post_mean_trace, post_mean_trace)
-      return post_mean_trace, post_cov_mean
+            list_means.append(mean_i)
+            list_cov.append(cov_i)
+            list_mean_sq.append(tt.outer(mean_i, mean_i))
+      post_mean_trace = tt.mean(list_means, axis=0)
+      post_mean_trace = post_mean_trace.eval()
+      print('Mean evaluated')
+      post_cov_trace =  tt.mean(list_cov, axis=0) 
+      post_cov_trace = post_cov_trace.eval() 
+      print('Cov evaluated')
+      outer_means = tt.mean(list_mean_sq, axis=0)
+      outer_means = outer_means.eval()
+      print('SSQ evaluated')
+      post_cov_trace = post_cov_trace + outer_means - np.outer(post_mean_trace, post_mean_trace)
+      return post_mean_trace, post_cov_trace
      
 varnames = ['sig_var', 'lengthscale','noise_var']
 theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
 
 test_size=180
 trace_df = get_combined_trace(trace)
-post_mean_trace, post_cov_mean = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
-post_s_std = np.sqrt(np.diag(post_cov_mean))
+post_mean_trace, post_cov_trace = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
+post_std_trace = np.sqrt(np.diag(post_cov_trace))
+
+# MAP Case
+
+K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
+post_mean_map = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv).eval()
+post_cov_map = get_post_cov_theta(theta, K_s, K_ss, K_inv).eval()
+post_std_map = np.sqrt(np.diag(post_cov_map))
+
+# Fit metrics - All 3 cases : ML, HMC, MAP
+
+rmse_hmc = rmse(f_star, post_mean_trace)
+rmse_map = rmse(f_star, post_mean_map)
+rmse_ml = rmse(f_star, post_pred_mean)
+
+lpd_hmc = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_trace, post_cov_trace, allow_singular=True))
+lpd_map = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_map, post_cov_map, allow_singular=True))
+lpd_ml = log_predictive_density(st.multivariate_normal.pdf(f_star, post_pred_mean, post_pred_cov, allow_singular=True))
+
+# Type II vs. HMC Report 
+
+plt.figure(figsize=(12,7))
 
 # Plot fit with mean and variance ML case
 
-plt.figure()
-plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=0.7);
-plt.plot(X_star, post_pred_mean, color='r', label=r'$\mu_{*}^{II ML}$')
-plt.legend(fontsize='x-small')
+plt.subplot(221)
+post_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov_nf)
+plt.plot(X_star, post_samples.T, color='grey', alpha=0.05)
 plt.fill_between(np.ravel(X_star), post_pred_mean - 2*post_pred_std, 
                      post_pred_mean + 2*post_pred_std, alpha=0.2, color='r',
                      label=r'$2\sigma_{*}^{2(II ML)}$')
-post_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov_nf)
-plt.plot(X_star, post_samples.T, color='grey', alpha=0.2)
+plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, post_pred_mean, color='r', label=r'$\mu_{*}^{II ML}$')
+plt.plot(X, y, 'ok', ms=3, alpha=0.5)
+plt.legend(fontsize='small')
 plt.title('Type II ML' + '\n' 
-          'True values: ' + get_kernel_hyp_string('SE', [5.0, 1.0, 1.0])  + '\n' +
-          'ML: ' + get_kernel_hyp_string('SE', np.round(ml_deltas, 3))
-          , fontsize='x-small')
-plt.legend(fontsize='x-small')
+          'True: ' + get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])  + '\n' +
+          'ML: ' + get_kernel_hyp_string('SE', np.round(ml_deltas, 3)), fontsize='medium')
+plt.ylim(-9,9)
 
 # Plot fit with mean and variance HMC case
 
-plt.figure()
-plt.plot(X_star, post_mean_trace, color='b', label=r'$\mu_{*}^{HMC}$')
-plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=0.7);
-plt.fill_between(np.ravel(X_star), (post_mean_trace - 2*post_s_std).reshape(test_size,), 
-                     (post_mean_trace + 2*post_s_std).reshape(test_size,), alpha=0.2, color='b',
+plt.subplot(222)
+post_samples = posterior_predictive_samples(post_mean_trace, post_cov_trace)
+plt.plot(X_star, post_samples.T, color='grey', alpha=0.1)
+plt.fill_between(np.ravel(X_star), (post_mean_trace - 2*post_std_trace).reshape(test_size,), 
+                     (post_mean_trace + 2*post_std_trace).reshape(test_size,), alpha=0.2, color='b',
                      label=r'$2\sigma_{*}^{2 (HMC)}$')
+plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, post_mean_trace, color='b', label=r'$\mu_{*}^{HMC}$')
+plt.plot(X, y, 'ok', ms=3, alpha=0.5)
 plt.legend(fontsize='x-small')
 plt.title('HMC' + '\n' 
-          'True values: ' + get_kernel_hyp_string('SE', [5.0, 1.0, 1.0])  + '\n' +
+          'True: ' + get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])  + '\n' +
           'HMC: ' + get_kernel_hyp_string('SE', np.round(theta, 3))
-          , fontsize='x-small')
-post_samples = posterior_predictive_samples(post_mean_trace, post_cov_mean)
-plt.plot(X_star, post_samples.T, color='grey', alpha=0.2)
+          , fontsize='medium')
+plt.ylim(-9,9)
+
+# Plot overlays 
+
+plt.subplot(212)
+plt.fill_between(np.ravel(X_star), (post_mean_trace - 2*post_std_trace).reshape(test_size,), 
+                     (post_mean_trace + 2*post_std_trace).reshape(test_size,), alpha=0.15, color='b',
+                     label=r'HMC')
+plt.fill_between(np.ravel(X_star), post_pred_mean - 2*post_pred_std, 
+                     post_pred_mean + 2*post_pred_std, alpha=0.15, color='r',
+                     label=r'ML')
+plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, post_pred_mean, color='r')
+plt.plot(X_star, post_mean_trace, color='b')
+plt.plot(X, y, 'ok', ms=3, alpha=0.5)
+plt.title('Type II ML - ' + 'RMSE: ' + str(rmse_ml) + '  LPD: ' + str(lpd_ml) + '\n' + 
+          'HMC        - ' + 'RMSE: ' + str(rmse_hmc) + '  LPD: ' + str(lpd_hmc), fontsize='small')
+plt.legend(fontsize='x-small')
+plt.ylim(-9,9)
+
 
 # Plot fit with mean and variance MAP case
-
-K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-post_mean_map = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv)
-post_cov_map = get_post_cov_theta(theta, K_s, K_ss, K_inv)
-post_std_map = np.sqrt(np.diag(post_cov_map.eval()))
 
 plt.plot(X_star, post_mean_map, color='g', label=r'$\mu_{*}^{MAP}$')
 plt.fill_between(np.ravel(X_star), (post_mean_map - 2*post_std_map).reshape(test_size,), 
@@ -556,14 +606,6 @@ plt.fill_between(np.ravel(X_star), (post_mean_map - 2*post_std_map).reshape(test
                      label=r'$2\sigma_{*}^{2 (MAP)}$')
 
 
-
-
-# Fit metrics
-
-rmse_mcmc = rmse(f_star, post_mean_trace)
-rmse_map = rmse(f_star, post_mean_trace)
-rmse_ml = rmse(f_star, post_pred_mean)
-lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_trace, ))
 
 
 
