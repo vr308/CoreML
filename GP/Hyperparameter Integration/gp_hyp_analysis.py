@@ -46,7 +46,7 @@ def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
     y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
     return X, y, X_star, f_star, train_index
 
-#---------------GP Framework----------------------------------------------
+#---------------------GP Framework---------------------------------------------
     
 def get_kernel(kernel_type, hyper_params):
     
@@ -145,7 +145,7 @@ def plot_noisy_data(X, y, X_star, f_star, title):
     plt.figure()
     plt.plot(X_star, f_star, "dodgerblue", lw=3, label="True f")
     plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-    plt.set_xlabel("X"); 
+    plt.set_xlabel("X") 
     plt.set_ylabel("The true f(x)") 
     plt.legend()
     plt.title(title, fontsize='x-small')
@@ -170,9 +170,9 @@ def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
     
     plt.figure()
     if post_samples != []:
-          plt.plot(X_star, post_samples.T, color='orange', alpha=0.5)
+          plt.plot(X_star, post_samples.T, color='grey', alpha=0.2)
     plt.plot(X_star, f_star, "dodgerblue", lw=1.4, label="True f",alpha=0.7);
-    plt.plot(X, y, 'bx', ms=3, alpha=0.8, color='r');
+    plt.plot(X, y, 'ok', ms=3, alpha=0.5)
     plt.plot(X_star, post_mean, color='r', lw=2, label='Posterior mean')
     plt.fill_between(np.ravel(X_star), post_mean - 1.96*post_std, 
                      post_mean + 1.96*post_std, alpha=0.2, color='r',
@@ -284,8 +284,8 @@ if __name__ == "__main__":
     # Kernel Hyperparameters 
     
     sig_var_true = 5.0
-    lengthscale_true = 1.5
-    noise_var_true = 1.0
+    lengthscale_true = 1.0
+    noise_var_true = 0.5
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
@@ -342,14 +342,13 @@ if __name__ == "__main__":
     post_samples = np.random.multivariate_normal(post_mean, post_cov, 10)
     rmse_ = rmse(post_mean, f_star)
     lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))
-    title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) 
-    plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
-    #plot_kernel_matrix(post_cov,'')
-    
-    plot_lml_surface_3way(gpr, sig_var_true, lengthscale_true, noise_var_true)
-
+    title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
     ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
     ml_deltas_dict = {'lengthscale': ml_deltas[1], 'noise_var': ml_deltas[2], 'sig_var': ml_deltas[0]}
+    plot_lml_surface_3way(gpr, ml_deltas_dict['sig_var'], ml_deltas_dict['lengthscale'], ml_deltas_dict['noise_var'])
+
+    plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
+
 
       #---------------------------------------------------------------------
           
@@ -397,12 +396,13 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
   with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
-       lengthscale = pm.Gamma('lengthscale', alpha=2, beta=1)
+       lengthscale = pm.Gamma('lengthscale', alpha=2, beta=2)
        
-       sig_var = pm.HalfCauchy('sig_var', beta=3)
+       #prior on signal variance
+       sig_var = pm.Gamma('sig_var', alpha=2, beta=2)
        
        #prior on noise variance
-       noise_var = pm.HalfCauchy('noise_var', beta=5)
+       noise_var = pm.Gamma('noise_var', alpha=2, beta=2)
        
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
@@ -450,7 +450,7 @@ for j, k in [(0,0), (1,0), (2,0)]:
 prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
-np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif_med_noise.csv')
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_med_noise.csv')
 pm.autocorrplot(trace)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
@@ -518,7 +518,7 @@ def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
 varnames = ['sig_var', 'lengthscale','noise_var']
 theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
 
-test_size=180
+test_size= len(X_all) - len(X)
 trace_df = get_combined_trace(trace)
 post_mean_trace, post_cov_trace = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
 post_std_trace = np.sqrt(np.diag(post_cov_trace))
@@ -605,9 +605,59 @@ plt.fill_between(np.ravel(X_star), (post_mean_map - 2*post_std_map).reshape(test
                      (post_mean_map + 2*post_std_map).reshape(test_size,), alpha=0.2, color='g',
                      label=r'$2\sigma_{*}^{2 (MAP)}$')
 
+# Potential Priors
 
+plt.figure(figsize=(12,8))
 
+plt.suptitle('Potential Priors')
 
+x = np.linspace(0,10,1000)
 
+# Gamma
 
+plt.subplot(221)
+
+params = [(1,2), (2,2), (3,2)]
+
+for j in params:
+      print(j)
+      plt.plot(x, st.gamma.pdf(x, j[0], 0,j[1]), label=str(j))
+plt.legend()
+plt.title('Gamma')
+
+# Half Normal
+
+plt.subplot(222)
+
+params = [(0.1,1), (0.1,2), (0.1,4)]
+
+for j in params:
+      print(j)
+      plt.plot(x, st.halfnorm.pdf(x, j[0],j[1]), label=str(j))
+plt.legend()
+plt.title('Half-normal')
+
+# Half Cauchy
+
+plt.subplot(223)
+
+params = [(0.1,1), (0.1,2), (0.1,4)]
+
+for j in params:
+      print(j)
+      plt.plot(x, st.halfcauchy.pdf(x, j[0],j[1]), label=str(j))
+plt.legend()
+plt.title('Half-Cauchy')
+
+# Log-normal 
+
+plt.subplot(224)
+
+params = [(0,0.25), (0,0.5), (0,1)] #(1,0.5),(1,1), (1,2)]
+
+for j in params:
+      print(j)
+      plt.plot(x, st.lognorm.pdf(x, j[1],j[0], 1), label=str(j))
+plt.legend()
+plt.title('Log-Normal')
 
