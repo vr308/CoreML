@@ -9,7 +9,7 @@ import theano.tensor as tt
 import pandas as pd
 import numpy as np
 from matplotlib import cm
-import matplotlib.pyplot as plt
+import matplotlib.pylab as plt
 from pymc3.gp.util import plot_gp_dist
 from theano.tensor.nlinalg import matrix_inverse, det
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -138,6 +138,13 @@ def log_predictive_density(predictive_density):
 
       return np.round(np.sum(np.log(predictive_density)), 3)
 
+def log_predictive_mixture_density(f_star, list_means, list_cov):
+      
+      components = []
+      for i in np.arange(len(list_means)):
+            components.append(st.multivariate_normal.pdf(f_star, list_means[i].eval(), list_cov[i].eval(), allow_singular=True))
+      return np.round(np.sum(np.log(np.mean(components))),3)
+
 #-------------Plotting----------------------------------------------------
 
 def plot_noisy_data(X, y, X_star, f_star, title):
@@ -145,8 +152,8 @@ def plot_noisy_data(X, y, X_star, f_star, title):
     plt.figure()
     plt.plot(X_star, f_star, "dodgerblue", lw=3, label="True f")
     plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-    plt.set_xlabel("X") 
-    plt.set_ylabel("The true f(x)") 
+    plt.xlabel("X") 
+    plt.ylabel("The true f(x)") 
     plt.legend()
     plt.title(title, fontsize='x-small')
 
@@ -246,10 +253,10 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     
 def persist_datasets(X,X_star, f, f_star, index):
       
-     X.tocsv('X.csv', sep=',')
-     X_star.tocsv('X_star.csv', sep=',')
-     y.tocsv('y.csv', sep=',')
-     f_star.tocsv('f_star.csv', sep=',')
+     X.tofile('X.csv', sep=',')
+     X_star.tofile('X_star.csv', sep=',')
+     y.tofile('y.csv', sep=',')
+     f_star.tofile('f_star.csv', sep=',')
 
 def load_datasets():
       
@@ -269,7 +276,7 @@ if __name__ == "__main__":
     
     # Data
 
-    n_train = 10
+    n_train = 20
     n_star = 200
     
     xmin = 0
@@ -285,7 +292,7 @@ if __name__ == "__main__":
     
     sig_var_true = 5.0
     lengthscale_true = 1.0
-    noise_var_true = 0.5
+    noise_var_true = 0.2
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
@@ -398,11 +405,11 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
        # prior on lengthscale 
        lengthscale = pm.Gamma('lengthscale', alpha=2, beta=2)
        
-       #prior on signal variance
-       sig_var = pm.Gamma('sig_var', alpha=2, beta=2)
-       
        #prior on noise variance
-       noise_var = pm.Gamma('noise_var', alpha=2, beta=2)
+       noise_var = pm.Gamma('noise_var', alpha=2, beta=1)
+       
+       #prior on signal variance
+       sig_var = pm.Gamma('sig_var', alpha=5, beta=1)
        
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
@@ -411,7 +418,8 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
-                
+            
+       # HMC Nuts auto-tuning implementation
        trace = pm.sample(draws=500)
               
   with hmc_gp_model:
@@ -422,7 +430,8 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
 ml_deltas_dict = {lengthscale: ml_deltas[1], noise_var: ml_deltas[2], sig_var: ml_deltas[0]}
 varnames = ['sig_var', 'lengthscale','noise_var']
 hyp_map = np.round(get_trace_means(trace, varnames),3)
-priors = [lengthscale.distribution, sig_var.distribution, noise_var.distribution]
+#priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
+priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
 traces = pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], priors=priors, prior_style='--', lines=ml_deltas_dict, bw=2, combined=True)
 traces[0][0].axvline(x=hyp_map[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map[1]))
 traces[1][0].axvline(x=hyp_map[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map[2]))
@@ -447,10 +456,10 @@ for j, k in [(0,0), (1,0), (2,0)]:
 
 # Write out trace summary & autocorrelation plots
 
-prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Config/'
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
-np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_med_noise.csv')
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif_6.csv')
 pm.autocorrplot(trace)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
@@ -506,38 +515,45 @@ def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
       post_mean_trace = tt.mean(list_means, axis=0)
       post_mean_trace = post_mean_trace.eval()
       print('Mean evaluated')
-      post_cov_trace =  tt.mean(list_cov, axis=0) 
-      post_cov_trace = post_cov_trace.eval() 
+      post_cov_mean =  tt.mean(list_cov, axis=0) 
+      post_cov_mean = post_cov_mean.eval() 
       print('Cov evaluated')
       outer_means = tt.mean(list_mean_sq, axis=0)
       outer_means = outer_means.eval()
       print('SSQ evaluated')
-      post_cov_trace = post_cov_trace + outer_means - np.outer(post_mean_trace, post_mean_trace)
-      return post_mean_trace, post_cov_trace
+      post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
+      return post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov
      
+
 varnames = ['sig_var', 'lengthscale','noise_var']
-theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
-
-test_size= len(X_all) - len(X)
 trace_df = get_combined_trace(trace)
-post_mean_trace, post_cov_trace = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
+theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
+test_size = len(X_all) - len(X)
+post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
 post_std_trace = np.sqrt(np.diag(post_cov_trace))
+post_std_mean = np.sqrt(np.diag(post_cov_mean))
 
-# MAP Case
+means_df = np.empty((180,))
+for i in range(0,50):
+      print(i)
+      means_df = np.column_stack((means_df, list_means[i].eval()))      
+means_df = np.delete(means_df, 0,1)
 
-K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-post_mean_map = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv).eval()
-post_cov_map = get_post_cov_theta(theta, K_s, K_ss, K_inv).eval()
-post_std_map = np.sqrt(np.diag(post_cov_map))
+std_df = np.empty((180,))
+for i in range(0,50):
+      print(i)
+      std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
+std_df = np.delete(std_df, 0,1)
+
+post_std_of_means = np.std(means_df, 0, 1)
+
 
 # Fit metrics - All 3 cases : ML, HMC, MAP
 
 rmse_hmc = rmse(f_star, post_mean_trace)
-rmse_map = rmse(f_star, post_mean_map)
 rmse_ml = rmse(f_star, post_pred_mean)
 
-lpd_hmc = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_trace, post_cov_trace, allow_singular=True))
-lpd_map = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_map, post_cov_map, allow_singular=True))
+lpd_hmc = log_predictive_mixture_density(f_star, list_means, list_cov)
 lpd_ml = log_predictive_density(st.multivariate_normal.pdf(f_star, post_pred_mean, post_pred_cov, allow_singular=True))
 
 # Type II vs. HMC Report 
@@ -547,12 +563,12 @@ plt.figure(figsize=(12,7))
 # Plot fit with mean and variance ML case
 
 plt.subplot(221)
-post_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov_nf)
-plt.plot(X_star, post_samples.T, color='grey', alpha=0.05)
+#post_samples = posterior_predictive_samples(post_pred_mean, post_pred_cov_nf)
+#plt.plot(X_star, post_samples.T, color='grey', alpha=0.05)
 plt.fill_between(np.ravel(X_star), post_pred_mean - 2*post_pred_std, 
                      post_pred_mean + 2*post_pred_std, alpha=0.2, color='r',
                      label=r'$2\sigma_{*}^{2(II ML)}$')
-plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, f_star, "black", lw=1.0, linestyle='dashed', label="True f",alpha=0.5);
 plt.plot(X_star, post_pred_mean, color='r', label=r'$\mu_{*}^{II ML}$')
 plt.plot(X, y, 'ok', ms=3, alpha=0.5)
 plt.legend(fontsize='small')
@@ -564,12 +580,12 @@ plt.ylim(-9,9)
 # Plot fit with mean and variance HMC case
 
 plt.subplot(222)
-post_samples = posterior_predictive_samples(post_mean_trace, post_cov_trace)
-plt.plot(X_star, post_samples.T, color='grey', alpha=0.1)
+#post_samples = posterior_predictive_samples(post_mean_trace, post_cov_trace)
+#plt.plot(X_star, post_samples.T, color='grey', alpha=0.1)
 plt.fill_between(np.ravel(X_star), (post_mean_trace - 2*post_std_trace).reshape(test_size,), 
                      (post_mean_trace + 2*post_std_trace).reshape(test_size,), alpha=0.2, color='b',
                      label=r'$2\sigma_{*}^{2 (HMC)}$')
-plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, f_star, "black", lw=1.0, linestyle='dashed', label="True f",alpha=0.5);
 plt.plot(X_star, post_mean_trace, color='b', label=r'$\mu_{*}^{HMC}$')
 plt.plot(X, y, 'ok', ms=3, alpha=0.5)
 plt.legend(fontsize='x-small')
@@ -579,16 +595,28 @@ plt.title('HMC' + '\n'
           , fontsize='medium')
 plt.ylim(-9,9)
 
+# Plot the space of means and uncertainties overlaid
+
+plt.subplot(223)
+for i in range(0,50):
+      plt.fill_between(np.ravel(X_star), means_df[:,i] - 2*std_df[:,i],  means_df[:,i] + 2*std_df[:,i], 
+                       alpha=0.3, color='grey')
+plt.plot(X_star, means_df, alpha=0.3)
+plt.plot(X_star, f_star, "black", lw=2.0, linestyle='dashed', label="True f",alpha=0.5);
+plt.plot(X, y, 'ok', ms=3)
+plt.title('Posterior means and variances per ' + r'$\theta_{i}$')
+plt.ylim(-9,9)
+
 # Plot overlays 
 
-plt.subplot(212)
+plt.subplot(224)
 plt.fill_between(np.ravel(X_star), (post_mean_trace - 2*post_std_trace).reshape(test_size,), 
                      (post_mean_trace + 2*post_std_trace).reshape(test_size,), alpha=0.15, color='b',
                      label=r'HMC')
 plt.fill_between(np.ravel(X_star), post_pred_mean - 2*post_pred_std, 
                      post_pred_mean + 2*post_pred_std, alpha=0.15, color='r',
                      label=r'ML')
-plt.plot(X_star, f_star, "dodgerblue", lw=1.0, label="True f",alpha=1);
+plt.plot(X_star, f_star, "black", lw=2.0, linestyle='dashed', label="True f",alpha=0.5);
 plt.plot(X_star, post_pred_mean, color='r')
 plt.plot(X_star, post_mean_trace, color='b')
 plt.plot(X, y, 'ok', ms=3, alpha=0.5)
@@ -597,67 +625,23 @@ plt.title('Type II ML - ' + 'RMSE: ' + str(rmse_ml) + '  LPD: ' + str(lpd_ml) + 
 plt.legend(fontsize='x-small')
 plt.ylim(-9,9)
 
+## Plot fit with mean and variance MAP case
 
-# Plot fit with mean and variance MAP case
+# MAP Case
 
-plt.plot(X_star, post_mean_map, color='g', label=r'$\mu_{*}^{MAP}$')
-plt.fill_between(np.ravel(X_star), (post_mean_map - 2*post_std_map).reshape(test_size,), 
-                     (post_mean_map + 2*post_std_map).reshape(test_size,), alpha=0.2, color='g',
-                     label=r'$2\sigma_{*}^{2 (MAP)}$')
+#K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
+#post_mean_map = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv).eval()
+#post_cov_map = get_post_cov_theta(theta, K_s, K_ss, K_inv).eval()
+#post_std_map = np.sqrt(np.diag(post_cov_map))
+#
+#rmse_map = rmse(f_star, post_mean_map)
+#lpd_map = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean_map, post_cov_map, allow_singular=True))
 
-# Potential Priors
+#
+#plt.figure()
+#plt.plot(X_star, post_mean_map, color='g', label=r'$\mu_{*}^{MAP}$')
+#plt.fill_between(np.ravel(X_star), (post_mean_map - 2*post_std_map).reshape(test_size,), 
+#                     (post_mean_map + 2*post_std_map).reshape(test_size,), alpha=0.2, color='g',
+#                     label=r'$2\sigma_{*}^{2 (MAP)}$')
 
-plt.figure(figsize=(12,8))
-
-plt.suptitle('Potential Priors')
-
-x = np.linspace(0,10,1000)
-
-# Gamma
-
-plt.subplot(221)
-
-params = [(1,2), (2,2), (3,2)]
-
-for j in params:
-      print(j)
-      plt.plot(x, st.gamma.pdf(x, j[0], 0,j[1]), label=str(j))
-plt.legend()
-plt.title('Gamma')
-
-# Half Normal
-
-plt.subplot(222)
-
-params = [(0.1,1), (0.1,2), (0.1,4)]
-
-for j in params:
-      print(j)
-      plt.plot(x, st.halfnorm.pdf(x, j[0],j[1]), label=str(j))
-plt.legend()
-plt.title('Half-normal')
-
-# Half Cauchy
-
-plt.subplot(223)
-
-params = [(0.1,1), (0.1,2), (0.1,4)]
-
-for j in params:
-      print(j)
-      plt.plot(x, st.halfcauchy.pdf(x, j[0],j[1]), label=str(j))
-plt.legend()
-plt.title('Half-Cauchy')
-
-# Log-normal 
-
-plt.subplot(224)
-
-params = [(0,0.25), (0,0.5), (0,1)] #(1,0.5),(1,1), (1,2)]
-
-for j in params:
-      print(j)
-      plt.plot(x, st.lognorm.pdf(x, j[1],j[0], 1), label=str(j))
-plt.legend()
-plt.title('Log-Normal')
 
