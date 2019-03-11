@@ -4,28 +4,43 @@
 Created on Sun Mar  3 19:23:18 2019
 
 @author: vidhi
+
+Generate synthetic datasets for a testing GPs, the true function is simulated as a draw from a GP with a specified covariance function
+
 """
-mean1 = [2,2]
-cov1 = [[4,0],[0,1]]
 
-mean2 = [0,0]
-cov2 = [[1,0],[0,1]]
+class GP_Synthetic_Data:
+      
+        def __init__(self, kernel, xmin, xmax, n_all, n_train):
+              
+               self.X_all = np.linspace(xmin, xmax, n_all)[:,None] # The granularity of the grid
+               self.
 
-mean = [1,1]
+        
+        @staticmethod
+        def generate_gp_latent(X_star, mean, cov):
+    
+              return np.random.multivariate_normal(mean(X_star).eval(), cov=cov(X_star, X_star).eval())
 
-mean_diff1 = np.subtract(mean1,mean)
-mean_diff2 = np.subtract(mean2,mean)
-
-cov_trial1 = 0.5*(np.add(cov1, cov2)) + 0.5*(np.outer(mean1, mean1) + np.outer(mean2, mean2)) - np.outer(mean, mean)
-cov_trial2 = 0.5*(np.add(cov1, cov2)) + 0.5*np.outer(mean_diff1, mean_diff1) +  0.5*np.outer(mean_diff2, mean_diff2)
-
-x_ = np.linspace(-5,5, 1000)
-X1, X2 = np.meshgrid(x_,x_)
-points = np.vstack([X1.ravel(), X2.ravel()]).T
-
-mixture = lambda points : 0.5*st.multivariate_normal.pdf(points, mean1, cov1) + 0.5*st.multivariate_normal.pdf(points, mean2, cov2)
-plt.contourf(X1, X2, mixture(points).reshape(1000,1000), alpha=0.2)
-
-
-plt.contourf(X1, X2, st.multivariate_normal.pdf(points, mean, cov_trial1).reshape(1000,1000))
-plt.contourf(X1, X2, st.multivariate_normal.pdf(points, mean, cov_trial2, allow_singular=True).reshape(1000,1000))
+        @staticmethod
+        def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
+          
+                if uniform == True:
+                     X = np.random.choice(X_all.ravel(), n_train, replace=False)
+                else:
+                     pdf = 0.5*st.norm.pdf(X_all, 2, 0.7) + 0.5*st.norm.pdf(X_all, 7.5,1)
+                     prob = pdf/np.sum(pdf)
+                     X = np.random.choice(X_all.ravel(), n_train, replace=False,  p=prob.ravel())
+                 
+                train_index = []
+                for i in X:
+                      train_index.append(X_all.ravel().tolist().index(i))
+                test_index = [i for i in np.arange(len(X_all)) if i not in train_index]
+                X = X_all[train_index]
+                f = f_all[train_index]
+                X_star = X_all[test_index]
+                f_star = f_all[test_index]
+                y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
+                return X, y, X_star, f_star, f, train_index
+            
+      

@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Mar  8 10:00:11 2019
+
+@author: vidhi
+"""
+
 # -*- coding: utf-8 -*-
 """
 Spyder Editor
@@ -118,10 +126,9 @@ def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
     
     L = np.linalg.cholesky(K_noise.eval())
     alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
-    v = np.linalg.solve(L, K_s.eval())
+    #v = np.linalg.solve(L, K_s.eval())
     post_mean = np.dot(K_s.eval().T, alpha)
-    #post_cov = K_ss.eval() - K_s.eval().T.dot(K_inv.eval()).dot(K_s.eval())
-    post_cov2 = K_ss.eval() - v.T.dot(v)
+    post_cov = K_ss.eval() - K_s.eval().T.dot(K_inv.eval()).dot(K_s.eval())
     post_std = np.sqrt(np.diag(post_cov))
     return post_mean, post_cov, post_std
     
@@ -183,7 +190,7 @@ def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
     plt.plot(X, y, 'ok', ms=3, alpha=0.5)
     plt.plot(X_star, post_mean, color='r', lw=2, label='Posterior mean')
     plt.fill_between(np.ravel(X_star), post_mean - 1.96*post_std, 
-                     post_mean + 1.96*post_std, alpha=0.2, color='g',
+                     post_mean + 1.96*post_std, alpha=0.2, color='r',
                      label='95% CR')
     plt.legend(fontsize='x-small')
     plt.title(title, fontsize='x-small')
@@ -292,19 +299,27 @@ if __name__ == "__main__":
     # Kernel Hyperparameters 
     
     sig_var_true = 5.0
-    lengthscale_true = 2.0
-    noise_var_true = 0.8
-    hyp = [sig_var_true, lengthscale_true, noise_var_true]
-    cov = get_kernel('SE', [sig_var_true, lengthscale_true])
-    hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
+    lengthscale_true1 = 2.0
+    lengthscale_true2 = 10
+    noise_var_true = 0.2
+    hyp = [sig_var_true, lengthscale_true1, lengthscale_true2, noise_var_true]
+    
+    cov1 = get_kernel('SE', [sig_var_true, lengthscale_true1])
+    cov2 = get_kernel('SE', [sig_var_true, lengthscale_true2])
+    cov = get_kernel('SE', [sig_var_true, lengthscale_true1]) + get_kernel('SE', [sig_var_true, lengthscale_true2])
+    
+ # adapt code   hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
     
     f_all = generate_gp_latent(X_all, mean, cov)
     
-    uniform = False
+    uniform = True
     X, y, X_star, f_star, f,  train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
     #X, y, X_star, f_star = load_datasets()
+    K, K_s, K_ss1, K_noise, K_inv = get_kernel_matrix_blocks(cov1, X, X_star, n_train, noise_var_true)
+    K, K_s, K_ss2, K_noise, K_inv = get_kernel_matrix_blocks(cov2, X, X_star, n_train, noise_var_true)
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
-    
+
+
     
     print(np.sqrt(noise_var_true))
     print(np.std(y-f))
@@ -315,7 +330,11 @@ if __name__ == "__main__":
     # Generate prior samples and plot covariance matrix to verify if the Data scheme is correct
     
     plot_kernel_matrix(K_ss.eval(), 'Cov. matrix with true values ' + get_kernel_hyp_string('SE',hyp))
+    
     plot_prior_samples(X_star, K_ss.eval())
+    plot_prior_samples(X_star, K_ss1.eval())
+    plot_prior_samples(X_star, K_ss2.eval())
+
     
     #---------------------------------------------------------------------
     # Analytically compute posterior mean and posterior covariance
@@ -333,7 +352,7 @@ if __name__ == "__main__":
     lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))
     
     kernel = 'Kernel: 5.0* RBF(lenghtscale = 1) + WhiteKernel(noise_level=0.2)'
-    title = 'GPR' + '\n' + kernel + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)
+    title = 'GPR' + '\n' + kernel + '\n' + 'RMSE: ' + str(rmse_) '\n' + 'LPD: ' + str(lpd_)
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
     plot_kernel_matrix(post_cov.eval(),'')
     
@@ -343,10 +362,8 @@ if __name__ == "__main__":
     
     #---------------------------------------------------------------------
     
-    kern#el = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
-    
-    kernel = Ck(4.698, (1e-10, 1e2)) * RBF(2.867, length_scale_bounds=(0.5, 8)) + WhiteKernel(0.841, noise_level_bounds=(1e-5,100))
-    gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
+    kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
         
     # Fit to data 
     gpr.fit(X, y)        
@@ -391,7 +408,7 @@ if __name__ == "__main__":
 
 post_pred_mean, post_pred_cov = gp.predict(X_star, pred_noise=True)
 post_pred_mean, post_pred_cov_nf = gp.predict(X_star, pred_noise=False)
-post_pred_std = np.sqrt(np.diag(post_pred_cov_nf))
+post_pred_std = np.sqrt(np.diag(post_pred_cov))
 
 rmse_ = rmse(post_pred_mean, f_star)
 lpd_ = log_predictive_density(st.multivariate_normal.pdf(f_star, post_pred_mean, post_pred_cov, allow_singular=True))
@@ -409,7 +426,7 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
   with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
-       lengthscale = pm.
+       lengthscale = pm.Gamma('lengthscale', alpha=2, beta=2)
        
        #prior on noise variance
        noise_var = pm.Gamma('noise_var', alpha=2, beta=1)
@@ -465,7 +482,7 @@ for j, k in [(0,0), (1,0), (2,0)]:
 prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Config/'
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
-np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_6.csv')
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_25.csv')
 pm.autocorrplot(trace)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
@@ -508,7 +525,7 @@ def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
       list_means = []
       list_cov = []
       list_mean_sq = []
-      for i in range(0,len(trace_df), 5):
+      for i in range(0,len(trace_df), 10):
             print(i)
             theta = get_joint_value_from_trace(trace_df, varnames, i) 
             cov = get_kernel('SE', [theta[0], theta[1]])
@@ -540,18 +557,19 @@ post_std_trace = np.sqrt(np.diag(post_cov_trace))
 post_std_mean = np.sqrt(np.diag(post_cov_mean))
 
 means_df = np.empty((180,))
-for i in range(0,100):
+for i in range(0,50):
       print(i)
       means_df = np.column_stack((means_df, list_means[i].eval()))      
 means_df = np.delete(means_df, 0,1)
 
 std_df = np.empty((180,))
-for i in range(0,100):
+for i in range(0,50):
       print(i)
       std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
 std_df = np.delete(std_df, 0,1)
 
 post_std_of_means = np.std(means_df, 0, 1)
+
 
 # Fit metrics - All 3 cases : ML, HMC, MAP
 
