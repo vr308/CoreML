@@ -13,14 +13,11 @@ import matplotlib.pylab as plt
 from pymc3.gp.util import plot_gp_dist
 from theano.tensor.nlinalg import matrix_inverse, det
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, WhiteKernel
+from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
 import scipy.stats as st
 import configparser
 
-
-config = configparser.ConfigParser()
-config.read('kernel_experiments_config.ini')
 
 def generate_gp_latent(X_star, mean, cov):
     
@@ -343,9 +340,11 @@ if __name__ == "__main__":
     
     #---------------------------------------------------------------------
     
-    kern#el = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
+    kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
     
-    kernel = Ck(4.698, (1e-10, 1e2)) * RBF(2.867, length_scale_bounds=(0.5, 8)) + WhiteKernel(0.841, noise_level_bounds=(1e-5,100))
+    kernel = Ck(constant_value=4.698, constant_value_bounds=(1e-10, 1e2)) * RBF(length_scale=2.867, length_scale_bounds=(0.5, 8)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
+    kernel = Ck(4.698, (1e-10, 1e2)) * RQ(length_scale = 2.867, alpha=2.0, length_scale_bounds=(0.5, 8), alpha_bounds= (1e-5, 1e4)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
+    
     gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
         
     # Fit to data 
