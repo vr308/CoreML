@@ -16,7 +16,7 @@ There are two modes for assigning training data:
 import numpy as np
 import scipy.stats as st
 import pymc3 as pm
-import theano.tensor as tt
+import pandas as pd
 import matplotlib.pylab as plt
 from kernel import Kernel
 
@@ -61,7 +61,7 @@ class GP_Synthetic_Data:
                 return X, y, X_star, f_star, f, train_index, test_index
           
         @staticmethod
-        def persist_datasets(X, X_star, f, f_star, tag):
+        def persist_datasets(X, X_star, f, f_star, y, tag):
       
            X.tofile('X' + '_' + tag + '.csv', sep=',')
            X_star.tofile('X_star' + '_' + tag + '.csv', sep=',')

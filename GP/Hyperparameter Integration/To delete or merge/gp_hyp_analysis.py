@@ -10,13 +10,15 @@ import pandas as pd
 import numpy as np
 from matplotlib import cm
 import matplotlib.pylab as plt
-from pymc3.gp.util import plot_gp_dist
-from theano.tensor.nlinalg import matrix_inverse, det
+from theano.tensor.nlinalg import matrix_inverse
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
 import scipy.stats as st
-import configparser
+
+import warnings
+warnings.filterwarnings("ignore")
+
 
 
 def generate_gp_latent(X_star, mean, cov):
@@ -118,7 +120,7 @@ def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
     v = np.linalg.solve(L, K_s.eval())
     post_mean = np.dot(K_s.eval().T, alpha)
     #post_cov = K_ss.eval() - K_s.eval().T.dot(K_inv.eval()).dot(K_s.eval())
-    post_cov2 = K_ss.eval() - v.T.dot(v)
+    post_cov = K_ss.eval() - v.T.dot(v)
     post_std = np.sqrt(np.diag(post_cov))
     return post_mean, post_cov, post_std
     
@@ -249,7 +251,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.ylabel("Signal-Var")    
     plt.suptitle('LML Surface ' + '\n' + str(gpr.kernel_), fontsize='small')
     
-def persist_datasets(X,X_star, f, f_star, index):
+def persist_datasets(X,X_star, f, f_star, y):
       
      X.tofile('X.csv', sep=',')
      X_star.tofile('X_star.csv', sep=',')
@@ -342,10 +344,10 @@ if __name__ == "__main__":
     
     kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
     
-    kernel = Ck(constant_value=4.698, constant_value_bounds=(1e-10, 1e2)) * RBF(length_scale=2.867, length_scale_bounds=(0.5, 8)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
-    kernel = Ck(4.698, (1e-10, 1e2)) * RQ(length_scale = 2.867, alpha=2.0, length_scale_bounds=(0.5, 8), alpha_bounds= (1e-5, 1e4)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
+    #kernel = Ck(constant_value=4.698, constant_value_bounds=(1e-10, 1e2)) * RBF(length_scale=2.867, length_scale_bounds=(0.5, 8)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
+    #kernel = Ck(4.698, (1e-10, 1e2)) * RQ(length_scale = 2.867, alpha=2.0, length_scale_bounds=(0.5, 8), alpha_bounds= (1e-5, 1e4)) + WhiteKernel(noise_level=0.841, noise_level_bounds=(1e-5,100))
     
-    gpr = GaussianProcessRegressor(kernel=kernel,optimizer=None)
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
         
     # Fit to data 
     gpr.fit(X, y)        
@@ -405,17 +407,20 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
           
       #-----------------------------------------------------
 
-  with pm.Model() as hmc_gp_model:
+with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
-       lengthscale = pm.
-       
-       #prior on noise variance
-       noise_var = pm.Gamma('noise_var', alpha=2, beta=1)
-       
+       log_l = pm.Uniform('log_l', lower=-3, upper=3)
+       lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
+         
        #prior on signal variance
-       sig_var = pm.Gamma('sig_var', alpha=5, beta=1)
-       
+       log_sv = pm.Uniform('log_sv', lower=-5, upper=5)
+       sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
+         
+       #prior on noise variance
+       log_nv = pm.Uniform('log_nv', lower=-10, upper=5)
+       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
+        
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
     
@@ -425,18 +430,27 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
             
        # HMC Nuts auto-tuning implementation
-       trace = pm.sample(draws=500)
+       trace = pm.sample(draws=500, chains=4, discard_tuned_samples=False)
               
-  with hmc_gp_model:
+with hmc_gp_model:
        y_pred = gp.conditional("y_pred", X_star)
        
 # Box standard Traceplot on log axis with deltas and means highlighted
+       
+def get_trace_means(trace, varnames):
+      
+      trace_means = []
+      for i in varnames:
+            trace_means.append(trace[i].mean())
+      return trace_means
+
        
 ml_deltas_dict = {lengthscale: ml_deltas[1], noise_var: ml_deltas[2], sig_var: ml_deltas[0]}
 varnames = ['sig_var', 'lengthscale','noise_var']
 hyp_map = np.round(get_trace_means(trace, varnames),3)
 #priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
-priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
+#priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
+priors = [log_l.distribution, log_nv.distribution, log_sv.distribution]
 traces = pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], priors=priors, prior_style='--', lines=ml_deltas_dict, bw=2, combined=True)
 traces[0][0].axvline(x=hyp_map[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map[1]))
 traces[1][0].axvline(x=hyp_map[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map[2]))
@@ -465,7 +479,7 @@ prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Con
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
 np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_6.csv')
-pm.autocorrplot(trace)
+pm.autocorrplot(trace['sig_var', 'noise_var', 'lengthscale'], burn=500)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
 
@@ -477,14 +491,7 @@ def get_combined_trace(trace):
     trace_df['noise_var'] = np.mean(trace.get_values('noise_var', combine=False), axis=0)
     return trace_df
 
-def get_trace_means(trace, varnames):
-      
-      trace_means = []
-      for i in varnames:
-            trace_means.append(trace[i].mean())
-      return trace_means
-
-def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv):
+def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y):
       
       #L = np.linalg.cholesky(K_noise.eval())
       #alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
@@ -507,12 +514,12 @@ def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
       list_means = []
       list_cov = []
       list_mean_sq = []
-      for i in range(0,len(trace_df), 5):
+      for i in range(0,len(trace_df), 10):
             print(i)
             theta = get_joint_value_from_trace(trace_df, varnames, i) 
             cov = get_kernel('SE', [theta[0], theta[1]])
             K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-            mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv)
+            mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y)
             cov_i = get_post_cov_theta(theta, K_s, K_ss, K_inv)
             list_means.append(mean_i)
             list_cov.append(cov_i)
@@ -529,7 +536,6 @@ def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
       post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
       return post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov
      
-
 varnames = ['sig_var', 'lengthscale','noise_var']
 trace_df = get_combined_trace(trace)
 theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])

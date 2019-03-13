@@ -49,9 +49,7 @@ class GP:
             hyperparam_names.append('noise_var')
             self.ml_deltas = dict(zip(hyperparam_names, ml_deltas))  
             return post_mean, post_cov, post_std
-            
-      def get_ml_deltas_hyp_string():
-            
+                        
       def inf_analytical(self, kernel, pred_noise):
             
             K, K_s, K_ss, K_noise, K_inv = kernel.get_kernel_matrix_blocks(self.data.X, self.data.X_star)
@@ -75,7 +73,7 @@ class GP:
         
                    # prior on lengthscale 
                    log_l = pm.Uniform('log_l', lower=-3, upper=3)
-                   l = pm.Deterministic('l', tt.exp(log_l))
+                   lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
                      
                    #prior on signal variance
                    log_sv = pm.Uniform('log_sv', lower=-10, upper=5)

@@ -9,9 +9,7 @@ Created on Tue Mar 12 18:41:53 2019
 import numpy as np
 import pymc3 as pm
 import matplotlib.pylab as plt
-import scipy.stats as st
 import theano.tensor as tt
-from sklearn.gaussian_process import GaussianProcessRegressor
 import pandas as pd
 
 from kernel import Kernel
@@ -32,7 +30,7 @@ class Trace_Hyp_GP:
       def get_combined_trace(self):
       
           trace_df = pd.DataFrame()
-          for i in list(gp.kernel.hyperparams.keys()):
+          for i in list(self.gp.kernel.hyperparams.keys()):
                 trace_df[i] = np.mean(self.trace.get_values(i, combine=False), axis=0)
           return trace_df
 
@@ -43,13 +41,11 @@ class Trace_Hyp_GP:
                   trace_means.append(self.trace[i].mean())
             return trace_means
       
-      @staticmethod
-      def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv):
+      def get_post_mean_theta(self, theta, K, K_s, K_ss, K_noise, K_inv):
             
-            return  K_s.T.dot(K_inv).dot(y)
+            return  K_s.T.dot(K_inv).dot(self.gp.data.y)
       
-      @staticmethod
-      def get_post_cov_theta(theta, K_s, K_ss, K_inv, pred_noise):
+      def get_post_cov_theta(self, theta, K_s, K_ss, K_inv, pred_noise):
             
             if pred_noise:
                   return K_ss - K_s.T.dot(K_inv).dot(K_s) + theta[-1]*tt.eye(len(self.gp.data.X_star))
@@ -60,7 +56,7 @@ class Trace_Hyp_GP:
             
             joint = []
             for v in self.varnames:
-                  joint.append(trace[v][i])
+                  joint.append(self.trace[v][i])
             return joint
       
       def get_post_mcmc_mean_cov(self):
@@ -68,14 +64,13 @@ class Trace_Hyp_GP:
             list_means = []
             list_cov = []
             list_mean_sq = []
-            for i in range(0,len(trace_df), 5):
+            for i in range(0,len(self.trace_df), 5):
                   print(i)
-                  theta = self.get_joint_value_from_trace(trace_df, varnames, i) 
-                  kernel = Kernel(self.gp.kernel.name, 1,dict(zip(varnames,theta)) , noise_var=theta[-1])
-                  cov = kernel.kernel_func
+                  theta = self.get_joint_value_from_trace(self.trace_df, self.varnames, i) 
+                  kernel = Kernel(self.gp.kernel.name, 1,dict(zip(self.varnames,theta)) , noise_var=theta[-1])
                   K, K_s, K_ss, K_noise, K_inv = kernel.get_kernel_matrix_blocks(self.gp.data.X, self.gp.data.X_star)
-                  mean_i = Trace_Hyp_GP.get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv)
-                  cov_i = Trace_Hyp_GP.get_post_cov_theta(theta, K_s, K_ss, K_inv, False)
+                  mean_i = self.get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv)
+                  cov_i = self.get_post_cov_theta(theta, K_s, K_ss, K_inv, False)
                   list_means.append(mean_i)
                   list_cov.append(cov_i)
                   list_mean_sq.append(tt.outer(mean_i, mean_i))
@@ -90,3 +85,15 @@ class Trace_Hyp_GP:
             print('SSQ evaluated')
             post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
             return post_mean_trace, post_cov_trace, list_means, list_cov
+        
+    def plot_traceplot_report():
+        
+        return
+        
+    def generate_sampler_stats():
+        
+        return 
+    
+    def 
+        
+    
