@@ -290,16 +290,16 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_var_true = 5.0
-    lengthscale_true = 2.0
-    noise_var_true = 0.8
+    sig_var_true = 10.0
+    lengthscale_true = 1.0
+    noise_var_true = 1.0
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
     
     f_all = generate_gp_latent(X_all, mean, cov)
     
-    uniform = False
+    uniform = True
     X, y, X_star, f_star, f,  train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
     #X, y, X_star, f_star = load_datasets()
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
@@ -410,17 +410,17 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
 with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
-       log_l = pm.Uniform('log_l', lower=-3, upper=3)
+       log_l = pm.Uniform('log_l', lower=-3, upper=2)
        lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
+       
+        #prior on noise variance
+       log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
+       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
          
        #prior on signal variance
-       log_sv = pm.Uniform('log_sv', lower=-5, upper=5)
+       log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
        sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
          
-       #prior on noise variance
-       log_nv = pm.Uniform('log_nv', lower=-10, upper=5)
-       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
-        
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
     
@@ -428,9 +428,10 @@ with pm.Model() as hmc_gp_model:
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
-            
+       
+       
        # HMC Nuts auto-tuning implementation
-       trace = pm.sample(draws=500, chains=4, discard_tuned_samples=False)
+       trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
               
 with hmc_gp_model:
        y_pred = gp.conditional("y_pred", X_star)
@@ -467,6 +468,9 @@ traces[2][1].axhline(y=hyp_map[0], color='b', alpha=0.5)
 traces[0][0].axes.set_xscale('log')
 traces[1][0].axes.set_xscale('log')
 traces[2][0].axes.set_xscale('log')
+traces[0][0].axes.set_xticks([0.1,1,10])
+traces[1][0].axes.set_xticks([0.01,0.1,1,10])
+traces[2][0].axes.set_xticks([0.1,1,10,100])
 traces[0][0].hist(trace['lengthscale'], bins=100, normed=True, color='orange', alpha=0.3)
 traces[1][0].hist(trace['noise_var'], bins=100, normed=True, color='orange', alpha=0.3)
 traces[2][0].hist(trace['sig_var'], bins=100, normed=True, color='orange', alpha=0.3)
@@ -478,8 +482,8 @@ for j, k in [(0,0), (1,0), (2,0)]:
 prefix = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Config/'
 summary_df = pm.summary(trace)
 summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
-np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_nunif_6.csv')
-pm.autocorrplot(trace['sig_var', 'noise_var', 'lengthscale'], burn=500)
+np.round(summary_df,3).to_csv(prefix + 'trace_summary_se_unif_25.csv')
+pm.autocorrplot(trace, varnames=['sig_var', 'noise_var', 'lengthscale'], burn=100)
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
 
@@ -509,7 +513,7 @@ def get_joint_value_from_trace(trace, varnames, i):
             joint.append(trace[v][i])
       return joint
 
-def get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size):
+def get_post_mcmc_mean_cov(trace_df, X, X_star, y, varnames, n_train, test_size):
       
       list_means = []
       list_cov = []
@@ -540,18 +544,18 @@ varnames = ['sig_var', 'lengthscale','noise_var']
 trace_df = get_combined_trace(trace)
 theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
 test_size = len(X_all) - len(X)
-post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star, varnames, n_train, test_size)
+post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star,y, varnames, n_train, test_size)
 post_std_trace = np.sqrt(np.diag(post_cov_trace))
 post_std_mean = np.sqrt(np.diag(post_cov_mean))
 
 means_df = np.empty((180,))
-for i in range(0,100):
+for i in range(0,50):
       print(i)
       means_df = np.column_stack((means_df, list_means[i].eval()))      
 means_df = np.delete(means_df, 0,1)
 
 std_df = np.empty((180,))
-for i in range(0,100):
+for i in range(0,50):
       print(i)
       std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
 std_df = np.delete(std_df, 0,1)
