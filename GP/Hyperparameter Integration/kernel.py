@@ -38,11 +38,11 @@ class Kernel:
                   
       def set_base_kernel_function(self):
             
-         if self.name == 'LIN':
+          if self.name == 'LIN':
                
                return;
                
-         if self.name == 'POLY';:
+          if self.name == 'POLY':
                
                return;
                
@@ -129,18 +129,31 @@ class Kernel:
       def get_composite_hyp_dict(kernel1, kernel2):
             
             keys = [x + '_1' for x in list(kernel1.hyperparams.keys())] + [x + '_2' for x in list(kernel2.hyperparams.keys())]
-            values = list(k1.hyperparams.values()) + list(k2.hyperparams.values())
+            values = list(kernel1.hyperparams.values()) + list(kernel2.hyperparams.values())
       
             return dict(zip(keys, values))
     
       @staticmethod
-      def product(kernel1, kernel2):
+      def product_(kernel1, kernel2):
             
          name = kernel1.name + 'x' + kernel2.name
          dimension = kernel1.dimension 
          hyperparams = Kernel.get_composite_hyp_dict(kernel1, kernel2)
          k_func = kernel1.kernel_func*kernel2.kernel_func
          sklearn_func = kernel1.sklearn_kernel*kernel2.sklearn_kernel
+         noise_var = kernel1.noise_var # Independent noise component
+         
+         return Kernel(name, dimension, hyperparams, noise_var, kernel_func=k_func, sklearn_kernel=sklearn_func)
+         
+   
+      @staticmethod
+      def sum_(kernel1, kernel2):
+            
+         name = kernel1.name + '+' + kernel2.name
+         dimension = kernel1.dimension 
+         hyperparams = Kernel.get_composite_hyp_dict(kernel1, kernel2)
+         k_func = kernel1.kernel_func + kernel2.kernel_func
+         sklearn_func = kernel1.sklearn_kernel + kernel2.sklearn_kernel
          noise_var = kernel1.noise_var # Independent noise component
          
          return Kernel(name, dimension, hyperparams, noise_var, kernel_func=k_func, sklearn_kernel=sklearn_func)
@@ -175,12 +188,12 @@ if __name__ == "__main__":
 #      Kernel.plot_kernel_matrix(K,' ')
       
       kernel1 = Kernel('PER', 1, {'sig_var': 5, 'lengthscale':2, 'period' : 3}, noise_var=1)
-      kernel2 = Kernel('SE', 1, {'sig_var':4, 'lengthscale':1}, noise_var=1)
+      kernel2 = Kernel('SE', 1, {'sig_var':4, 'lengthscale':10}, noise_var=1)
       
-      prod_kernel = Kernel.product(kernel1, kernel2)
-      #sum_kernel = Kernel.sum(kernel1, kernel2)
+      prod_kernel = Kernel.product_(kernel1, kernel2)
+      sum_kernel = Kernel.sum_(kernel1, kernel2)
       
-      K, K_s, K_ss, K_noise, K_inv = prod_kernel.get_kernel_matrix_blocks(data.X, data.X_star)
+      K, K_s, K_ss, K_noise, K_inv = sum_kernel.get_kernel_matrix_blocks(data.X, data.X_star)
       
       Kernel.plot_prior_samples(data.X_star, K_ss.eval())
       
