@@ -133,8 +133,8 @@ points = np.vstack([X1.ravel(), X2.ravel()]).T
 p1 = points[:,0]
 p2 = points[:,1]
 
-Z1 = st.multivariate_normal.pdf(points.T, mean1, cov1) 
-Z2 = st.multivariate_normal.pdf(points.T, mean2, cov2)
+Z1 = st.multivariate_normal.pdf(points, mean1, cov1) 
+Z2 = st.multivariate_normal.pdf(points, mean2, cov2)
 
 mixture = lambda points : 0.5*st.multivariate_normal.pdf(points, mean1, cov1) + 0.5*st.multivariate_normal.pdf(points, mean2, cov2)
 
@@ -163,3 +163,21 @@ pdf_final = st.multivariate_normal.pdf(points, moment_1, moment_2)
 plt.figure()
 plt.contourf(X1, X2, pdf_final.reshape(1000,1000))
 
+#-------------------------------------------------------------------------------
+# Un-normalized bivariate normal
+#-------------------------------------------------------------------------------
+
+mean1 = [0,2]
+cov1 = [[1, 0.8], [0.8,1]]
+norm_c = (np.sqrt(2*np.pi*np.linalg.det(cov1)))
+pdf = lambda p1,p2 : norm_c*st.multivariate_normal.pdf((p1,p2), mean1, cov1)
+
+bi_pdf = lambda points: st.multivariate_normal.pdf(points, mean1, cov1)
+unnorm_pdf = lambda points: norm_c*st.multivariate_normal.pdf(points, mean1, cov1)
+
+sp.integrate.dblquad(pdf, -7, 7, lambda x: -5, lambda x: 10)
+
+plt.contourf(X1, X2, bi_pdf(points).reshape(1000,1000))
+
+plt.figure()
+plt.contourf(X1, X2, unnorm_pdf(points).reshape(1000,1000))
