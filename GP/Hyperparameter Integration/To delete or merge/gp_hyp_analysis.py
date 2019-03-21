@@ -290,9 +290,9 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_var_true = 10.0
+    sig_var_true = 5.0
     lengthscale_true = 1.0
-    noise_var_true = 1.0
+    noise_var_true = 0.2
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
@@ -301,7 +301,7 @@ if __name__ == "__main__":
     
     uniform = True
     X, y, X_star, f_star, f,  train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
-    #X, y, X_star, f_star = load_datasets()
+    X, y, X_star, f_star = load_datasets()
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
     
     
@@ -411,7 +411,7 @@ with pm.Model() as hmc_gp_model:
         
        # prior on lengthscale 
        log_l = pm.Uniform('log_l', lower=-3, upper=2)
-       lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l)par)
+       lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
        
         #prior on noise variance
        log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
@@ -430,12 +430,45 @@ with pm.Model() as hmc_gp_model:
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
        
        # HMC Nuts auto-tuning implementation
-       trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
+       #trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
        
-       map_est = pm.find_MAP()
+       #map_est = pm.find_MAP()
+       advi = pm.FullRankADVI()
+      
+       tracker = pm.callbacks.Tracker(
+                   mean=advi.approx.mean.eval,  # callable that returns mean
+                   std=advi.approx.std.eval  # callable that returns std
+                   )
+      
+       advi = pm.fit(method='fullrank_advi', score=True, model=hmc_gp_model, callbacks=[tracker])   
        
-       fit = pm.fit(method='fullrank_advi')
-              
+       trace_advi = advi.sample(draws=500, include_transformed=False) 
+       
+     
+l_mean = np.mean(trace_advi['lengthscale'])
+l_std = np.std(trace_advi['lengthscale'])
+l_int = np.linspace(0,2,1000)
+
+n_mean = np.mean(trace_advi['noise_var'])
+n_std = np.std(trace_advi['noise_var'])
+n_int = np.linspace(0,5,1000)
+
+s_mean = np.mean(trace_advi['sig_var'])
+s_std = np.std(trace_advi['sig_var'])
+s_int = np.linspace(0,50,1000)
+
+fig = plt.figure(figsize=(16, 9))
+mu_ax = fig.add_subplot(221)
+std_ax = fig.add_subplot(222)
+hist_ax = fig.add_subplot(212)
+mu_ax.plot(tracker['mean'])
+mu_ax.set_title('Mean track')
+std_ax.plot(tracker['std'])
+std_ax.set_title('Std track')
+hist_ax.plot(advi.hist)
+hist_ax.set_title('Negative ELBO track');
+
+       
 with hmc_gp_model:
        y_pred = gp.conditional("y_pred", X_star)
        y_trace = pm.sample_posterior_predictive(trace, samples=100)
@@ -459,7 +492,11 @@ def trace_report(trace, varnames, priors, ml_deltas, hyp_map):
       #priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
       #priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
       priors = [log_l.distribution, log_nv.distribution, log_sv.distribution]
-      traces = pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], priors=priors, prior_style='--', lines=ml_deltas_dict, bw=2, combined=True)
+      traces = pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], prior_style='--', lines=ml_deltas_dict, bw=2, combined=True)
+      traces[0][0].plot(l_int, st.norm.pdf(l_int, l_mean, l_std))
+      traces[1][0].plot(n_int, st.norm.pdf(n_int, n_mean, n_std))
+      traces[2][0].plot(s_int, st.norm.pdf(s_int, s_mean, s_std))
+
       traces[0][0].axvline(x=hyp_map[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map[1]))
       traces[1][0].axvline(x=hyp_map[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map[2]))
       traces[2][0].axvline(x=hyp_map[0], color='b', alpha=0.5, label='HMC ' + str(hyp_map[0]))
@@ -478,9 +515,9 @@ def trace_report(trace, varnames, priors, ml_deltas, hyp_map):
       traces[0][0].axes.set_xticks([0.1,1,10])
       traces[1][0].axes.set_xticks([0.01,0.1,1,10])
       traces[2][0].axes.set_xticks([0.1,1,10,100])
-      traces[0][0].hist(trace['lengthscale'], bins=100, normed=True, color='orange', alpha=0.3)
-      traces[1][0].hist(trace['noise_var'], bins=100, normed=True, color='orange', alpha=0.3)
-      traces[2][0].hist(trace['sig_var'], bins=100, normed=True, color='orange', alpha=0.3)
+      #traces[0][0].hist(trace['lengthscale'], bins=100, normed=True, color='orange', alpha=0.3)
+      #traces[1][0].hist(trace['noise_var'], bins=100, normed=True, color='orange', alpha=0.3)
+      #traces[2][0].hist(trace['sig_var'], bins=100, normed=True, color='orange', alpha=0.3)
       for j, k in [(0,0), (1,0), (2,0)]:
             traces[j][k].legend(fontsize='x-small')
 
@@ -646,23 +683,11 @@ plt.title('Type II ML - ' + 'RMSE: ' + str(rmse_ml) + '  LPD: ' + str(lpd_ml) + 
 plt.legend(fontsize='x-small')
 plt.ylim(-9,9)
 
-sns.set(style="ticks")
 
 g = sns.PairGrid(trace_df, palette="Set2")
 g = g.map_upper(plt.scatter, s=0.5)
 g = g.map_lower(sns.kdeplot, cmap="Blues_d", n_levels=20)
 g = g.map_diag(sns.kdeplot, lw=1, legend=False)
-
-
-
-
-
-
-with pm.Model() as model:
-      
-      x = pm.MvNormal('x',[0,0], cov=np.array([[1,0.8],[0.8,1]]), shape=(2,2))
-      trace2 = pm.sample()
-
 
 
 ## Plot fit with mean and variance MAP case
