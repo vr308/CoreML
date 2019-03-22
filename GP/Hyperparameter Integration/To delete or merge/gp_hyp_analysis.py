@@ -300,7 +300,7 @@ if __name__ == "__main__":
     f_all = generate_gp_latent(X_all, mean, cov)
     
     uniform = True
-    X, y, X_star, f_star, f,  train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
+    X, y, X_star, f_star, f, train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
     X, y, X_star, f_star = load_datasets()
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
     
@@ -430,19 +430,19 @@ with pm.Model() as hmc_gp_model:
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
        
        # HMC Nuts auto-tuning implementation
-       #trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
+       trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
        
        #map_est = pm.find_MAP()
-       advi = pm.FullRankADVI()
-      
-       tracker = pm.callbacks.Tracker(
-                   mean=advi.approx.mean.eval,  # callable that returns mean
-                   std=advi.approx.std.eval  # callable that returns std
-                   )
-      
-       advi = pm.fit(method='fullrank_advi', score=True, model=hmc_gp_model, callbacks=[tracker])   
-       
-       trace_advi = advi.sample(draws=500, include_transformed=False) 
+#       advi = pm.FullRankADVI()
+#      
+#       tracker = pm.callbacks.Tracker(
+#                   mean=advi.approx.mean.eval,  # callable that returns mean
+#                   std=advi.approx.std.eval  # callable that returns std
+#                   )
+#      
+#       advi = pm.fit(method='fullrank_advi', score=True, model=hmc_gp_model, callbacks=[tracker])   
+#       
+#       trace_advi = advi.sample(draws=500, include_transformed=False) 
        
      
 l_mean = np.mean(trace_advi['lengthscale'])
@@ -470,7 +470,7 @@ hist_ax.set_title('Negative ELBO track');
 
        
 with hmc_gp_model:
-       y_pred = gp.conditional("y_pred", X_star)
+       #y_pred = gp.conditional("y_pred", X_star)
        y_trace = pm.sample_posterior_predictive(trace, samples=100)
        
 # Box standard Traceplot on log axis with deltas and means highlighted

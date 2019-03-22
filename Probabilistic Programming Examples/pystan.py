@@ -44,6 +44,7 @@ parameters {
     real alpha;
     real beta;
     real<lower=0> sigma;
+    vector[N] y_star;
 }
 model {
 
@@ -51,25 +52,27 @@ model {
     beta ~ uniform(-10,10);
     sigma ~ uniform(0,10);
     y ~ normal(alpha + beta * x, sigma);
-}
-
-generated quantities{
-
-      vector[N] y_star;
-      
-      for (n in 1:N){
-                  y_star[n] = normal_rng(alpha + beta*x_star[n], sigma);
-      }
-
+    y_star ~ normal(alpha + beta*x_star, sigma);
 }
 """
+#generated quantities{
+#
+#      vector[N] y_star;
+#      for (n in 1:N){
+#                  y_star[n] = normal_rng(alpha + beta*x[n], sigma);
+#      }
+#
+#}
+#"""
 
 # Parameters to be inferred
+
 alpha = 4.0
 beta = 0.5
 sigma = 1.0
 
 # Generate and plot data
+
 x = 10 * np.random.rand(100)
 x_star = 10 * np.random.rand(100)
 y = alpha + beta * x
@@ -86,8 +89,6 @@ fit = sm.sampling(data=data, iter=1000, chains=4, warmup=500, thin=1, seed=101)
 
 trace = fit.to_dataframe()[fit.flatnames]
 
-
-
 # Plots using arv - cool package!!
 
 bayesian_diagnostics_report(trace, fit)
@@ -101,10 +102,11 @@ data{
      int<lower=0> n;
      int<lower=0> y;
 }
+
 parameters{
-           
      real<lower=0, upper=1> p;
 }
+
 model{
     p ~ beta(2,2);
     y ~ binomial(n, p);
