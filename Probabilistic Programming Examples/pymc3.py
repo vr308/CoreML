@@ -146,8 +146,13 @@ mcmc_animation = ArtistAnimation(animation_fig, animation_images,
 
 mu = pm.floatX([0., 0.])
 cov = pm.floatX([[1, .5], [.5, 1.]])
+
+
 with pm.Model() as model:
-    pm.MvNormal('x', mu=mu, cov=cov, shape=2)
+      
+    mu = pm.Normal('mu', mu_m = [-2,-1], cov_m = [[1, 0],[0,1]])
+    obs = pm.MvNormal('obs', mu=mu, sd=cov, observed=np.random.multivariate_normal(mu, cov, 100))
+
     approx = pm.fit(method='fullrank_advi')
     trace = approx.sample(200)
 

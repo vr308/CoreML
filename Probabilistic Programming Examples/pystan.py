@@ -11,23 +11,26 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
 import numpy as np
+import arviz as arv
 
 sns.set()  # Nice plot aesthetic
 np.random.seed(101)
 
-def bayesian_diagnostics_report(trace, fit):
+def bayesian_diagnostics_report(trace, fit, inference_blocks, varnames):
       
-      print(fit.stansummary())
+      print(fit.stansummary(pars=varnames, probs=[0.025,0.975]))
 
-      arv.plot_posterior(trace)
-      arv.plot_trace(trace)
-      arv.plot_autocorr(fit)
-      arv.plot_parallel(fit)
+      arv.plot_posterior(fit,var_names=varnames, credible_interval=0.95, bw=2, kind='hist')
+      arv.plot_trace(fit, var_names=varnames)
+      arv.plot_autocorr(fit, var_names=varnames, combined=True)
+      arv.plot_parallel(fit, var_names=varnames)
+      arv.plot_ppc(inference_blocks, data_pairs={'y':'y_star'})
       
-      g = sns.PairGrid(trace[fit.flatnames], palette="Set2")
+      g = sns.PairGrid(trace[varnames], palette="Set2")
       g = g.map_diag(sns.kdeplot, lw=1, legend=False)
       g = g.map_upper(plt.scatter, s=0.5)
-      g = g.map_lower(sns.kdeplot, cmap="Blues_d", n_levels=20, shade=True)
+      g = g.map_lower(sns.kdeplot, cmap="Blues", n_levels=20, shade=True)
+      
 
 #-----------------------------------------------------------------------------
 # 1d linear Regression 
@@ -44,26 +47,21 @@ parameters {
     real alpha;
     real beta;
     real<lower=0> sigma;
-    vector[N] y_star;
 }
 model {
 
-    alpha ~ uniform(-10,10);
-    beta ~ uniform(-10,10);
-    sigma ~ uniform(0,10);
     y ~ normal(alpha + beta * x, sigma);
-    y_star ~ normal(alpha + beta*x_star, sigma);
+}
+
+generated quantities{
+
+      vector[N] y_star;
+      for (n in 1:N){
+                  y_star[n] = normal_rng(alpha + beta*x[n], sigma);
+      }
+
 }
 """
-#generated quantities{
-#
-#      vector[N] y_star;
-#      for (n in 1:N){
-#                  y_star[n] = normal_rng(alpha + beta*x[n], sigma);
-#      }
-#
-#}
-#"""
 
 # Parameters to be inferred
 
@@ -89,9 +87,13 @@ fit = sm.sampling(data=data, iter=1000, chains=4, warmup=500, thin=1, seed=101)
 
 trace = fit.to_dataframe()[fit.flatnames]
 
+inference_blocks = arv.from_pystan(posterior=fit, posterior_predictive='y_star', observed_data='y')
+
 # Plots using arv - cool package!!
 
-bayesian_diagnostics_report(trace, fit)
+varnames = ['alpha', 'beta', 'sigma']
+
+bayesian_diagnostics_report(trace, fit, inference_blocks, varnames=varnames)
 
 #-----------------------------------------------------------------------------
 # Beta Binomial model
