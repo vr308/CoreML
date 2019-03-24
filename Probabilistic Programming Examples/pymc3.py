@@ -12,6 +12,11 @@ import matplotlib.pylab as plt
 from matplotlib.animation import ArtistAnimation
 import seaborn as sns
 import scipy as sp
+import scipy.stats as st
+from matplotlib.patches import Ellipse
+import warnings 
+
+warnings.filterwarnings('ignore')
 
 plt.style.use('seaborn-darkgrid')
 print('Running on PyMC3 v{}'.format(pm.__version__))
@@ -141,19 +146,69 @@ mcmc_animation = ArtistAnimation(animation_fig, animation_images,
                                  interval=100, repeat_delay=5000,
                                  blit=True)
 
-
-# Example 5: VI example multivariate rv
+# Example 5: Estimate mu and cov of a multivariate Normal
 
 mu = pm.floatX([0., 0.])
 cov = pm.floatX([[1, .5], [.5, 1.]])
+y = st.multivariate_normal(mu, cov).rvs(100)
 
+var, U = np.linalg.eig(cov)
+angle = 180. / np.pi * np.arccos(np.abs(U[0, 0]))
 
+def plot_bivariate_ellipse(y, mu, cov, new_fig):
+
+      var, U = np.linalg.eig(cov)
+      angle = 180. / np.pi * np.arccos(np.abs(U[0, 0]))
+      if new_fig:
+            fig, ax = plt.subplots(figsize=(8, 6))
+      e = Ellipse(mu, 2 * np.sqrt(5.991 * var[0]), 2 * np.sqrt(5.991 * var[1]), angle=angle)
+      e.set_alpha(0.5)
+      e.set_facecolor('gray')
+      e.set_zorder(10);
+      #plt.add_artist(e);
+      plt.scatter(y[:, 0], y[:, 1], c='k', alpha=0.5, zorder=11);
+          
 with pm.Model() as model:
       
-    mu = pm.Normal('mu', mu_m = [-2,-1], cov_m = [[1, 0],[0,1]])
-    obs = pm.MvNormal('obs', mu=mu, sd=cov, observed=np.random.multivariate_normal(mu, cov, 100))
+    mu1 = pm.MvNormal('mu',mu=[-2,-1], cov=np.array(([1, 0],[0,1])), shape=2)
+    sd_dist = pm.HalfCauchy.dist(beta=2.5)
+    packed_chol = pm.LKJCholeskyCov('chol_cov', eta=1, n=2, sd_dist=sd_dist)
+    chol = pm.expand_packed_triangular(2, packed_chol, lower=True)
+    cov1 = pm.Deterministic('cov1', tt.dot(chol, chol.T))
 
-    approx = pm.fit(method='fullrank_advi')
-    trace = approx.sample(200)
+    obs = pm.MvNormal('obs', mu=mu1, chol=chol, observed=y)
+    
+    tracker = pm.callbacks.Tracker(
+    mean=advi.approx.mean.eval,  # callable that returns mean
+    std=advi.approx.std.eval  # callable that returns std
+)
 
-sns.jointplot(trace['x'][:,0], trace['x'][:,1], kind='kde')
+    approx_diag = pm.fit(method='advi')
+    approx_fullrank = pm.fit(method='fullrank_advi')
+    
+    trace1 = approx_diag.sample()
+    trace2 = approx_fullrank.sample()
+    trace_nuts = pm.sample()
+    
+sns.kdeplot(trace_nuts['mu'][:,0], label='HMC', color='b', shade=True, alpha=0.2)
+sns.kdeplot(trace_nuts['mu'][:,1], color='b',shade=True, alpha=0.2 )
+
+sns.kdeplot(trace1['mu'][:,0], label='VI (MF)', color='g', shade=True, alpha=0.2)
+sns.kdeplot(trace1['mu'][:,1], color='g', shade=True, alpha=0.2)
+
+sns.kdeplot(trace2['mu'][:,0], label='VI (FR)', color='r', shade=True, alpha=0.2)
+sns.kdeplot(trace2['mu'][:,1], color='r', shade=True, alpha=0.2)
+
+# Extract the converged mu and cov from approx
+
+mu_nuts = trace_nuts['mu'].mean(axis=0)
+mu_diag = trace1['mu'].mean(axis=0)
+mu_full = trace2['mu'].mean(axis=0)
+
+cov_nuts = trace_nuts['cov1'].mean(axis=0)
+cov_diag = trace1['cov1'].mean(axis=0)
+cov_full = trace2['cov1'].mean(axis=0)
+
+plot_bivariate_ellipse(y, mu_nuts, cov_nuts, True)
+plot_bivariate_ellipse(y, mu_diag, cov_diag, True)
+plot_bivariate_ellipse(y, mu_full, cov_full, True)
