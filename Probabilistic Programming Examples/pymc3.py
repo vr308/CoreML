@@ -164,9 +164,9 @@ def plot_bivariate_ellipse(y, mu, cov, new_fig):
       e = Ellipse(mu, 2 * np.sqrt(5.991 * var[0]), 2 * np.sqrt(5.991 * var[1]), angle=angle)
       e.set_alpha(0.5)
       e.set_facecolor('gray')
-      e.set_zorder(10);
+      e.set_zorder(10)
       #plt.add_artist(e);
-      plt.scatter(y[:, 0], y[:, 1], c='k', alpha=0.5, zorder=11);
+      plt.scatter(y[:, 0], y[:, 1], c='k', alpha=0.5, zorder=11)
           
 with pm.Model() as model:
       
@@ -177,18 +177,22 @@ with pm.Model() as model:
     cov1 = pm.Deterministic('cov1', tt.dot(chol, chol.T))
 
     obs = pm.MvNormal('obs', mu=mu1, chol=chol, observed=y)
-    
-    tracker = pm.callbacks.Tracker(
-    mean=advi.approx.mean.eval,  # callable that returns mean
-    std=advi.approx.std.eval  # callable that returns std
-)
 
-    approx_diag = pm.fit(method='advi')
-    approx_fullrank = pm.fit(method='fullrank_advi')
+    approx_diag = pm.ADVI()
+    approx_fullrank = pm.FullRankADVI()
+     
+    approx_diag.fit()
+    approx_fullrank.fit()
     
-    trace1 = approx_diag.sample()
-    trace2 = approx_fullrank.sample()
-    trace_nuts = pm.sample()
+    trace1 = approx_diag.approx.sample()
+    trace2 = approx_fullrank.approx.sample()
+    #trace_nuts = pm.sample()
+    
+cov1 = []
+cov2 = []
+for i in np.arange(500):
+    cov1.append(trace1['cov1'][i][1][0])
+    cov2.append(trace2['cov1'][i][1][0])
     
 sns.kdeplot(trace_nuts['mu'][:,0], label='HMC', color='b', shade=True, alpha=0.2)
 sns.kdeplot(trace_nuts['mu'][:,1], color='b',shade=True, alpha=0.2 )
@@ -212,3 +216,27 @@ cov_full = trace2['cov1'].mean(axis=0)
 plot_bivariate_ellipse(y, mu_nuts, cov_nuts, True)
 plot_bivariate_ellipse(y, mu_diag, cov_diag, True)
 plot_bivariate_ellipse(y, mu_full, cov_full, True)
+
+
+n_dim = 2
+data = np.random.randn(10000, n_dim)
+
+with pm.Model() as model:
+    # Note that we access the distribution for the standard
+    # deviations, and do not create a new random variable.
+    mu1 = pm.MvNormal('mu',mu=[-2,-1], cov=np.array(([1, 0],[0,1])), shape=2)
+    sd_dist = pm.HalfCauchy.dist(beta=2.5)
+    packed_chol = pm.LKJCholeskyCov('chol_cov', eta=2, n=n_dim, 
+                                    sd_dist=sd_dist)
+    chol = pm.expand_packed_triangular(n_dim, packed_chol, lower=True)
+    cov = pm.Deterministic('cov', tt.dot(chol, chol.T))
+
+
+    # Define a new MvNormal with the given covariance
+    vals = pm.MvNormal('vals', mu=mu1, 
+                       cov=cov, shape=n_dim,
+                       observed=y)
+    
+    advi = pm.ADVI()
+    advi.fit()
+    trace_advi = advi.approx.sample()
