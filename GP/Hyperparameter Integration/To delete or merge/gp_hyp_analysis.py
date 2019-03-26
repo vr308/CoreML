@@ -43,7 +43,19 @@ def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
     X_star = X_all[test_index]
     f_star = f_all[test_index]
     y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
-    return X, y, X_star, f_star, f, train_index
+    return X, y, X_star, f_star, f
+
+def generate_fixed_domain_training_sets(X_all, f_all, noise_var, uniform, seq_n_train):
+      
+      data_sets = {}
+      for i in seq_n_train:
+            X, y, X_star, f_star, f = generate_gp_training(X_all, f_all, i, noise_var, uniform)
+            data_sets.update({'X_' + str(i): X})
+            data_sets.update({'y_' + str(i): y})
+            data_sets.update({'X_star_' + str(i): X_star})
+            data_sets.update({'f_star_' + str(i): f_star})
+      return data_sets
+            
 
 #---------------------GP Framework---------------------------------------------
     
@@ -277,12 +289,12 @@ if __name__ == "__main__":
     # Data
 
     n_train = 20
-    n_star = 200
+    n_star = 300
     
     xmin = 0
-    xmax = 10
+    xmax = 20
     
-    X_all = np.linspace(xmin, xmax+3,n_star)[:,None]
+    X_all = np.linspace(xmin, xmax,n_star)[:,None]
     
     # A mean function that is zero everywhere
     
@@ -290,9 +302,9 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_var_true = 5.0
-    lengthscale_true = 1.0
-    noise_var_true = 0.2
+    sig_var_true = 10.0
+    lengthscale_true = 2.0
+    noise_var_true = 2.0
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
@@ -300,8 +312,19 @@ if __name__ == "__main__":
     f_all = generate_gp_latent(X_all, mean, cov)
     
     uniform = True
-    X, y, X_star, f_star, f, train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
-    X, y, X_star, f_star = load_datasets()
+    seq_n_train = [10,20,40,60]
+    data_sets = generate_fixed_domain_training_sets(X_all, f_all, noise_var_true, uniform, seq_n_train)
+    
+    #X, y, X_star, f_star, f, train_index = generate_gp_training(X_all, f_all, n_train, noise_var_true, uniform)
+    #X, y, X_star, f_star = load_datasets()
+    
+    X = data_sets['X_20']
+    y = data_sets['y_20']
+    X_star = data_sets['X_star_20']
+    f_star = data_sets['f_star_20']    
+
+    n_train = len(X)
+    
     K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, noise_var_true)
     
     
@@ -389,7 +412,6 @@ if __name__ == "__main__":
         f_cond = gp.conditional("f_cond", Xnew=X_star)
         #pred_samples = pm.sample_posterior_predictive(vars=[f_cond], samples=10)
 
-
 post_pred_mean, post_pred_cov = gp.predict(X_star, pred_noise=True)
 post_pred_mean, post_pred_cov_nf = gp.predict(X_star, pred_noise=False)
 post_pred_std = np.sqrt(np.diag(post_pred_cov_nf))
@@ -407,7 +429,7 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
           
       #-----------------------------------------------------
 
-with pm.Model() as hmc_gp_model:
+with pm.Model() as hyp_learning:
         
        # prior on lengthscale 
        log_l = pm.Uniform('log_l', lower=-3, upper=2)
@@ -430,32 +452,44 @@ with pm.Model() as hmc_gp_model:
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
        
        # HMC Nuts auto-tuning implementation
-       trace = pm.sample(draws=500, tune=1000, chains=4, discard_tuned_samples=True)
        
-       #map_est = pm.find_MAP()
-#       advi = pm.FullRankADVI()
-#      
-#       tracker = pm.callbacks.Tracker(
-#                   mean=advi.approx.mean.eval,  # callable that returns mean
-#                   std=advi.approx.std.eval  # callable that returns std
-#                   )
-#      
-#       advi = pm.fit(method='fullrank_advi', score=True, model=hmc_gp_model, callbacks=[tracker])   
-#       
-#       trace_advi = advi.sample(draws=500, include_transformed=False) 
+       trace_hmc = pm.sample()  
        
-     
-l_mean = np.mean(trace_advi['lengthscale'])
-l_std = np.std(trace_advi['lengthscale'])
-l_int = np.linspace(0,2,1000)
+       advi = pm.FullRankADVI(n_init=50000)
+       advi.fit()    
+       trace_advi = advi.approx.sample(draws=50000, include_transformed=False) 
+       
+with hyp_learning:
+       f_pred = gp.conditional("f_pred", X_star)
+       
+with hyp_learning:
+       pred_trace_hmc_mean = pm.sample_posterior_predictive(trace_hmc, vars=[f_pred], samples=100)
+       pred_trace_advi_mean = pm.sample_posterior_predictive(trace_advi, vars=[f_pred], samples=100)
+            
+def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
+      
+      means_arr = np.empty(shape=(len(X_star,)))
+      std_arr = np.empty(shape=(len(X_star,)))
 
-n_mean = np.mean(trace_advi['noise_var'])
-n_std = np.std(trace_advi['noise_var'])
-n_int = np.linspace(0,5,1000)
+      for i in np.arange(len(trace_hmc))[::2]:
+            
+            mu, cov = gp.predict(X_star, point=trace_hmc[i], pred_noise=False, diag=False)
+            std = np.sqrt(np.diag(cov))
+            means_arr = np.vstack((mu, means_arr))
+            std_arr = np.vstack((std, std_arr))
+            
+      final_mean = np.mean(means_arr[:-1,:], axis=0)
+       
 
-s_mean = np.mean(trace_advi['sig_var'])
-s_std = np.std(trace_advi['sig_var'])
-s_int = np.linspace(0,50,1000)
+#TODO : Figure out how to reconcile advi mean and cov with those computed on trace. 
+
+means = advi.approx.bij.rmap(advi.approx.mean.eval())  
+std = advi.approx.bij.rmap(advi.approx.std.eval())  
+
+
+l_int = np.linspace(0,5,1000)
+n_int = np.linspace(0,3,1000)
+s_int = np.linspace(0,25,1000)
 
 fig = plt.figure(figsize=(16, 9))
 mu_ax = fig.add_subplot(221)
@@ -469,12 +503,12 @@ hist_ax.plot(advi.hist)
 hist_ax.set_title('Negative ELBO track');
 
        
-with hmc_gp_model:
-       #y_pred = gp.conditional("y_pred", X_star)
-       y_trace = pm.sample_posterior_predictive(trace, samples=100)
+#with hmc_gp_model:
+#       #y_pred = gp.conditional("y_pred", X_star)
+#       y_trace = pm.sample_posterior_predictive(trace_nuts, samples=100)
        
 # Box standard Traceplot on log axis with deltas and means highlighted
-       
+
 def get_trace_means(trace, varnames):
       
       trace_means = []
@@ -482,20 +516,25 @@ def get_trace_means(trace, varnames):
             trace_means.append(trace[i].mean())
       return trace_means
 
+def get_trace_sd(trace, varnames):
+      trace_sd = []
+      for i in varnames:
+            trace_sd.append(trace[i].std())
+      return trace_sd
 
 varnames = ['sig_var', 'lengthscale','noise_var']
 
-def trace_report(trace, varnames, priors, ml_deltas, hyp_map):
+def trace_report(trace_hmc, trace_advi, varnames, priors, ml_deltas, hyp_map):
       
       ml_deltas_dict = {lengthscale: ml_deltas[1], noise_var: ml_deltas[2], sig_var: ml_deltas[0]}
-      hyp_map = np.round(get_trace_means(trace, varnames),3)
-      #priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
-      #priors = [lengthscale.distribution, noise_var.distribution, sig_var.distribution]
-      priors = [log_l.distribution, log_nv.distribution, log_sv.distribution]
-      traces = pm.traceplot(trace, varnames=[lengthscale, noise_var, sig_var], prior_style='--', lines=ml_deltas_dict, bw=2, combined=True)
-      traces[0][0].plot(l_int, st.norm.pdf(l_int, l_mean, l_std))
-      traces[1][0].plot(n_int, st.norm.pdf(n_int, n_mean, n_std))
-      traces[2][0].plot(s_int, st.norm.pdf(s_int, s_mean, s_std))
+      hyp_map_hmc = np.round(get_trace_means(trace_hmc, varnames),3)
+      hyp_map_advi = np.round(get_trace_means(trace_advi, varnames),3)
+      hyp_vi_sd = np.round(get_trace_sd(trace_advi, varnames),3)
+
+      traces = arv.plot_trace(trace_hmc, var_names=[lengthscale, noise_var, sig_var], prior_style='--', lines=ml_deltas_dict, bw=4, combined=True)
+      traces[0][0].plot(l_int, st.norm.pdf(l_int, hyp_map_advi[1], hyp_vi_sd[1]))
+      traces[1][0].plot(n_int, st.norm.pdf(n_int, hyp_map_advi[2], hyp_vi_sd[2]))
+      traces[2][0].plot(s_int, st.norm.pdf(s_int, hyp_map_advi[0], hyp_vi_sd[0]))
 
       traces[0][0].axvline(x=hyp_map[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map[1]))
       traces[1][0].axvline(x=hyp_map[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map[2]))
@@ -614,7 +653,7 @@ rmse_ml = rmse(f_star, post_pred_mean)
 lpd_hmc = log_predictive_mixture_density(f_star, list_means, list_cov)
 lpd_ml = log_predictive_density(st.multivariate_normal.pdf(f_star, post_pred_mean, post_pred_cov, allow_singular=True))
 
-# Type II vs. HMC Report 
+# Type II vs. HMC Report vs. VI report 
 
 plt.figure(figsize=(12,7))
 

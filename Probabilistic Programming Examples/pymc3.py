@@ -217,7 +217,6 @@ plot_bivariate_ellipse(y, mu_nuts, cov_nuts, True)
 plot_bivariate_ellipse(y, mu_diag, cov_diag, True)
 plot_bivariate_ellipse(y, mu_full, cov_full, True)
 
-
 n_dim = 2
 data = np.random.randn(10000, n_dim)
 
@@ -240,3 +239,36 @@ with pm.Model() as model:
     advi = pm.ADVI()
     advi.fit()
     trace_advi = advi.approx.sample()
+    
+y = np.random.normal(1,3, 10000)
+
+with pm.Model() as model:
+      
+      #mu = pm.Uniform('mu', -10, 10)
+      #sigma = pm.Uniform('sigma', 0, 10)
+      
+      mu = pm.Normal('mu', 0, 10)
+      sigma = pm.Gamma('sigma', 2, 2)
+      
+      obs = pm.Normal('obs', mu=mu, sd=sigma, observed=y)
+      
+      advi = pm.ADVI(n=50000)
+
+      tracker = pm.callbacks.Tracker(
+      mean=advi.approx.mean.eval, # callable that returns mean
+      )
+      
+      advi.fit(callbacks=[tracker])
+      trace_advi = advi.approx.sample(10000)
+      
+      
+fig = plt.figure(figsize=(16, 9))
+mu_ax = fig.add_subplot(221)
+std_ax = fig.add_subplot(222)
+hist_ax = fig.add_subplot(212)
+mu_ax.plot(np.array(tracker['mean'])[:,0])
+mu_ax.set_title('Mean track')
+std_ax.plot(np.exp(np.array(tracker['mean'])[:,1]))
+std_ax.set_title('Std track')
+hist_ax.plot(advi.hist)
+hist_ax.set_title('Negative ELBO track');
