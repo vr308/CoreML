@@ -20,7 +20,6 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-
 def generate_gp_latent(X_star, mean, cov):
     
     return np.random.multivariate_normal(mean(X_star).eval(), cov=cov(X_star, X_star).eval())
@@ -432,17 +431,19 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
 with pm.Model() as hyp_learning:
         
        # prior on lengthscale 
-       log_l = pm.Uniform('log_l', lower=-3, upper=2)
+       log_l = pm.Uniform('log_l', lower=-5, upper=5)
        lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
        
         #prior on noise variance
-       log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
-       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
+       #log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
+       #noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
+       noise_var = 2.3
          
        #prior on signal variance
-       log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
-       sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
-         
+       #log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
+       #sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
+       sig_var = 10
+       
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
     
@@ -471,15 +472,28 @@ def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
       means_arr = np.empty(shape=(len(X_star,)))
       std_arr = np.empty(shape=(len(X_star,)))
 
-      for i in np.arange(len(trace_hmc))[::2]:
-            
-            mu, cov = gp.predict(X_star, point=trace_hmc[i], pred_noise=False, diag=False)
+      for i in np.arange(len(trace))[::thin_factor]:
+            print(i)
+            mu, cov = gp.predict(X_star, point=trace[i], pred_noise=False, diag=False)
             std = np.sqrt(np.diag(cov))
             means_arr = np.vstack((mu, means_arr))
             std_arr = np.vstack((std, std_arr))
             
       final_mean = np.mean(means_arr[:-1,:], axis=0)
+      final_std = np.mean(std_arr[:-1,:], axis=0)
+      return final_mean, final_std
        
+pp_mean_hmc, pp_std_hmc  = get_posterior_predictive_gp_trace(trace_hmc, 10, X_star) 
+pp_mean_vi, pp_std_vi = get_posterior_predictive_gp_trace(trace_advi, 500, X_star)
+
+backward_theta = lambda x: hyp_learning.log_l_interval__.distribution.transform_used.backward(x).eval()
+j_factor = lambda x: np.exp(np.invert(hyp_learning.log_l_interval__.distribution.transform_used.jacobian_det(backward_theta(x)).eval()))
+
+x = np.linspace(-1,4, 1000)
+plt.figure()
+plt.hist(trace_advi['log_l'],100, normed=True)
+plt.plot(x, st.norm.pdf(x, means['log_l_interval__'], std['log_l_interval__'])*j_factor(x))
+
 
 #TODO : Figure out how to reconcile advi mean and cov with those computed on trace. 
 
@@ -531,7 +545,7 @@ def trace_report(trace_hmc, trace_advi, varnames, priors, ml_deltas, hyp_map):
       hyp_map_advi = np.round(get_trace_means(trace_advi, varnames),3)
       hyp_vi_sd = np.round(get_trace_sd(trace_advi, varnames),3)
 
-      traces = arv.plot_trace(trace_hmc, var_names=[lengthscale, noise_var, sig_var], prior_style='--', lines=ml_deltas_dict, bw=4, combined=True)
+      traces = pm.traceplot(trace_hmc, varnames=[lengthscale, noise_var, sig_var], lines=ml_deltas_dict, combined=True)
       traces[0][0].plot(l_int, st.norm.pdf(l_int, hyp_map_advi[1], hyp_vi_sd[1]))
       traces[1][0].plot(n_int, st.norm.pdf(n_int, hyp_map_advi[2], hyp_vi_sd[2]))
       traces[2][0].plot(s_int, st.norm.pdf(s_int, hyp_map_advi[0], hyp_vi_sd[0]))

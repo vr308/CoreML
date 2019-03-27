@@ -230,7 +230,6 @@ with pm.Model() as model:
     chol = pm.expand_packed_triangular(n_dim, packed_chol, lower=True)
     cov = pm.Deterministic('cov', tt.dot(chol, chol.T))
 
-
     # Define a new MvNormal with the given covariance
     vals = pm.MvNormal('vals', mu=mu1, 
                        cov=cov, shape=n_dim,
@@ -244,24 +243,51 @@ y = np.random.normal(1,3, 10000)
 
 with pm.Model() as model:
       
-      #mu = pm.Uniform('mu', -10, 10)
+      mu = pm.Uniform('mu', -10, 10)
       #sigma = pm.Uniform('sigma', 0, 10)
-      
-      mu = pm.Normal('mu', 0, 10)
-      sigma = pm.Gamma('sigma', 2, 2)
-      
-      obs = pm.Normal('obs', mu=mu, sd=sigma, observed=y)
-      
+      sigma = 3
+      #mu = pm.Normal('mu', 0, 10)
+      #sigma = pm.Gamma('sigma', 2, 2)
+      obs = pm.Normal('obs', mu=mu, sd=sigma, observed=y)      
       advi = pm.ADVI(n=50000)
-
       tracker = pm.callbacks.Tracker(
       mean=advi.approx.mean.eval, # callable that returns mean
       )
-      
       advi.fit(callbacks=[tracker])
       trace_advi = advi.approx.sample(10000)
       
-      
+
+trace_mean = pm.summary(trace_advi)['mean']['mu']
+trace_std = pm.summary(trace_advi)['sd']['mu']
+  
+means = advi.approx.bij.rmap(advi.approx.mean.eval())  
+std = advi.approx.bij.rmap(advi.approx.std.eval())  
+
+# These should roughly match trace
+
+approx_mean = model.mu_interval__.distribution.transform_used.backward(means['mu_interval__']).eval()
+approx_std = model.mu_interval__.distribution.transform_used.backward(std['mu_interval__']).eval()
+
+forward_eps = lambda x: model.mu_interval__.distribution.transform_used.forward_val(x)
+backward_theta = lambda x: model.mu_interval__.distribution.transform_used.backward(x).eval()
+j_factor = lambda x: np.exp(model.mu_interval__.distribution.transform_used.jacobian_det(x).eval())
+
+x = np.linspace(-2, 5, 1000)
+
+plt.figure()
+plt.hist(trace_advi['mu'], bins=100, normed=True)
+plt.plot(x, st.norm.pdf(forward_eps(x), means['mu_interval__'], std['mu_interval__'])*j_factor(forward_eps(x)))
+density = lambda x : st.norm.pdf(forward_eps(x), approx_mean, approx_std)*j_factor(backward_theta(x))
+
+sp.integrate.quad(density, -2, +5)
+
+# This matches
+
+plt.figure()
+plt.plot(x, st.norm.pdf(x, means['mu_interval__'], std['mu_interval__']))
+plt.plot(x, st.norm.pdf(backward_theta(x), approx_mean, approx_std)*j_factor(x))
+
+
 fig = plt.figure(figsize=(16, 9))
 mu_ax = fig.add_subplot(221)
 std_ax = fig.add_subplot(222)
