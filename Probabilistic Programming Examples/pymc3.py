@@ -243,43 +243,86 @@ y = np.random.normal(1,3, 10000)
 
 with pm.Model() as model:
       
-      mu = pm.Uniform('mu', -10, 10)
+      log_mu = pm.Uniform('log_mu', -10, 10)
+      mu = pm.Deterministic('mu', tt.exp(log_mu))
       #sigma = pm.Uniform('sigma', 0, 10)
+      
       sigma = 3
       #mu = pm.Normal('mu', 0, 10)
       #sigma = pm.Gamma('sigma', 2, 2)
       obs = pm.Normal('obs', mu=mu, sd=sigma, observed=y)      
-      advi = pm.ADVI(n=50000)
+      
+      advi = pm.ADVI()
+      fullrank_advi = pm.FullRankADVI()
+      
       tracker = pm.callbacks.Tracker(
-      mean=advi.approx.mean.eval, # callable that returns mean
+      mean=advi.approx.mean.eval,    
+      std = advi.approx.std.eval  # callable that returns mean
       )
+      
       advi.fit(callbacks=[tracker])
+      fullrank_advi.fit(callbacks=[tracker])
+      
       trace_advi = advi.approx.sample(10000)
+      trace_fadvi = fullrank_advi.approx.sample(10000)
       
 
-trace_mean = pm.summary(trace_advi)['mean']['mu']
-trace_std = pm.summary(trace_advi)['sd']['mu']
+trace_mean = pm.summary(trace_fadvi)['mean']['mu']
+trace_std = pm.summary(trace_fadvi)['sd']['mu']
   
-means = advi.approx.bij.rmap(advi.approx.mean.eval())  
-std = advi.approx.bij.rmap(advi.approx.std.eval())  
+means = advi.approx.bij.rmap(fullrank_advi.approx.mean.eval())  
+std = advi.approx.bij.rmap(fullrank_advi.approx.std.eval())  
 
 # These should roughly match trace
 
 approx_mean = model.mu_interval__.distribution.transform_used.backward(means['mu_interval__']).eval()
-approx_std = model.mu_interval__.distribution.transform_used.backward(std['mu_interval__']).eval()
+approx_std = model.sigma_interval__.distribution.transform_used.backward(std['mu_interval__']).eval()
 
-forward_eps = lambda x: model.mu_interval__.distribution.transform_used.forward_val(x)
-backward_theta = lambda x: model.mu_interval__.distribution.transform_used.backward(x).eval()
-j_factor = lambda x: np.exp(model.mu_interval__.distribution.transform_used.jacobian_det(x).eval())
+# Getting the analytic form of the implicit density in the original latent variable space
+
+forward_eps = lambda x: model.log_mu_interval__.distribution.transform_used.forward_val(x)
+backward_theta = lambda x: model.log_mu_interval__.distribution.transform_used.backward(x).eval()
+j_factor = lambda x: np.exp(model.log_mu_interval__.distribution.transform_used.jacobian_det(x).eval())
+
+#forward_eps = lambda x: model.sigma_interval__.distribution.transform_used.forward_val(x)
+#backward_theta = lambda x: model.sigma_interval__.distribution.transform_used.backward(x).eval()
+#j_factor = lambda x: np.exp(model.sigma_interval__.distribution.transform_used.jacobian_det(x).eval())
+
+x = np.linspace(-6, 5, 1000)
+
+plt.figure()
+plt.hist(trace_fadvi['log_mu'], bins=100, normed=True)
+plt.plot(x, st.norm.pdf(forward_eps(x), means['log_mu_interval__'], std['log_mu_interval__'])/j_factor(forward_eps(x)))
+
+sigmoid = lambda x : 1 / (1 + np.exp(-x))
+
+plt.figure()
+plt.hist(trace_fadvi['mu'], bins=100, normed=True)
+eps = lambda x : forward_eps(np.log(x))
+total_jacobian = (x)*(20)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+plt.plot(x, st.norm.pdf(forward_eps(np.log(x)), means['log_mu_interval__'], std['log_mu_interval__'])/total_jacobian)
+
+density = lambda x : st.norm.pdf(forward_eps(np.log(x)), means['log_mu_interval__'], std['log_mu_interval__'])/((x)*(20)*sigmoid(eps(x))*(1-sigmoid(eps(x))))
+
+sp.integrate.quad(density, 0,10)
 
 x = np.linspace(-2, 5, 1000)
 
 plt.figure()
-plt.hist(trace_advi['mu'], bins=100, normed=True)
-plt.plot(x, st.norm.pdf(forward_eps(x), means['mu_interval__'], std['mu_interval__'])*j_factor(forward_eps(x)))
-density = lambda x : st.norm.pdf(forward_eps(x), approx_mean, approx_std)*j_factor(backward_theta(x))
+plt.hist(trace_fadvi['sigma'], bins=100, normed=True)
+plt.plot(x, st.norm.pdf(forward_eps(x), means['sigma_interval__'], std['sigma_interval__'])/j_factor(forward_eps(x)))
+density = lambda x : st.norm.pdf(forward_eps(x), means['sigma_interval__'], std['sigma_interval__'])/j_factor(forward_eps(x))
 
 sp.integrate.quad(density, -2, +5)
+
+
+plt.figure()
+plt.hist(trace_advi['mu'], 100, alpha=0.5)
+plt.hist(trace_fadvi['mu'], 100, alpha=0.5)
+
+plt.figure()
+plt.hist(trace_advi['sigma'], 100, alpha=0.5)
+plt.hist(trace_fadvi['sigma'], 100, alpha=0.5)
 
 # This matches
 

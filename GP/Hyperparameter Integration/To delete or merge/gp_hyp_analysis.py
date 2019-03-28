@@ -15,10 +15,8 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
 import scipy.stats as st
-
 import warnings
 warnings.filterwarnings("ignore")
-
 
 def generate_gp_latent(X_star, mean, cov):
     
@@ -29,7 +27,7 @@ def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
     if uniform == True:
          X = np.random.choice(X_all.ravel(), n_train, replace=False)
     else:
-         pdf = 0.5*st.norm.pdf(X_all, 2, 0.7) + 0.5*st.norm.pdf(X_all, 7.5,1)
+         pdf = 0.5*st.norm.pdf(X_all, 2, 0.7) + 0.5*st.norm.pdf(X_all, 15.0,1)
          prob = pdf/np.sum(pdf)
          X = np.random.choice(X_all.ravel(), n_train, replace=False,  p=prob.ravel())
      
@@ -288,7 +286,7 @@ if __name__ == "__main__":
     # Data
 
     n_train = 20
-    n_star = 300
+    n_star = 200
     
     xmin = 0
     xmax = 20
@@ -303,14 +301,14 @@ if __name__ == "__main__":
     
     sig_var_true = 10.0
     lengthscale_true = 2.0
-    noise_var_true = 2.0
+    noise_var_true = 1.0
     hyp = [sig_var_true, lengthscale_true, noise_var_true]
     cov = get_kernel('SE', [sig_var_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
     
     f_all = generate_gp_latent(X_all, mean, cov)
     
-    uniform = True
+    uniform = False
     seq_n_train = [10,20,40,60]
     data_sets = generate_fixed_domain_training_sets(X_all, f_all, noise_var_true, uniform, seq_n_train)
     
@@ -435,14 +433,12 @@ with pm.Model() as hyp_learning:
        lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
        
         #prior on noise variance
-       #log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
-       #noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
-       noise_var = 2.3
+       log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
+       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
          
        #prior on signal variance
-       #log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
-       #sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
-       sig_var = 10
+       log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
+       sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
        
        # Specify the covariance function.
        cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
@@ -454,7 +450,7 @@ with pm.Model() as hyp_learning:
        
        # HMC Nuts auto-tuning implementation
        
-       trace_hmc = pm.sample()  
+       #trace_hmc = pm.sample()  
        
        advi = pm.FullRankADVI(n_init=50000)
        advi.fit()    
@@ -467,10 +463,13 @@ with hyp_learning:
        pred_trace_hmc_mean = pm.sample_posterior_predictive(trace_hmc, vars=[f_pred], samples=100)
        pred_trace_advi_mean = pm.sample_posterior_predictive(trace_advi, vars=[f_pred], samples=100)
             
+
 def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
       
-      means_arr = np.empty(shape=(len(X_star,)))
-      std_arr = np.empty(shape=(len(X_star,)))
+      l = len(X_star)
+      means_arr = np.empty(shape=(l,))
+      std_arr = np.empty(shape=(l,))
+      sq_arr = np.empty(shape=(l,))
 
       for i in np.arange(len(trace))[::thin_factor]:
             print(i)
@@ -478,50 +477,55 @@ def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
             std = np.sqrt(np.diag(cov))
             means_arr = np.vstack((mu, means_arr))
             std_arr = np.vstack((std, std_arr))
+            sq_arr = np.vstack((sq_arr, np.multiply(mu, mu)))
             
       final_mean = np.mean(means_arr[:-1,:], axis=0)
-      final_std = np.mean(std_arr[:-1,:], axis=0)
+      final_std = np.mean(std_arr[:-1,:], axis=0) + np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
       return final_mean, final_std
        
 pp_mean_hmc, pp_std_hmc  = get_posterior_predictive_gp_trace(trace_hmc, 10, X_star) 
 pp_mean_vi, pp_std_vi = get_posterior_predictive_gp_trace(trace_advi, 500, X_star)
 
-backward_theta = lambda x: hyp_learning.log_l_interval__.distribution.transform_used.backward(x).eval()
-j_factor = lambda x: np.exp(np.invert(hyp_learning.log_l_interval__.distribution.transform_used.jacobian_det(backward_theta(x)).eval()))
-
-x = np.linspace(-1,4, 1000)
-plt.figure()
-plt.hist(trace_advi['log_l'],100, normed=True)
-plt.plot(x, st.norm.pdf(x, means['log_l_interval__'], std['log_l_interval__'])*j_factor(x))
-
-
-#TODO : Figure out how to reconcile advi mean and cov with those computed on trace. 
-
 means = advi.approx.bij.rmap(advi.approx.mean.eval())  
 std = advi.approx.bij.rmap(advi.approx.std.eval())  
 
+forward_eps = lambda x: hyp_learning.log_l_interval__.distribution.transform_used.forward_val(x)
+backward_theta = lambda x: hyp_learning.log_l_interval__.distribution.transform_used.backward(x).eval()
+j_factor = lambda x: np.exp(hyp_learning.log_l_interval__.distribution.transform_used.jacobian_det(x)).eval()
 
-l_int = np.linspace(0,5,1000)
-n_int = np.linspace(0,3,1000)
-s_int = np.linspace(0,25,1000)
+sigmoid = lambda x : 1 / (1 + np.exp(-x))
 
-fig = plt.figure(figsize=(16, 9))
-mu_ax = fig.add_subplot(221)
-std_ax = fig.add_subplot(222)
-hist_ax = fig.add_subplot(212)
-mu_ax.plot(tracker['mean'])
-mu_ax.set_title('Mean track')
-std_ax.plot(tracker['std'])
-std_ax.set_title('Std track')
-hist_ax.plot(advi.hist)
-hist_ax.set_title('Negative ELBO track');
+x = np.linspace(-1,4, 1000)
+plt.figure()
+plt.hist(trace_advi['lengthscale'],100, normed=True, alpha=0.2)
+plt.hist(trace_hmc['lengthscale'], 100, normed=True, alpha=0.2)
 
-       
-#with hmc_gp_model:
-#       #y_pred = gp.conditional("y_pred", X_star)
-#       y_trace = pm.sample_posterior_predictive(trace_nuts, samples=100)
-       
+plt.figure()
+plt.hist(trace_advi['log_l'], 100, normed=True, alpha=0.2)
+plt.plot(x, st.norm.pdf(forward_eps(x), means['log_l_interval__'], std['log_l_interval__'])/j_factor(forward_eps(x)))
+
+x = np.linspace(0,25,1000)
+plt.figure()
+plt.hist(trace_advi['lengthscale'], 100, normed=True, alpha=0.2)
+eps = lambda x : forward_eps(np.log(x))
+total_jacobian = x*(10)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+plt.plot(x, st.norm.pdf(forward_eps(np.log(x)), means['log_l_interval__'], std['log_l_interval__'])/total_jacobian)
+
+density = lambda x : st.norm.pdf(forward_eps(np.log(x)), means['log_l_interval__'], std['log_l_interval__'])/np.exp(backward_theta(x))*(10)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+
+sp.integrate.quad(density, 0, 25)
+
 # Box standard Traceplot on log axis with deltas and means highlighted
+
+def get_implicit_variational_posterior(var, means, std, x):
+      
+      forward_eps = lambda x: var.distribution.transform_used.forward_val(x)
+      backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()
+      j_factor = lambda x: np.exp(var.distribution.transform_used.jacobian_det(x)).eval()
+      
+      pdf = lambda x: st.norm.pdf(forward_eps(x), means[var.name], std[var.name])/j_factor(forward_eps(x))
+      
+      return pdf(x)
 
 def get_trace_means(trace, varnames):
       
@@ -538,39 +542,61 @@ def get_trace_sd(trace, varnames):
 
 varnames = ['sig_var', 'lengthscale','noise_var']
 
-def trace_report(trace_hmc, trace_advi, varnames, priors, ml_deltas, hyp_map):
+def trace_report(model, trace_hmc, trace_advi, varnames, priors, ml_deltas):
       
       ml_deltas_dict = {lengthscale: ml_deltas[1], noise_var: ml_deltas[2], sig_var: ml_deltas[0]}
       hyp_map_hmc = np.round(get_trace_means(trace_hmc, varnames),3)
       hyp_map_advi = np.round(get_trace_means(trace_advi, varnames),3)
       hyp_vi_sd = np.round(get_trace_sd(trace_advi, varnames),3)
+      
+      means = advi.approx.bij.rmap(advi.approx.mean.eval())  
+      std = advi.approx.bij.rmap(advi.approx.std.eval())  
 
       traces = pm.traceplot(trace_hmc, varnames=[lengthscale, noise_var, sig_var], lines=ml_deltas_dict, combined=True)
-      traces[0][0].plot(l_int, st.norm.pdf(l_int, hyp_map_advi[1], hyp_vi_sd[1]))
-      traces[1][0].plot(n_int, st.norm.pdf(n_int, hyp_map_advi[2], hyp_vi_sd[2]))
-      traces[2][0].plot(s_int, st.norm.pdf(s_int, hyp_map_advi[0], hyp_vi_sd[0]))
-
-      traces[0][0].axvline(x=hyp_map[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map[1]))
-      traces[1][0].axvline(x=hyp_map[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map[2]))
-      traces[2][0].axvline(x=hyp_map[0], color='b', alpha=0.5, label='HMC ' + str(hyp_map[0]))
+      
+      l_int = np.linspace(min(trace_advi['lengthscale'])-1, max(trace_advi['lengthscale'])+1, 1000)
+      n_int = np.linspace(min(trace_advi['noise_var'])-1, max(trace_advi['noise_var'])+1, 1000)
+      s_int = np.linspace(min(trace_advi['sig_var'])-1, max(trace_advi['sig_var'])+1, 1000)
+      
+      traces[0][0].axvline(x=hyp_map_hmc[1], color='b',alpha=0.5, label='HMC ' + str(hyp_map_hmc[1]))
+      traces[1][0].axvline(x=hyp_map_hmc[2], color='b', alpha=0.5, label='HMC ' + str(hyp_map_hmc[2]))
+      traces[2][0].axvline(x=hyp_map_hmc[0], color='b', alpha=0.5, label='HMC ' + str(hyp_map_hmc[0]))
+      
+      traces[0][0].axvline(x=hyp_map_advi[1], color='g',alpha=0.5, label='ADVI ' + str(hyp_map_advi[1]))
+      traces[1][0].axvline(x=hyp_map_advi[2], color='g', alpha=0.5, label='ADVI ' + str(hyp_map_advi[2]))
+      traces[2][0].axvline(x=hyp_map_advi[0], color='g', alpha=0.5, label='ADVI ' + str(hyp_map_advi[0]))
+      
       traces[0][0].axvline(x=ml_deltas[1], color='r',alpha=0.5, label='ML ' + str(ml_deltas[1]))
       traces[1][0].axvline(x=ml_deltas[2], color='r', alpha=0.5, label='ML ' + str(ml_deltas[2]))
       traces[2][0].axvline(x=ml_deltas[0], color='r', alpha=0.5, label='ML ' + str(ml_deltas[0]))
-      traces[0][0].axvline(x=lengthscale_true, color='g',alpha=0.5, label='True ' + str(lengthscale_true))
-      traces[1][0].axvline(x=noise_var_true, color='g', alpha=0.5, label= 'True ' + str(noise_var_true))
-      traces[2][0].axvline(x=sig_var_true, color='g', alpha=0.5, label='True ' + str(sig_var_true))
-      traces[0][1].axhline(y=hyp_map[1], color='b', alpha=0.5)
-      traces[1][1].axhline(y=hyp_map[2], color='b', alpha=0.5)
-      traces[2][1].axhline(y=hyp_map[0], color='b', alpha=0.5)
-      traces[0][0].axes.set_xscale('log')
-      traces[1][0].axes.set_xscale('log')
-      traces[2][0].axes.set_xscale('log')
-      traces[0][0].axes.set_xticks([0.1,1,10])
-      traces[1][0].axes.set_xticks([0.01,0.1,1,10])
-      traces[2][0].axes.set_xticks([0.1,1,10,100])
-      #traces[0][0].hist(trace['lengthscale'], bins=100, normed=True, color='orange', alpha=0.3)
-      #traces[1][0].hist(trace['noise_var'], bins=100, normed=True, color='orange', alpha=0.3)
-      #traces[2][0].hist(trace['sig_var'], bins=100, normed=True, color='orange', alpha=0.3)
+      
+      traces[0][0].axvline(x=lengthscale_true, color='k', label='True ' + str(lengthscale_true))
+      traces[1][0].axvline(x=noise_var_true, color='k', label= 'True ' + str(noise_var_true))
+      traces[2][0].axvline(x=sig_var_true, color='k', label='True ' + str(sig_var_true))
+      
+      traces[0][1].axhline(y=hyp_map_hmc[1], color='b', alpha=0.5)
+      traces[1][1].axhline(y=hyp_map_hmc[2], color='b', alpha=0.5)
+      traces[2][1].axhline(y=hyp_map_hmc[0], color='b', alpha=0.5)
+      
+      #traces[0][0].axes.set_xscale('log')
+      #traces[1][0].axes.set_xscale('log')
+      #traces[2][0].axes.set_xscale('log')
+      #traces[0][0].axes.set_xticks([0.1,1,10])
+      #traces[1][0].axes.set_xticks([0.01,0.1,1,10])
+      #traces[2][0].axes.set_xticks([0.1,1,10,100])
+      
+      traces[0][0].hist(trace_advi['lengthscale'], bins=100, normed=True, color='g', alpha=0.3)
+      traces[1][0].hist(trace_advi['noise_var'], bins=100, normed=True, color='g', alpha=0.3)
+      traces[2][0].hist(trace_advi['sig_var'], bins=100, normed=True, color='g', alpha=0.3)
+      
+      traces[0][0].hist(trace_hmc['lengthscale'], bins=100, normed=True, color='b', alpha=0.3)
+      traces[1][0].hist(trace_hmc['noise_var'], bins=100, normed=True, color='b', alpha=0.3)
+      traces[2][0].hist(trace_hmc['sig_var'], bins=100, normed=True, color='b', alpha=0.3)
+      
+      traces[0][0].plot(l_int, get_implicit_variational_posterior(model.log_l_interval__, means, std, l_int))
+      traces[1][0].plot(n_int, get_implicit_variational_posterior(model.log_nv_interval__, means, std, n_int))
+      traces[2][0].plot(s_int, get_implicit_variational_posterior(model.log_l_interval__, means, std, s_int))
+      
       for j, k in [(0,0), (1,0), (2,0)]:
             traces[j][k].legend(fontsize='x-small')
 
@@ -584,80 +610,80 @@ pm.autocorrplot(trace, varnames=['sig_var', 'noise_var', 'lengthscale'], burn=10
 
 # Compute posterior predictive mean and covariance - careful (not so obvious)
 
-def get_combined_trace(trace):
-      
-    trace_df = pd.DataFrame()
-    trace_df['sig_var'] = np.mean(trace.get_values('sig_var', combine=False), axis=0)
-    trace_df['lengthscale'] = np.mean(trace.get_values('lengthscale', combine=False), axis=0)
-    trace_df['noise_var'] = np.mean(trace.get_values('noise_var', combine=False), axis=0)
-    return trace_df
+#def get_combined_trace(trace):
+#      
+#    trace_df = pd.DataFrame()
+#    trace_df['sig_var'] = np.mean(trace.get_values('sig_var', combine=False), axis=0)
+#    trace_df['lengthscale'] = np.mean(trace.get_values('lengthscale', combine=False), axis=0)
+#    trace_df['noise_var'] = np.mean(trace.get_values('noise_var', combine=False), axis=0)
+#    return trace_df
+#
+#def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y):
+#      
+#      #L = np.linalg.cholesky(K_noise.eval())
+#      #alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+#      #post_mean_trace = np.dot(K_s.T.eval(), alpha)
+#      return  K_s.T.dot(K_inv).dot(y)
+#
+#def get_post_cov_theta(theta, K_s, K_ss, K_inv):
+#      
+#     return K_ss - K_s.T.dot(K_inv).dot(K_s)
+#
+#def get_joint_value_from_trace(trace, varnames, i):
+#      
+#      joint = []
+#      for v in varnames:
+#            joint.append(trace[v][i])
+#      return joint
 
-def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y):
-      
-      #L = np.linalg.cholesky(K_noise.eval())
-      #alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
-      #post_mean_trace = np.dot(K_s.T.eval(), alpha)
-      return  K_s.T.dot(K_inv).dot(y)
-
-def get_post_cov_theta(theta, K_s, K_ss, K_inv):
-      
-     return K_ss - K_s.T.dot(K_inv).dot(K_s)
-
-def get_joint_value_from_trace(trace, varnames, i):
-      
-      joint = []
-      for v in varnames:
-            joint.append(trace[v][i])
-      return joint
-
-def get_post_mcmc_mean_cov(trace_df, X, X_star, y, varnames, n_train, test_size):
-      
-      list_means = []
-      list_cov = []
-      list_mean_sq = []
-      for i in range(0,len(trace_df), 10):
-            print(i)
-            theta = get_joint_value_from_trace(trace_df, varnames, i) 
-            cov = get_kernel('SE', [theta[0], theta[1]])
-            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-            mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y)
-            cov_i = get_post_cov_theta(theta, K_s, K_ss, K_inv)
-            list_means.append(mean_i)
-            list_cov.append(cov_i)
-            list_mean_sq.append(tt.outer(mean_i, mean_i))
-      post_mean_trace = tt.mean(list_means, axis=0)
-      post_mean_trace = post_mean_trace.eval()
-      print('Mean evaluated')
-      post_cov_mean =  tt.mean(list_cov, axis=0) 
-      post_cov_mean = post_cov_mean.eval() 
-      print('Cov evaluated')
-      outer_means = tt.mean(list_mean_sq, axis=0)
-      outer_means = outer_means.eval()
-      print('SSQ evaluated')
-      post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
-      return post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov
-     
-varnames = ['sig_var', 'lengthscale','noise_var']
-trace_df = get_combined_trace(trace)
-theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
-test_size = len(X_all) - len(X)
-post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star,y, varnames, n_train, test_size)
-post_std_trace = np.sqrt(np.diag(post_cov_trace))
-post_std_mean = np.sqrt(np.diag(post_cov_mean))
-
-means_df = np.empty((180,))
-for i in range(0,50):
-      print(i)
-      means_df = np.column_stack((means_df, list_means[i].eval()))      
-means_df = np.delete(means_df, 0,1)
-
-std_df = np.empty((180,))
-for i in range(0,50):
-      print(i)
-      std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
-std_df = np.delete(std_df, 0,1)
-
-post_std_of_means = np.std(means_df, 0, 1)
+#def get_post_mcmc_mean_cov(trace_df, X, X_star, y, varnames, n_train, test_size):
+#      
+#      list_means = []
+#      list_cov = []
+#      list_mean_sq = []
+#      for i in range(0,len(trace_df), 10):
+#            print(i)
+#            theta = get_joint_value_from_trace(trace_df, varnames, i) 
+#            cov = get_kernel('SE', [theta[0], theta[1]])
+#            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
+#            mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y)
+#            cov_i = get_post_cov_theta(theta, K_s, K_ss, K_inv)
+#            list_means.append(mean_i)
+#            list_cov.append(cov_i)
+#            list_mean_sq.append(tt.outer(mean_i, mean_i))
+#      post_mean_trace = tt.mean(list_means, axis=0)
+#      post_mean_trace = post_mean_trace.eval()
+#      print('Mean evaluated')
+#      post_cov_mean =  tt.mean(list_cov, axis=0) 
+#      post_cov_mean = post_cov_mean.eval() 
+#      print('Cov evaluated')
+#      outer_means = tt.mean(list_mean_sq, axis=0)
+#      outer_means = outer_means.eval()
+#      print('SSQ evaluated')
+#      post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
+#      return post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov
+#     
+#varnames = ['sig_var', 'lengthscale','noise_var']
+#trace_df = get_combined_trace(trace)
+#theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
+#test_size = len(X_all) - len(X)
+#post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star,y, varnames, n_train, test_size)
+#post_std_trace = np.sqrt(np.diag(post_cov_trace))
+#post_std_mean = np.sqrt(np.diag(post_cov_mean))
+#
+#means_df = np.empty((180,))
+#for i in range(0,50):
+#      print(i)
+#      means_df = np.column_stack((means_df, list_means[i].eval()))      
+#means_df = np.delete(means_df, 0,1)
+#
+#std_df = np.empty((180,))
+#for i in range(0,50):
+#      print(i)
+#      std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
+#std_df = np.delete(std_df, 0,1)
+#
+#post_std_of_means = np.std(means_df, 0, 1)
 
 # Fit metrics - All 3 cases : ML, HMC, MAP
 
