@@ -94,6 +94,7 @@ y = data_early["y_n"].values
 # The model
 
 with pm.Model() as model:
+      
     # yearly periodic component x long term trend
     η_per = pm.HalfCauchy("η_per", beta=2, testval=1.0)
     ℓ_pdecay = pm.Gamma("ℓ_pdecay", alpha=10, beta=0.075)
@@ -366,7 +367,7 @@ def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
             std_arr = np.vstack((std, std_arr))
             #sq_arr = np.vstack((sq_arr, np.multiply(mu, mu)))
             
-      final_mean = np.mean(means_arr[:-1,:], axis=0)
+      final_mean = np.mean(means_arr[:-1,:], axis=0)O
       final_std = np.mean(std_arr[:-1,:], axis=0) #+ np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
       return final_mean, final_std
       
