@@ -378,7 +378,7 @@ def get_ml_report(X, y, X_star, f_star):
           ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
           ml_deltas_dict = {'lengthscale': ml_deltas[1], 'noise_var': ml_deltas[2], 'sig_var': ml_deltas[0]}
           #plot_lml_surface_3way(gpr, ml_deltas_dict['sig_var'], ml_deltas_dict['lengthscale'], ml_deltas_dict['noise_var'])
-          return post_mean, post_std, rmse_, lpd_, ml_deltas_dict
+          return post_mean, post_std, rmse_, lpd_, ml_deltas_dict, title
 
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
 
@@ -449,22 +449,17 @@ def get_pymc3_model(X, y):
                         
                    # Marginal Likelihood
                    y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
-            
+                   
         return hyp_learning
       
-      
 def get_hmc_report(model, X_star):
-
-    
+      
       with model:
             
              # HMC Nuts auto-tuning implementation
              trace_hmc = pm.sample()  
-             f_pred = gp.conditional("f_pred", X_star)
-             pred_trace_hmc_mean = pm.sample_posterior_predictive(trace_hmc, vars=[f_pred], samples=1000)
-      
-      return trace_hmc, pred_trace_hmc_mean
-
+             
+      return trace_hmc
 
 def get_advi_report(model, X_star):
       
@@ -473,36 +468,50 @@ def get_advi_report(model, X_star):
             advi = pm.FullRankADVI(n_init=50000)
             advi.fit()    
             trace_advi = advi.approx.sample(draws=50000, include_transformed=False)  
-            pred_trace_advi_mean = pm.sample_posterior_predictive(trace_advi, vars=[f_pred], samples=1000)
 
-      return trace_advi, pred_trace_advi_mean
-
+      return trace_advi
             
-plt.figure()
-plt.plot(X_star, np.mean(pred_trace_hmc_mean['f_pred'].T, axis=1), color='blue', alpha=0.5)
-plt.plot(X_star, np.mean(pred_trace_advi_mean['f_pred'].T, axis=1), color='green', alpha=0.5)
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
-plt.plot(X_star, post_pred_mean, color='r')
-
-def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
+def get_posterior_predictive_gp_trace(model, trace, thin_factor, X_star):
       
       l = len(X_star)
       means_arr = np.empty(shape=(l,))
       std_arr = np.empty(shape=(l,))
-      #sq_arr = np.empty(shape=(l,))
+      sq_arr = np.empty(shape=(l,))
 
       for i in np.arange(len(trace))[::thin_factor]:
+            
             print(i)
-            mu, cov = gp.predict(X_star, point=trace[i], pred_noise=False, diag=False)
+            with model:
+                  mu, cov = gp.predict(X_star, point=trace[i], pred_noise=False, diag=False)
             std = np.sqrt(np.diag(cov))
             means_arr = np.vstack((mu, means_arr))
             std_arr = np.vstack((std, std_arr))
-            #sq_arr = np.vstack((sq_arr, np.multiply(mu, mu)))
+            sq_arr = np.vstack((np.multiply(mu, mu), sq_arr))
             
+      mix_grid = pd.DataFrame()
+      for i in np.arange(len(X_star)):
+            
+            mix_means = means_arr[:,i][:-1]
+            mix_stds = std_arr[:,i][:-1]
+            mix_samples = []
+            for j in np.arange(len(mix_means)):
+                  mix_samples.append(st.norm.rvs(loc=mix_means[j], scale=mix_stds[j],size= 50))
+            mix_grid[str(i)] = np.concatenate(mix_samples)
+      
       final_mean = np.mean(means_arr[:-1,:], axis=0)
-      final_std = np.mean(std_arr[:-1,:], axis=0) #+ np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
-      return final_mean, final_std
+      final_std = np.mean(std_arr[:-1,:], axis=0) + np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
+      return final_mean, final_std, means_arr[:-1], std_arr[:-1], sq_arr[:-1]
        
+
+for i in np.arange(0,len(X_star_10)):
+       plt.plot(np.repeat(X_star[i],50), means_arr[:,i][:-1], marker='o', color='grey', alpha=0.5)
+plt.plot(X_star_10, f_star_10, linestyle='dashed', color='k')
+plt.plot(X_10, y_10, 'ko')
+plt.plot(X_star_10, pp_mean_ml_10, 'r')
+plt.plot(X_star_10, final_mean, 'b')
+
+
+
 pp_mean_hmc, pp_std_hmc  = get_posterior_predictive_gp_trace(trace_hmc, 10, X_star) 
 pp_mean_vi, pp_std_vi = get_posterior_predictive_gp_trace(trace_advi, 1000, X_star)
 
@@ -878,45 +887,61 @@ X_60, y_60, X_star_60, f_star_60 = load_datasets(path, 60)
 
 # Collecting ML stats for 1 generative model
 
-pp_mean_ml_10, pp_std_ml_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
-pp_mean_ml_20, pp_std_ml_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
-pp_mean_ml_40, pp_std_ml_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
-pp_mean_ml_60, pp_std_ml_60, rmse_ml_60, lpd_ml_60, ml_deltas_dict_60 =  get_ml_report(X_60, y_60, X_star_60, f_star_60)
+pp_mean_ml_10, pp_std_ml_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
+pp_mean_ml_20, pp_std_ml_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
+pp_mean_ml_40, pp_std_ml_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
+pp_mean_ml_60, pp_std_ml_60, rmse_ml_60, lpd_ml_60, ml_deltas_dict_60, title_60 =  get_ml_report(X_60, y_60, X_star_60, f_star_60)
 
 plt.figure(figsize=(20,5))
 
 plt.subplot(141)
 plt.plot(X_star_10, pp_mean_ml_10, color='r')
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
-plt.plot(X_10, y_10, 'ko', markersize=1)
-plt.fill_between(X_star_10.ravel(), pp_mean_ml_10 -2*pp_std_ml_10, pp_mean_ml_10 + 2*pp_std_ml_10, color='r', alpha=0.3)
+plt.plot(X_star_10, f_star_10, 'k', linestyle='dashed')
+plt.plot(X_10, y_10, 'ko', markersize=2)
+plt.fill_between(X_star_10.ravel(), pp_mean_ml_10 -1.96*pp_std_ml_10, pp_mean_ml_10 + 1.96*pp_std_ml_10, color='r', alpha=0.3)
+plt.title(title_10, fontsize='small')
 
 plt.subplot(142)
 plt.plot(X_star_20, pp_mean_ml_20, color='r')
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
-plt.plot(X_20, y_20, 'ko', markersize=1)
-plt.fill_between(X_star_20.ravel(), pp_mean_ml_20 -2*pp_std_ml_20, pp_mean_ml_20 + 2*pp_std_ml_20, color='r', alpha=0.3)
+plt.plot(X_star_20, f_star_20, 'k', linestyle='dashed')
+plt.plot(X_20, y_20, 'ko', markersize=2)
+plt.fill_between(X_star_20.ravel(), pp_mean_ml_20 -1.96*pp_std_ml_20, pp_mean_ml_20 + 1.96*pp_std_ml_20, color='r', alpha=0.3)
+plt.title(title_20, fontsize='small')
 
 plt.subplot(143)
 plt.plot(X_star_40, pp_mean_ml_40, color='r')
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
-plt.plot(X_40, y_40, 'ko', markersize=1)
-plt.fill_between(X_star_40.ravel(), pp_mean_ml_40 -2*pp_std_ml_40, pp_mean_ml_40 + 2*pp_std_ml_40, color='r', alpha=0.3)
+plt.plot(X_star_40, f_star_40, 'k', linestyle='dashed')
+plt.plot(X_40, y_40, 'ko', markersize=2)
+plt.fill_between(X_star_40.ravel(), pp_mean_ml_40 -1.96*pp_std_ml_40, pp_mean_ml_40 + 1.96*pp_std_ml_40, color='r', alpha=0.3)
+plt.title(title_40, fontsize='small')
 
 plt.subplot(144)
 plt.plot(X_star_60, pp_mean_ml_60, color='r')
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
-plt.plot(X_60, y_60, 'ko', markersize=1)
-plt.fill_between(X_star_60.ravel(), pp_mean_ml_60 -2*pp_std_ml_60, pp_mean_ml_60 + 2*pp_std_ml_60, color='r', alpha=0.3)
+plt.plot(X_star_60, f_star_60, 'k', linestyle='dashed')
+plt.plot(X_60, y_60, 'ko', markersize=2)
+plt.fill_between(X_star_60.ravel(), pp_mean_ml_60 - 1.96*pp_std_ml_60, pp_mean_ml_60 + 1.96*pp_std_ml_60, color='r', alpha=0.3)
+plt.title(title_60, fontsize='small')
 
+plt.suptitle('Type II ML')
+
+plt.figure()
 plt.plot(n_train, [rmse_ml_10, rmse_ml_20, rmse_ml_40, rmse_ml_60])
+plt.xlabel('N train')
+plt.ylabel('RMSE')
 
 # Collecting HMC stats for 1 generative model
 
-trace_hmc_10, pp_mean_hmc_10 = get_hmc_report(get_pymc3_model(X_10, y_10), X_star_10)
-trace_hmc_20, pp_mean_hmc_20  =  get_hmc_report(get_pymc3_model(X_20, y_20), X_star_20)
-trace_hmc_40, pp_mean_hmc_40  =  get_hmc_report(get_pymc3_model(X_40, y_40), X_star_40)
-trace_hmc_60, pp_mean_hmc_60 =  get_hmc_report(get_pymc3_model(X_60, y_60), X_star_60)
+trace_hmc_10 = get_hmc_report(get_pymc3_model(X_10, y_10), X_star_10)
+trace_hmc_20 =  get_hmc_report(get_pymc3_model(X_20, y_20), X_star_20)
+trace_hmc_40 =  get_hmc_report(get_pymc3_model(X_40, y_40), X_star_40)
+trace_hmc_60 =  get_hmc_report(get_pymc3_model(X_60, y_60), X_star_60)
+
+
+pp_mean_hmc_10, pp_std_hmc_10, means_10, std_10, sq_10 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
+pp_mean_hmc_20, pp_std_hmc_20, means_20, std_20, sq_20 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
+pp_mean_hmc_40, pp_std_hmc_40, means_40, std_40, sq_40 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
+pp_mean_hmc_60, pp_std_hmc_60, means_60, std_60, sq_60 = get_posterior_predictive_gp_trace(trace_hmc_60, 10, X_star_60)
+
 
 plt.figure(figsize=(20,5))
 plt.plot(X_star_10, np.mean(pp_mean_hmc_10['f_pred'], axis=0), 'b', alpha=0.4)
@@ -924,11 +949,11 @@ plt.plot(X_star_20, np.mean(pp_mean_hmc_20['f_pred'], axis=0), 'b', alpha=0.4)
 plt.plot(X_star_40, np.mean(pp_mean_hmc_40['f_pred'], axis=0), 'b', alpha=0.4)
 plt.plot(X_star_60, np.mean(pp_mean_hmc_60['f_pred'], axis=0), 'b', alpha=0.4)
 
-plt.plot(X_star, f_star, 'k', linestyle='dashed')
+plt.plot(X_star_10, f_star_10, 'k', linestyle='dashed')
 
+plt.plot(X_star_10, pp_mean_hmc_10['f_pred'].T, 'b', alpha=0.4)
 
 # Collecting ADVI stats for 1 generative model
-
 
 
 def plot_ntrain_seq():
@@ -959,3 +984,24 @@ def plot_ntrain_seq():
       plt.plot(X_60, y_60, 'ko', markersize=1)
       plt.fill_between(X_star_60.ravel(), pp_mean_ml_60 -2*pp_std_ml_60, pp_mean_ml_60 + 2*pp_std_ml_60, color='r', alpha=0.3)
 
+from scipy.stats import gaussian_kde
+
+# Handling HMC traces for N_train
+      
+traces = pm.traceplot(trace_hmc_60, varnames, combined=True) 
+
+for i in [0,1,2]:
+      
+      density_40 = gaussian_kde(trace_hmc_40.get_values(varnames[i]))
+      density_20 = gaussian_kde(trace_hmc_20.get_values(varnames[i]))
+      density_10 = gaussian_kde(trace_hmc_10.get_values(varnames[i]))
+
+      traces[0][i].plot(np.linspace(0,140,1000), density_40(np.linspace(0,140, 1000)))
+      traces[0][i].plot(np.linspace(0,140,1000), density_20(np.linspace(0,140, 1000)))
+      traces[0][i].plot(np.linspace(0,140,1000), density_10(np.linspace(0,140, 1000)))
+
+      
+# Handling HMC traces for SNR
+      
+
+# Hamdling HMC traces for Unif / NUnif
