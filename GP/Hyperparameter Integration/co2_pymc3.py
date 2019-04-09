@@ -387,7 +387,7 @@ plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], sample_means.T, color='grey', alpha=0.3)
 plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
 plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='HMC', color='b')
-plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='grey', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='red', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], mu_hmc - 2*sd_hmc, mu_hmc + 2*sd_hmc, color='blue', alpha=0.2)
 plt.legend(fontsize='x-small')
 
