@@ -289,7 +289,7 @@ with co2_model:
     
 with co2_model:
     
-    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior/', overwrite=True)
+    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior_2/')
     
 with co2_model:
       
@@ -311,8 +311,8 @@ def get_trace_df(trace_hmc, varnames):
 
 trace_df = get_trace_df(trace_hmc, varnames)
 
-traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=ml_deltas)
-traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=ml_deltas)
+traces_part1 = pm.traceplot(trace_hmc, varnames[0:5])
+traces_part2 = pm.traceplot(trace_hmc, varnames[5:])
 
 traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=mp)
 traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=mp)
