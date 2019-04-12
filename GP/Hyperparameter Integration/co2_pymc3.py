@@ -17,7 +17,6 @@ from bokeh.io import output_notebook
 from bokeh.palettes import brewer
 import  scipy.stats as st 
 import warnings
-
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
@@ -63,7 +62,7 @@ lengthscale_4 = 90
 lengthscale_5 = 1.3
 sig_var_6 = 0.66
 lengthscale_7 = 1.2 
-alpha_8 = 2
+alpha_8 = 0.78
 sig_var_9 = 0.18
 lengthscale_10 = 1.6
 noise_11 = 0.19
@@ -155,9 +154,7 @@ ls_10 = gpr.kernel_.k2.k1.k2.length_scale
 alpha_8 = gpr.kernel_.k1.k2.k2.alpha
 noise_11 = gpr.kernel_.k2.k2.noise_level
 
-ml_deltas4 = {'sig_var_1': sig_var_1, 'ls_2': ls_2, 'sig_var_3' : sig_var_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'sig_var_6': sig_var_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 'sig_var_9' : sig_var_9, 'ls_10' : ls_10, 'noise_11': noise_11}
-
-#ml_deltas = {'sig_var_1': sig_var_1, 'ls_2': ls_2, 'sig_var_3' : sig_var_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'sig_var_6': sig_var_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 'noise_11': noise_11}
+ml_deltas = {'sig_var_1': sig_var_1, 'ls_2': ls_2, 'sig_var_3' : sig_var_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'sig_var_6': sig_var_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 'sig_var_9' : sig_var_9, 'ls_10' : ls_10, 'noise_11': noise_11}
 
 ml_df = pd.DataFrame(data=ml_deltas, index=['ml'])
 
@@ -166,7 +163,7 @@ ml_df.to_csv('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration
 ml_df = pd.read_csv('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/co2_ml.csv', index_col=None)
 #-------------------------------------------------------------------------------
 
-# The MAP + HMC model
+# The HMC model
 
 #-------------------------------------------------------------------------------
 
@@ -180,7 +177,7 @@ with pm.Model() as priors:
     ls_7 = pm.Gamma("ls_7", alpha=5, beta=0.75)
     alpha_8 = pm.Gamma("alpha_8", alpha=3, beta=2)
       
-    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=4, testval=2.0)
+    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=10, testval=2.0)
     ls_2 = pm.Gamma("ls_2", alpha=4, beta=0.1)
     
     sig_var_9 = pm.HalfNormal("sig_var_9", sd=0.5, testval=0.05)
@@ -274,7 +271,6 @@ with pm.Model() as co2_model:
     ls_10 = pm.Gamma("ls_10", alpha=2, beta=4)
     noise_11  = pm.HalfNormal("noise_11",  sd=0.25, testval=0.05)
     cov_noise = sig_var_9*pm.gp.cov.ExpQuad(1, ls_10) + pm.gp.cov.WhiteNoise(noise_11)
-    #cov_noise = pm.gp.cov.WhiteNoise(noise_11)
 
     # The Gaussian process is a sum of these three components
     gp = gp_seasonal + gp_medium + gp_trend
@@ -289,7 +285,7 @@ with co2_model:
     
 with co2_model:
     
-    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior_2/')
+    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior/')
     
 with co2_model:
       
@@ -309,13 +305,11 @@ def get_trace_df(trace_hmc, varnames):
           trace_df[i] = trace_hmc.get_values(i)
     return trace_hmc
 
-trace_df = get_trace_df(trace_hmc, varnames)
+trace_df2 = get_trace_df(trace_hmc_load, varnames)
 
-traces_part1 = pm.traceplot(trace_hmc, varnames[0:5])
-traces_part2 = pm.traceplot(trace_hmc, varnames[5:])
 
-traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=mp)
-traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=mp)
+traces_part1 = pm.traceplot(trace_hmc_load, varnames[0:5], lines=ml_deltas)
+traces_part2 = pm.traceplot(trace_hmc_load, varnames[5:], lines=ml_deltas)
 
 for i in np.arange(5):
       
@@ -357,38 +351,34 @@ def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
             
             means_writer.writerow(mu)
             std_writer.writerow(std)
-            
-                  #means_df['mu_' + str(i)] = mu
-                  #std_df['std_' + str(i)] = std
-            
-            #std_arr = np.vstack((std, std_arr))
-            #sq_arr = np.vstack((np.multiply(mu, mu), sq_arr))
-            
-      final_mean = np.mean(means_arr[:-1,:], axis=0)
-      final_std = np.mean(std_arr[:-1,:], axis=0) + np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
+            sq_writer.writerow(np.multiply(mu, mu))
+
+      sample_means =  pd.read_csv(path+ 'means_hmc.csv', sep=',', header=0)
+      rescaled_means = (sample_means)*std_co2 + first_co2
       
-      return final_mean, final_std, means_arr[:-1], std_arr[:-1], sq_arr[:-1]
+      sample_stds = pd.read_csv(path+ 'std_hmc.csv', sep=',', header=0)
+      sample_sqs = pd.read_csv(path+ 'sq_hmc.csv')
+      
+      mu_hmc = np.mean(sample_means)*std_co2 + first_co2
+      sd_hmc = (np.mean(sample_stds) + np.mean(sample_sqs)  - np.multiply(np.mean(sample_means), np.mean(sample_means)))*std_co2
+      
+      return mu_hmc, sd_hmc, rescaled_means, sample_stds*std_co2
+
+mu_hmc, sd_hm, sample_means, sample_stds = get_posterior_predictive_gp_trace(trace_hmc_load, 5, t_test) 
+mu_hmc1, sd_hm1, sample_means1, sample_stds1 = get_posterior_predictive_gp_trace(trace_hmc_load, 20, t_test) 
 
 
-pp_mean_hmc, pp_std_hm, means_arr, std_arr, sq_arr  = get_posterior_predictive_gp_trace(trace_hmc, 10, t_test) 
 
-sample_means =  pd.read_csv(path+ 'means_hmc.csv', sep=',', header=0)
-sample_means = sample_means*std_co2 + first_co2
-
-sample_stds = pd.read_csv(path+ 'std_hmc.csv', sep=',', header=0)
-
-mu_hmc = np.mean(sample_means)
-sd_hmc = np.mean(sample_stds)*std_co2
 
 # Plot with HMC results
 
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-plt.plot(df['year'][sep_idx:], sample_means.T, color='grey', alpha=0.3)
+plt.plot(df['year'][sep_idx:], sample_means1.T, color='grey', alpha=0.3)
 plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
-plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='HMC', color='b')
+plt.plot(df['year'][sep_idx:], mu_hmc1, alpha=0.5, label='HMC', color='b')
 plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='red', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], mu_hmc - 2*sd_hmc, mu_hmc + 2*sd_hmc, color='blue', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], mu_hmc1 - 2*sd_hm1, mu_hmc1 + 2*sd_hm1, color='blue', alpha=0.2)
 plt.legend(fontsize='x-small')
 
 # Write out trace summary & autocorrelation plots
@@ -425,68 +415,68 @@ np.round(summary_df,3).to_csv(prefix + 'trace_summary_co2.csv')
 
 
 
-#     #-----------------------------------------------------
-#      
-#     #       Hybrid Monte Carlo
-#          
-#     #-----------------------------------------------------
-#
-#     with pm.Model() as hyp_learning:
-#        
-#             # prior on lengthscales
-#             
-#             log_l2 = pm.Uniform('log_l2', lower=-5, upper=6)
-#             log_l4 = pm.Uniform('log_l4', lower=-5, upper=6)
-#             log_l5 = pm.Uniform('log_l5', lower=-5, upper=6)
-#             log_l7 = pm.Uniform('log_l7', lower=-5, upper=6)
-#             log_l10 = pm.Uniform('log_l10', lower=-5, upper=6)
-#
-#             ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-#             ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
-#             ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-#             ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-#             ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
-#             
-#             # prior on amplitudes
-#             
-#             log_sv1 = pm.Uniform('log_sv1', lower=-10, upper=10)
-#             log_sv3 = pm.Uniform('log_sv3', lower=-10, upper=10)
-#             log_sv6 = pm.Uniform('log_sv6', lower=-10, upper=10)
-#             log_sv9 = pm.Uniform('log_sv9', lower=-10, upper=10)
-#
-#             sig_var_1 = pm.Deterministic('sig_var_1', tt.exp(log_sv1))
-#             sig_var_3 = pm.Deterministic('sig_var_3', tt.exp(log_sv3))
-#             sig_var_6 = pm.Deterministic('sig_var_6', tt.exp(log_sv6))
-#             sig_var_9 = pm.Deterministic('sig_var_9', tt.exp(log_sv9))
-#
-#             # prior on alpha
-#            
-#             log_alpha8 = pm.Uniform('log_alpha8', lower=-10, upper=10)
-#             alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
-#             
-#             # prior on noise variance term
-#            
-#             log_nv11 = pm.Uniform('log_nv11', lower=-5, upper=5)
-#             noise_11 = pm.Deterministic('noise_11', tt.exp(log_nv11))
-#               
-#             
-#             # Specify the covariance function
-#             
-#             k1 = pm.gp.cov.Constant(sig_var_1)*pm.gp.cov.ExpQuad(1, ls_2) 
-#             k2 = pm.gp.cov.Constant(sig_var_3)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
-#             k3 = pm.gp.cov.Constant(sig_var_6)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-#             k4 = pm.gp.cov.Constant(sig_var_9)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(noise_11)
-#      
-#             k = k1 + k2 + k3 + k4
-#                
-#             gp = pm.gp.Marginal(cov_func=k)
-#                  
-#             # Marginal Likelihood
-#             y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=np.sqrt(noise_11))
-#             
-#             # HMC Nuts auto-tuning implementation
-#             trace_hmc = pm.sample(chains=1, start=ml_deltas)
-#             
+     #-----------------------------------------------------
+      
+     #       Hybrid Monte Carlo
+          
+     #-----------------------------------------------------
+
+     with pm.Model() as hyp_learning:
+        
+             # prior on lengthscales
+             
+             log_l2 = pm.Uniform('log_l2', lower=-5, upper=6)
+             log_l4 = pm.Uniform('log_l4', lower=-5, upper=6)
+             log_l5 = pm.Uniform('log_l5', lower=-5, upper=6)
+             log_l7 = pm.Uniform('log_l7', lower=-5, upper=6)
+             log_l10 = pm.Uniform('log_l10', lower=-5, upper=6)
+
+             ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
+             ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+             ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
+             ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
+             ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+             
+             # prior on amplitudes
+             
+             log_sv1 = pm.Uniform('log_sv1', lower=-10, upper=10)
+             log_sv3 = pm.Uniform('log_sv3', lower=-10, upper=10)
+             log_sv6 = pm.Uniform('log_sv6', lower=-10, upper=10)
+             log_sv9 = pm.Uniform('log_sv9', lower=-10, upper=10)
+
+             sig_var_1 = pm.Deterministic('sig_var_1', tt.exp(log_sv1))
+             sig_var_3 = pm.Deterministic('sig_var_3', tt.exp(log_sv3))
+             sig_var_6 = pm.Deterministic('sig_var_6', tt.exp(log_sv6))
+             sig_var_9 = pm.Deterministic('sig_var_9', tt.exp(log_sv9))
+
+             # prior on alpha
+            
+             log_alpha8 = pm.Uniform('log_alpha8', lower=-10, upper=10)
+             alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
+             
+             # prior on noise variance term
+            
+             log_nv11 = pm.Uniform('log_nv11', lower=-5, upper=5)
+             noise_11 = pm.Deterministic('noise_11', tt.exp(log_nv11))
+               
+             
+             # Specify the covariance function
+             
+             k1 = pm.gp.cov.Constant(sig_var_1)*pm.gp.cov.ExpQuad(1, ls_2) 
+             k2 = pm.gp.cov.Constant(sig_var_3)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+             k3 = pm.gp.cov.Constant(sig_var_6)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
+             k4 = pm.gp.cov.Constant(sig_var_9)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(noise_11)
+      
+             k = k1 + k2 + k3 + k4
+                
+             gp = pm.gp.Marginal(cov_func=k)
+                  
+             # Marginal Likelihood
+             y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=np.sqrt(noise_11))
+             
+             # HMC Nuts auto-tuning implementation
+             trace_hmc = pm.sample(chains=1, start=ml_deltas)
+             
 #      with hyp_learning:
 #            
 #              # this line calls an optimizer to find the MAP
