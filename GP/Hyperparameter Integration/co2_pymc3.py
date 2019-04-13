@@ -278,14 +278,14 @@ with pm.Model() as co2_model:
     # Since the normal noise model and the GP are conjugates, we use `Marginal` with the `.marginal_likelihood` method
     y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=cov_noise)
 
-with co2_model:
+with hyp_learning:
     # this line calls an optimizer to find the MAP
     #mp = pm.find_MAP(include_transformed=True, progressbar=True)
     trace_hmc = pm.sample(tune=200, draws=400, chains=1)
     
-with co2_model:
+with hyp_learning:
     
-    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior/')
+    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/u_prior/')
     
 with co2_model:
       
@@ -366,8 +366,6 @@ def get_posterior_predictive_gp_trace(trace, thin_factor, X_star):
 
 mu_hmc, sd_hm, sample_means, sample_stds = get_posterior_predictive_gp_trace(trace_hmc_load, 5, t_test) 
 mu_hmc1, sd_hm1, sample_means1, sample_stds1 = get_posterior_predictive_gp_trace(trace_hmc_load, 20, t_test) 
-
-
 
 
 # Plot with HMC results

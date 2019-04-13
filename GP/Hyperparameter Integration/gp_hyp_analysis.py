@@ -316,7 +316,7 @@ if __name__ == "__main__":
     X_star = data_sets['X_star' + suffix]
     f_star = data_sets['f_star' + suffix]    
     
-    path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Unif/SNR_1/'
+    path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/NUnif/SNR_1/'
     persist_datasets(X, y, X_star, f_star, path, suffix)
 
     n_train = len(X)
@@ -471,23 +471,34 @@ def get_advi_report(model, X_star):
 
       return trace_advi
             
-def get_posterior_predictive_gp_trace(model, trace, thin_factor, X_star):
+def get_posterior_predictive_gp_trace(model, trace, thin_factor, X_star, path, n_train):
       
-      l = len(X_star)
-      means_arr = np.empty(shape=(l,))
-      std_arr = np.empty(shape=(l,))
-      sq_arr = np.empty(shape=(l,))
-
+      nt = str(n_train)
+      
+      prefix_path = path + 'X_' + nt + '_' 
+      
+      means_file = prefix_path +  'means_hmc.csv'
+      std_file = prefix_path + 'std_hmc.csv'
+      sq_file = prefix_path + 'sq_hmc.csv'
+      
+      means_writer = csv.writer(open(means_file,'w')) 
+      std_writer = csv.writer(open(std_file,'w'))
+      sq_writer = csv.writer(open(sq_file,'w'))
+      
       for i in np.arange(len(trace))[::thin_factor]:
             
             print(i)
-            with model:
-                  mu, cov = gp.predict(X_star, point=trace[i], pred_noise=False, diag=False)
-            std = np.sqrt(np.diag(cov))
-            means_arr = np.vstack((mu, means_arr))
-            std_arr = np.vstack((std, std_arr))
-            sq_arr = np.vstack((np.multiply(mu, mu), sq_arr))
+            mu, var = gp.predict(X_star, point=trace[i], pred_noise=False, diag=True)
+            std = np.sqrt(var)
             
+            means_writer.writerow(mu)
+            std_writer.writerow(std)
+            sq_writer.writerow(np.multiply(mu, mu))
+
+      sample_means =  pd.read_csv(means_file, sep=',')
+      sample_stds = pd.read_csv(std_file, sep=',')
+      sample_sqs = pd.read_csv(sq_file, sep=',')
+
       mix_grid = pd.DataFrame()
       for i in np.arange(len(X_star)):
             
@@ -498,18 +509,17 @@ def get_posterior_predictive_gp_trace(model, trace, thin_factor, X_star):
                   mix_samples.append(st.norm.rvs(loc=mix_means[j], scale=mix_stds[j],size= 50))
             mix_grid[str(i)] = np.concatenate(mix_samples)
       
-      final_mean = np.mean(means_arr[:-1,:], axis=0)
+      final_mean = np.mean(sample_means, axis=0)
       final_std = np.mean(std_arr[:-1,:], axis=0) + np.mean(sq_arr[:-1,:], axis=0) - np.multiply(final_mean, final_mean)
       return final_mean, final_std, means_arr[:-1], std_arr[:-1], sq_arr[:-1]
        
 
 for i in np.arange(0,len(X_star_10)):
-       plt.plot(np.repeat(X_star[i],50), means_arr[:,i][:-1], marker='o', color='grey', alpha=0.5)
+       plt.plot(np.repeat(X_star[i],50), sample_means, marker='o', color='grey', alpha=0.5)
 plt.plot(X_star_10, f_star_10, linestyle='dashed', color='k')
 plt.plot(X_10, y_10, 'ko')
 plt.plot(X_star_10, pp_mean_ml_10, 'r')
 plt.plot(X_star_10, final_mean, 'b')
-
 
 
 pp_mean_hmc, pp_std_hmc  = get_posterior_predictive_gp_trace(trace_hmc, 10, X_star) 
@@ -678,72 +688,6 @@ def get_combined_trace_vi(trace_advi):
     trace_df['noise_var'] = trace.get_values('noise_var', combine=False)
     return trace_df
 
-#def get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y):
-#      
-#      #L = np.linalg.cholesky(K_noise.eval())
-#      #alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
-#      #post_mean_trace = np.dot(K_s.T.eval(), alpha)
-#      return  K_s.T.dot(K_inv).dot(y)
-#
-#def get_post_cov_theta(theta, K_s, K_ss, K_inv):
-#      
-#     return K_ss - K_s.T.dot(K_inv).dot(K_s)
-#
-#def get_joint_value_from_trace(trace, varnames, i):
-#      
-#      joint = []
-#      for v in varnames:
-#            joint.append(trace[v][i])
-#      return joint
-
-#def get_post_mcmc_mean_cov(trace_df, X, X_star, y, varnames, n_train, test_size):
-#      
-#      list_means = []
-#      list_cov = []
-#      list_mean_sq = []
-#      for i in range(0,len(trace_df), 10):
-#            print(i)
-#            theta = get_joint_value_from_trace(trace_df, varnames, i) 
-#            cov = get_kernel('SE', [theta[0], theta[1]])
-#            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(cov, X, X_star, n_train, theta[2])
-#            mean_i = get_post_mean_theta(theta, K, K_s, K_ss, K_noise, K_inv, y)
-#            cov_i = get_post_cov_theta(theta, K_s, K_ss, K_inv)
-#            list_means.append(mean_i)
-#            list_cov.append(cov_i)
-#            list_mean_sq.append(tt.outer(mean_i, mean_i))
-#      post_mean_trace = tt.mean(list_means, axis=0)
-#      post_mean_trace = post_mean_trace.eval()
-#      print('Mean evaluated')
-#      post_cov_mean =  tt.mean(list_cov, axis=0) 
-#      post_cov_mean = post_cov_mean.eval() 
-#      print('Cov evaluated')
-#      outer_means = tt.mean(list_mean_sq, axis=0)
-#      outer_means = outer_means.eval()
-#      print('SSQ evaluated')
-#      post_cov_trace = post_cov_mean + outer_means - np.outer(post_mean_trace, post_mean_trace)
-#      return post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov
-#     
-#varnames = ['sig_var', 'lengthscale','noise_var']
-#trace_df = get_combined_trace(trace)
-#theta = get_trace_means(trace_df, varnames=['sig_var', 'lengthscale','noise_var'])
-#test_size = len(X_all) - len(X)
-#post_mean_trace, post_cov_trace, post_cov_mean, list_means, list_cov = get_post_mcmc_mean_cov(trace_df, X, X_star,y, varnames, n_train, test_size)
-#post_std_trace = np.sqrt(np.diag(post_cov_trace))
-#post_std_mean = np.sqrt(np.diag(post_cov_mean))
-#
-#means_df = np.empty((180,))
-#for i in range(0,50):
-#      print(i)
-#      means_df = np.column_stack((means_df, list_means[i].eval()))      
-#means_df = np.delete(means_df, 0,1)
-#
-#std_df = np.empty((180,))
-#for i in range(0,50):
-#      print(i)
-#      std_df = np.column_stack((std_df, np.diag(list_cov[i].eval())))      
-#std_df = np.delete(std_df, 0,1)
-#
-#post_std_of_means = np.std(means_df, 0, 1)
 
 pp_mean_hmc, pp_std_hmc  = get_posterior_predictive_gp_trace(trace_hmc, 10, X_star) 
 pp_mean_vi, pp_std_vi = get_posterior_predictive_gp_trace(trace_advi, 1000, X_star)
@@ -930,17 +874,27 @@ plt.xlabel('N train')
 plt.ylabel('RMSE')
 
 # Collecting HMC stats for 1 generative model
+model_10 = get_pymc3_model(X_10, y_10)
+model_20 = get_pymc3_model(X_20, y_20)
+model_40 = get_pymc3_model(X_40, y_40)
+model_60 = get_pymc3_model(X_60, y_60)
 
 trace_hmc_10 = get_hmc_report(get_pymc3_model(X_10, y_10), X_star_10)
 trace_hmc_20 =  get_hmc_report(get_pymc3_model(X_20, y_20), X_star_20)
 trace_hmc_40 =  get_hmc_report(get_pymc3_model(X_40, y_40), X_star_40)
 trace_hmc_60 =  get_hmc_report(get_pymc3_model(X_60, y_60), X_star_60)
 
+# Persist traces
 
-pp_mean_hmc_10, pp_std_hmc_10, means_10, std_10, sq_10 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
-pp_mean_hmc_20, pp_std_hmc_20, means_20, std_20, sq_20 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
-pp_mean_hmc_40, pp_std_hmc_40, means_40, std_40, sq_40 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10)
-pp_mean_hmc_60, pp_std_hmc_60, means_60, std_60, sq_60 = get_posterior_predictive_gp_trace(trace_hmc_60, 10, X_star_60)
+with model_10:
+      
+
+
+
+pp_mean_hmc_10, pp_std_hmc_10, means_10, std_10, sq_10 = get_posterior_predictive_gp_trace(trace_hmc_10, 10, X_star_10, path, 10)
+pp_mean_hmc_20, pp_std_hmc_20, means_20, std_20, sq_20 = get_posterior_predictive_gp_trace(trace_hmc_20, 10, X_star_20, path, 20)
+pp_mean_hmc_40, pp_std_hmc_40, means_40, std_40, sq_40 = get_posterior_predictive_gp_trace(trace_hmc_40, 10, X_star_40, path, 40)
+pp_mean_hmc_60, pp_std_hmc_60, means_60, std_60, sq_60 = get_posterior_predictive_gp_trace(trace_hmc_60, 10, X_star_60, path, 60)
 
 
 plt.figure(figsize=(20,5))
