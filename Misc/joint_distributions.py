@@ -57,6 +57,8 @@ sns.jointplot(x1, x2, kind='kde')
 
 # Donut / Ring distribution
 
+# Don't have the normalization constant for this guy but can see 
+# why the logp form generates the diffusion around the circular ring
 #---------------------------------------------------------------------
 
 y1 = np.random.uniform(-1,1, 100)
@@ -74,6 +76,14 @@ plt.xlim(-2,2)
 
 sns.jointplot(x,y, kind='kde')
 
+def donut_pdf(x1, x2):
+        return (1/(np.sqrt(2*np.pi)))*np.exp(-((1 - np.linalg.norm([x1,x2])) / 1) ** 2)
+  
+donut_density = lambda x1, x2 : donut_pdf(x1, x2)
+
+# Check that this joint density construction is a valid one
+
+sp.integrate.dblquad(donut_density, -2, +2, lambda x: np.sqrt(1-x**2), lambda x: np.sqrt(1-x**2))
 
 #----------------------------------------------------------------------------
 # Horseshoe shaped distribution 
@@ -140,14 +150,12 @@ mixture = lambda points : 0.5*st.multivariate_normal.pdf(points, mean1, cov1) + 
 
 def bivariate_mixture(p1,p2):
       
-     return 0.5*st.multivariate_normal.pdf((p1,p2), mean1, cov1) + 0.5*st.multivariate_normal.pdf((p1,p2), mean2, cov2)
+     return 0.3*st.multivariate_normal.pdf((p1,p2), mean1, cov1) + 0.7*st.multivariate_normal.pdf((p1,p2), mean2, cov2)
       
 #plt.contourf(X1, X2, Z1.reshape(1000,1000))
 #plt.contourf(X1, X2, Z2.reshape(1000,1000))
 
 plt.contourf(X1, X2, mixture(points).reshape(1000,1000))
-
-# Note: The convex combination does result in a mixture that integrates to 1
 
 sp.integrate.dblquad(bivariate_mixture, -7, 7, lambda x: -5, lambda x: 10)
 
