@@ -14,18 +14,23 @@ import scipy.stats as st
 import matplotlib.pylab as plt
 import scipy as sp
 from matplotlib import cm
-import seaborn as sns
+import theano.tensor as tt
 import pymc3 as pm
+from sampled import sampled
+import theano
+import seaborn as sns
 plt.style.use("ggplot")
 
 # Bivariate normals
 
 mean1 = [0,2]
-cov1 = [[1, 0.8], [0.8,1]]
+cov1 = np.array([[1, 0.8], [0.8,1]])
 
 mean2 = [3,4]
-cov2 = [[1, -0.4], [-0.4,1]]
+cov2 = np.array([[1, -0.4], [-0.4,1]])
 
+x1_ = np.linspace(-3, 4, 1000)
+x2_ = np.linspace(-5, 10, 1000)
 X1, X2 = np.meshgrid(x1_, x2_)
 
 points = np.vstack([X1.ravel(), X2.ravel()]).T
@@ -34,19 +39,28 @@ mixture = lambda points : 0.3*st.multivariate_normal.pdf(points, mean1, cov1) + 
 
 plt.contourf(X1, X2, mixture(points).reshape(1000,1000))
 
-
-w = [0.3, 0.7]
+w = (0.3, 0.7)
 mu = [mean1, mean2]
 cov = [cov1, cov2]
 
 mix_idx = np.random.choice([0,1], size=1000, replace=True, p=w)
 x = [st.multivariate_normal.rvs(mean=mu[i], cov=cov[i]) for i in mix_idx]
 
-with pm.Model() as bi_sampler:
+def normal_pdf(x, mean, cov):
       
-      #comp1 = pm.MvNormal('comp1', mu=np.array(mean1), cov=np.array(cov1), shape=2)
-      #comp2 = pm.MvNormal('comp2', mu=np.array(mean2), cov=np.array(cov2), shape=2)
-      x = pm.Mixture('x', w=w, comp_dists=[comp1.distribution,comp2.distribution])
+      return st.multivariate_normal.pdf(x, mean, cov)
+
+def bivariate_mixture_pdf(weights=w):
+      def logp(x):
+            return np.log(w[0]*np.exp(pm.MvNormal.dist(mu=mean1,cov=cov1).logp(value=theano.shared(x)).eval()))
+      return logp
+
+@sampled
+def bi_mixture(weights=weights, **observed):
+      pm.DensityDist('bi_mixture', logp=bivariate_mixture_pdf(w), shape=2, testval=[0,1])
+      
+with bi_mixture(weights=w):
+      metropolis_sample = pm.sample(draws=500, step=pm.Metropolis())
       
 with bi_sampler:
       
@@ -55,4 +69,45 @@ with bi_sampler:
       
       step_hmc = pm.HamiltonianMC(path_length=10, adapt_step_size=False, step_scale=0.5)
       trace_hmc = pm.sample(step = step_hmc)
+      
+   
+# Donut distribution example 
+      
+x_ = np.linspace(-1.3,1.3,1000)
+X1, X2 = np.meshgrid(x_, x_)
 
+points = np.vstack([X1.ravel(), X2.ravel()]).T
+
+def tt_donut_pdf(scale):
+    def logp(x):
+         return -((1 - np.linalg.norm(x,2)) / scale)**2
+    return logp
+
+def logp(x):
+         return -((1 - np.linalg.norm(x, axis=1)) / 0.5)**2
+
+density = lambda x : logp(x)
+
+# The log pdf gives the shape of the distribution
+
+plt.figure(figsize=(6,6))
+plt.contourf(X1, X2, density(points).reshape(1000,1000), levels=50)
+
+
+@sampled 
+def donut(scale=0.1, **observed):
+    """Gets samples from the donut pdf, and allows adjusting the scale of the donut at sample time."""
+    pm.DensityDist('donut', logp=tt_donut_pdf(scale), shape=2, testval=[0, 1])
+    
+with donut(scale=0.05):
+    metropolis_sample = pm.sample(draws=500, step=pm.Metropolis())
+    hmc_sample = pm.sample(draws=500, step=pm.HamiltonianMC(path_length=4, adapt_step_size=False))
+    nuts_sample = pm.sample(draws=500)
+    
+y_met = metropolis_sample.get_values('donut')
+y_hmc = hmc_sample.get_values('donut')
+y_nuts = nuts_sample.get_values('donut')
+
+sns.jointplot(y_met[:,0], y_met[:,1])
+sns.jointplot(y_hmc[:,0], y_hmc[:,1])
+sns.jointplot(y_nuts[:,0], y_nuts[:,1])

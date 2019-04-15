@@ -822,7 +822,7 @@ g = g.map_upper(plt.scatter, s=0.5)
 input_dist =  'Unif'
 snr = 10
 n_train = [10, 20, 40, 60]
-path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/' + input_dist + '/' + 'SNR_' + str(snr) + '/' 
+path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/' + input_dist + '/' + 'SNR_' + str(snr) + '/Training' 
 
 X_10, y_10, X_star_10, f_star_10 = load_datasets(path, 10)
 X_20, y_20, X_star_20, f_star_20 = load_datasets(path, 20)

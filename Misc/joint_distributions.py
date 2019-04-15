@@ -77,11 +77,11 @@ plt.xlim(-2,2)
 sns.jointplot(x,y, kind='kde')
 
 def donut_pdf(x1, x2):
-        return (1/(np.sqrt(2*np.pi)))*np.exp(-((1 - np.linalg.norm([x1,x2])) / 1) ** 2)
+        return np.exp(-((1 - np.linalg.norm([x1,x2])) / 1) ** 2)
   
 donut_density = lambda x1, x2 : donut_pdf(x1, x2)
 
-# Check that this joint density construction is a valid one
+# Check that this joint density construction is a valid one - no we dont have its norm constant 
 
 sp.integrate.dblquad(donut_density, -2, +2, lambda x: np.sqrt(1-x**2), lambda x: np.sqrt(1-x**2))
 
