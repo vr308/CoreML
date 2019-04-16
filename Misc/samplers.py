@@ -24,7 +24,7 @@ plt.style.use("ggplot")
 #TODO: How to extract HMC trajectories 
 #TODO: Animate?
 
-# Banana shaped distribution
+# Sampling the Banana shaped distribution
 
 def pot1(z):
     z = z.T
@@ -42,7 +42,7 @@ with pm.Model() as pot1m:
 
 plt.plot(trace1['pot1'][:,0], trace1['pot1'][:,1], 'bo', markersize=1)
 
-# Bivariate normals
+# Sampling a mixture of bivariate normals - investigate why not working 
 
 mean1 = np.array([0,2])
 cov1 = np.array([[1, 0.8], [0.8,1]])
@@ -65,36 +65,32 @@ mu = [mean1, mean2]
 cov = [cov1, cov2]
 
 mix_idx = np.random.choice([0,1], size=1000, replace=True, p=w)
-x = [st.multivariate_normal.rvs(mean=mu[i], cov=cov[i]) for i in mix_idx]
+x = np.array([st.multivariate_normal.rvs(mean=mu[i], cov=cov[i]) for i in mix_idx])
 
 def normal_pdf(x, mean, cov):
-    
       x = x.T
-      return 1/np.sqrt(2*np.pi*np.linalg.det(cov))* \
-  np.exp((x - mean.T).T.dot(np.linalg.inv(cov).dot(x-mean)))
+      norm_constant = (1/(2*np.pi*np.sqrt(np.linalg.det(cov))))
+      return norm_constant*np.exp(-0.5*(x - mean).T.dot(np.linalg.inv(cov1)).dot(x-mean))
 
-def bivariate_mixture_pdf(weights=w):
+def bivariate_mixture_pdf(w, mu, cov):
       def logp(x):
-            return np.log(w[0]*)
+            return np.log(w[0]*normal_pdf(x, mu[0], cov[0]) + w[1]*normal_pdf(x, mu[1], cov[1]))
       return logp
-
+    
 @sampled
-def bi_mixture(weights=w, **observed):
-      pm.DensityDist('bi_mixture', logp=bivariate_mixture_pdf(w), shape=2, testval=[0,1])
+def bi_mixture(w, mu, cov, **observed):
+      pm.DensityDist('bi_mixture', logp=bivariate_mixture_pdf(w, mu, cov), shape=2, testval=[0,1])
       
-with bi_mixture(weights=w):
+with bi_mixture(w=w, mu=mu, cov=cov):
       metropolis_sample = pm.sample(draws=500, step=pm.Metropolis())
+      nuts_sample = pm.sample()
       
-with bi_sampler:
-      
-      trace_nuts = pm.sample()
-      samples = pm.sample_posterior_predictive(trace_nuts)
-      
-      step_hmc = pm.HamiltonianMC(path_length=10, adapt_step_size=False, step_scale=0.5)
-      trace_hmc = pm.sample(step = step_hmc)
-      
-   
-# Donut distribution example 
+plt.contourf(X1, X2, mixture(points).reshape(1000,1000), alpha=0.4, levels=50)
+#plt.plot(metropolis_sample['bi_mixture'][:,0], metropolis_sample['bi_mixture'][:,1] ,'bo', markersize=1)
+plt.plot(nuts_sample['bi_mixture'][:,0], nuts_sample['bi_mixture'][:,1] ,'bo', markersize=1)
+plt.plot(x[:,0], x[:,1], 'ro', markersize=1)
+
+# Sampling the Donut distribution  
       
 x_ = np.linspace(-1.3,1.3,1000)
 X1, X2 = np.meshgrid(x_, x_)
@@ -107,9 +103,9 @@ def tt_donut_pdf(scale):
     return logp
 
 def logp(x):
-         return -((1 - np.linalg.norm(x, axis=1)) / 0.5)**2
+         return -((1 - np.linalg.norm(x, axis=1)) / 0.05)**2
 
-density = lambda x : logp(x)
+density = lambda x : np.exp(logp(x))
 
 # The log pdf gives the shape of the distribution
 
