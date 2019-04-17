@@ -20,14 +20,19 @@ import warnings
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
+import csv
 
 
 def normalize(y):
       
       return (y - y[0])/np.std(y)
 
-path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
-df = pd.read_table(path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
+home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
+uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
+
+path = home_path
+
+df = pd.read_table(home_path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
 
 # creat a date index for the data - convert properly from the decimal year 
 
@@ -157,9 +162,9 @@ ml_deltas = {'sig_var_1': sig_var_1, 'ls_2': ls_2, 'sig_var_3' : sig_var_3, 'ls_
 
 ml_df = pd.DataFrame(data=ml_deltas, index=['ml'])
 
-ml_df.to_csv('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/co2_ml.csv', sep=',')
+ml_df.to_csv(path + 'co2_ml.csv', sep=',')
 
-ml_df = pd.read_csv('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/co2_ml.csv', index_col=None)
+ml_df = pd.read_csv(path + 'co2_ml.csv', index_col=None)
 
 
      #-----------------------------------------------------
@@ -186,10 +191,10 @@ with pm.Model() as co2_model:
        
        # prior on amplitudes
        
-       log_sv1 = pm.Uniform('log_sv1', lower=-2, upper=10)
-       log_sv3 = pm.Uniform('log_sv3', lower=-2, upper=10)
-       log_sv6 = pm.Uniform('log_sv6', lower=-2, upper=10)
-       log_sv9 = pm.Uniform('log_sv9', lower=-2, upper=10)
+       log_sv1 = pm.Uniform('log_sv1', lower=-2, upper=5, testval=2.0)
+       log_sv3 = pm.Uniform('log_sv3', lower=-2, upper=5, testval=1.0)
+       log_sv6 = pm.Uniform('log_sv6', lower=-2, upper=5, testval=0.1)
+       log_sv9 = pm.Uniform('log_sv9', lower=-2, upper=5, testval=0.05)
 
        sig_var_1 = pm.Deterministic('sig_var_1', tt.exp(log_sv1))
        sig_var_3 = pm.Deterministic('sig_var_3', tt.exp(log_sv3))
@@ -198,7 +203,7 @@ with pm.Model() as co2_model:
 
        # prior on alpha
       
-       log_alpha8 = pm.Uniform('log_alpha8', lower=-1, upper=10)
+       log_alpha8 = pm.Uniform('log_alpha8', lower=-1, upper=5)
        alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
        
        # prior on noise variance term
@@ -229,7 +234,7 @@ with co2_model:
             
 with co2_model:
     
-    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle_hmc/u_prior/')
+    pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior/')
     
 with co2_model:
       
@@ -239,7 +244,7 @@ with co2_model:
        
 with co2_model:
       
-   pm.save_trace(trace_advi, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle_advi/u_prior/')
+   pm.save_trace(trace_advi, directory = path + 'Traces_pickle_advi/u_prior/')
 
 varnames = ['ls_2','ls_4','ls_5','ls_7','ls_10','sig_var_1','sig_var_3','sig_var_6','sig_var_9','alpha_8','noise_11']  
 
@@ -255,10 +260,10 @@ trace_df2 = get_trace_df(trace_hmc_load, varnames)
 
 # Traceplots with deltas
 
-def traceplots(trace, varnames, deltas)
+def traceplots(trace, varnames, deltas):
 
-      traces_part1 = pm.traceplot(trace, varnames[0:5])
-      traces_part2 = pm.traceplot(trace, varnames[5:])
+      traces_part1 = pm.traceplot(trace, varnames[0:5], lines=deltas)
+      traces_part2 = pm.traceplot(trace, varnames[5:], lines=deltas)
       
       for i in np.arange(5):
             
@@ -275,7 +280,7 @@ def traceplots(trace, varnames, deltas)
             
             delta = deltas.get(str(varnames[i+5]))
             traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace_hmc[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part2[i][0].hist(trace[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
             traces_part2[i][0].axes.set_xscale('log')
             traces_part2[i][0].legend(fontsize='x-small')
@@ -303,10 +308,13 @@ def get_posterior_predictive_mean(sample_means):
       
       return np.mean(sample_means)*std_co2 + first_co2
 
-def get_posterior_predictive_samples(trace, thin_factor, X_star, path):
+def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
       
-      means_writer = csv.writer(open('means_hmc.csv','w')) 
-      std_writer = csv.writer(open('std_hmc.csv','w'))
+      means_file = path + 'means_' + method + '.csv'
+      std_file = path + 'std_' + method + '.csv'
+    
+      means_writer = csv.writer(open(means_file, 'w')) 
+      std_writer = csv.writer(open(std_file, 'w'))
       #sq_writer = csv.writer(open('sq_hmc.csv','w'))
       
       means_writer.writerow(df['year'][sep_idx:])
@@ -324,10 +332,10 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path):
             std_writer.writerow(np.round(std, 3))
             #sq_writer.writerow(np.multiply(mu, mu))
 
-      sample_means =  pd.read_csv(path+ 'means_hmc.csv', sep=',', header=0)
+      sample_means =  pd.read_csv(means_file, sep=',', header=0)
       #rescaled_means = (sample_means)*std_co2 + first_co2
       
-      sample_stds = pd.read_csv(path+ 'std_hmc.csv', sep=',', header=0)
+      sample_stds = pd.read_csv(std_file, sep=',', header=0)
       #sample_sqs = pd.read_csv(path+ 'sq_hmc.csv')
       
       return sample_means, sample_stds
@@ -335,13 +343,13 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path):
 
 # Get HMC results
 
-sample_means_hmc, sample_stds_hmc = get_posterior_predictive_gp_trace(trace_hmc, 10, t_test) 
+sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 10, t_test, path) 
 mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
 lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
 
 # Get ADVI results 
 
-sample_means_advi,sample_stds_advi = get_posterior_predictive_gp_trace(trace_advi, 10, t_test) 
+sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 10, t_test, path) 
 mu_advi = get_posterior_predictive_mean(sample_means_advi)
 lower_advi, upper_advi = get_posterior_predictive_uncertainty_intervals(sample_means_advi, sample_stds_advi)
 
