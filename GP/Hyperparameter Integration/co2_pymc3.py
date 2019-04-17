@@ -30,7 +30,7 @@ def normalize(y):
 home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
 uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
 
-path = home_path
+path = uni_path
 
 df = pd.read_table(home_path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
 
@@ -239,12 +239,16 @@ with co2_model:
 with co2_model:
       
        advi = pm.FullRankADVI()
-       advi.fit()    
+       advi.fit(n=7000)
        trace_advi = advi.approx.sample(include_transformed=True)       
        
 with co2_model:
       
    pm.save_trace(trace_advi, directory = path + 'Traces_pickle_advi/u_prior/')
+   
+with co2_model:
+      
+      trace_advi_load = pm.load_trace(directory= path +'Traces_pickle_advi/u_prior/')
 
 varnames = ['ls_2','ls_4','ls_5','ls_7','ls_10','sig_var_1','sig_var_3','sig_var_6','sig_var_9','alpha_8','noise_11']  
 
@@ -343,25 +347,29 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
 
 # Get HMC results
 
-sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 10, t_test, path) 
+sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 10, t_test, path, method='hmc') 
 mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
 lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
 
 # Get ADVI results 
 
-sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 10, t_test, path) 
+sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 20, t_test, path, method='advi') 
 mu_advi = get_posterior_predictive_mean(sample_means_advi)
 lower_advi, upper_advi = get_posterior_predictive_uncertainty_intervals(sample_means_advi, sample_stds_advi)
 
 # Plot with HMC + ADVI + Type II results
 
+idx = [0:177]
+
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
-plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='HMC', color='b')
-plt.plot(df['year'][sep_idx:], mu_advi, alpha=0.5, label='ADVI', color='g')
-plt.fill_between(df['year'][sep_idx:], mu_test - 1.96*std_test, mu_test + 1.96*std_test, color='red', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], lower_advi, upper_advi, color='blue', alpha=0.2)
+plt.plot(df['year'][sep_idx:][0:177], mu_test[0:177], alpha=0.5, label='Type II ML', color='b')
+#plt.plot(df['year'][sep_idx:][0:177], mu_hmc[0:177], alpha=0.5, label='HMC', color='r')
+plt.plot(df['year'][sep_idx:][0:177], mu_advi[0:177], alpha=0.5, label='ADVI', color='g')
+plt.fill_between(df['year'][sep_idx:][0:177], (mu_test - 1.96*std_test)[0:177], (mu_test + 1.96*std_test)[0:177], color='red', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_advi, upper_advi, color='green', alpha=0.2)
+#plt.fill_between(df['year'][sep_idx:][0:177], lower_hmc, upper_hmc, color='blue', alpha=0.2)
+
 plt.legend(fontsize='x-small')
 
 # Write out trace summary & autocorrelation plots
