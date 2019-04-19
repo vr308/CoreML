@@ -22,10 +22,11 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, Rational
 warnings.filterwarnings("ignore")
 import csv
 
+varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
 
 def normalize(y):
       
-      return (y - y[0])/np.std(y)
+      return (y - np.mean(y))/np.std(y)
 
 home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
 uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
@@ -40,12 +41,13 @@ df = pd.read_table(home_path + 'mauna.txt', names=['year', 'co2'], infer_datetim
 
 df.dropna(inplace=True)
 
-first_co2 = df['co2'][0]
+mean_co2 = df['co2'][0]
 std_co2 = np.std(df['co2'])   
 
 # normalize co2 levels
    
-y = normalize(df['co2'])
+#y = normalize(df['co2'])
+y = df['co2']
 t = df['year'] - df['year'][0]
 
 sep_idx = 545
@@ -60,46 +62,15 @@ t_test = t[sep_idx:].values[:,None]
 
 # se +  sexper + rq + se + noise
 
-sig_var_1 = 66
-lengthscale_2 = 67
-sig_var_3 = 2.4
-lengthscale_4 = 90 
-lengthscale_5 = 1.3
-sig_var_6 = 0.66
-lengthscale_7 = 1.2 
-alpha_8 = 0.78
-sig_var_9 = 0.18
-lengthscale_10 = 1.6
-noise_11 = 0.19
-
-# LT trend
-sk1 = Ck(sig_var_1, constant_value_bounds=(0.1,100))*RBF(lengthscale_2, length_scale_bounds=(1,90))
-
-# Periodic x LT Trend
-sk2 = Ck(sig_var_3, constant_value_bounds=(1,5))*RBF(lengthscale_4, length_scale_bounds=(70,150))*PER(length_scale=lengthscale_5, periodicity=1, periodicity_bounds='fixed')
-
-# Medium term irregularities
-sk3 = Ck(sig_var_6, constant_value_bounds=(0.01,100))*RQ(length_scale=lengthscale_7, alpha=alpha_8, length_scale_bounds=(0.1,10), alpha_bounds=(0.2,2)) 
-
-# Noise model
-sk4 = Ck(sig_var_9, constant_value_bounds=(0.01,2))*RBF(lengthscale_10, length_scale_bounds=(0.1,2)) + WhiteKernel(noise_11)
-#sk4 = WhiteKernel(noise_11)
-
-
-#--------------------------------------------------------------------------------------------
-
-# LT trend
-sk1 = Ck(sig_var_1)*RBF(lengthscale_2)
-
-# Periodic x LT Trend
-sk2 = Ck(sig_var_3)*RBF(lengthscale_4)*PER(length_scale=lengthscale_5, periodicity=1, periodicity_bounds='fixed')
-
-# Medium term irregularities
-sk3 = Ck(sig_var_6)*RQ(length_scale=lengthscale_7, alpha=alpha_8, alpha_bounds=(0.1,2)) 
-
-# Noise model
-sk4 = Ck(sig_var_9)*RBF(lengthscale_10) + WhiteKernel(noise_11)
-#sk4 = WhiteKernel(noise_11)
+sk1 = 50.0**2 * RBF(length_scale=50.0)  # long term smooth rising trend
+sk2 = 2.0**2 * RBF(length_scale=100.0) \
+    * PER(length_scale=1.0, periodicity=1.0,
+                     periodicity_bounds="fixed")  # seasonal component
+# medium term irregularities
+sk3 = 0.5**2 * RQ(length_scale=1.0, alpha=1.0)
+sk4 = 0.1**2 * RBF(length_scale=0.1) \
+    + WhiteKernel(noise_level=0.1**2,
+                  noise_level_bounds=(1e-3, np.inf))  # noise terms
 #---------------------------------------------------------------------
     
 # Type II ML for hyp.
@@ -107,7 +78,7 @@ sk4 = Ck(sig_var_9)*RBF(lengthscale_10) + WhiteKernel(noise_11)
 #---------------------------------------------------------------------
     
 sk_kernel = sk1 + sk2 + sk3 + sk4
-gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
+gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True)
 
 # Fit to data 
 
@@ -120,19 +91,15 @@ print("Log-marginal-likelihood: %.3f"
 
 print("Predicting with trained gp on training data")
 
-mu_fit_n, std_fit_n = gpr.predict(t_train, return_std=True)
-mu_fit = mu_fit_n*std_co2 + first_co2
-std_fit = std_fit_n*std_co2
+mu_fit, std_fit = gpr.predict(t_train, return_std=True)
 
 print("Predicting with trained gp on test data")
 
-mu_test_n, cov_test_n = gpr.predict(t_test, return_cov=True)
-mu_test = mu_test_n*std_co2 + first_co2
-std_test  = np.sqrt(np.diag(cov_test_n))*std_co2
+mu_test, std_test = gpr.predict(t_test, return_std=True)
 
-rmse_ = np.round(np.sqrt(np.mean(np.square(mu_test - (y_test*std_co2 + first_co2)))), 2)
+rmse_ = np.round(np.sqrt(np.mean(np.square(mu_test - y_test))), 2)
 
-lpd = lambda x : st.norm.pdf(x, mu_test_n[0], std_test[0])
+lpd = lambda x : st.norm.pdf(x, mu_test[0], std_test[0])
 lpd_ = np.round(np.sum(lpd(y_test)),2) 
 
 plt.figure()
@@ -144,10 +111,10 @@ plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_tes
 plt.legend(fontsize='small')
 plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
 
-sig_var_1 = gpr.kernel_.k1.k1.k1.k1.constant_value
-sig_var_3 = gpr.kernel_.k1.k1.k2.k1.k1.constant_value
-sig_var_6 = gpr.kernel_.k1.k2.k1.constant_value
-sig_var_9 = gpr.kernel_.k2.k1.k1.constant_value
+s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.k1.constant_value)
+s_3 = np.sqrt(gpr.kernel_.k1.k1.k2.k1.k1.constant_value)
+s_6 = np.sqrt(gpr.kernel_.k1.k2.k1.constant_value)
+s_9 = np.sqrt(gpr.kernel_.k2.k1.k1.constant_value)
   
 ls_2 = gpr.kernel_.k1.k1.k1.k2.length_scale
 ls_4 = gpr.kernel_.k1.k1.k2.k1.k2.length_scale
@@ -156,9 +123,9 @@ ls_7 = gpr.kernel_.k1.k2.k2.length_scale
 ls_10 = gpr.kernel_.k2.k1.k2.length_scale
   
 alpha_8 = gpr.kernel_.k1.k2.k2.alpha
-noise_11 = gpr.kernel_.k2.k2.noise_level
+n_11 = np.sqrt(gpr.kernel_.k2.k2.noise_level)
 
-ml_deltas = {'sig_var_1': sig_var_1, 'ls_2': ls_2, 'sig_var_3' : sig_var_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'sig_var_6': sig_var_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 'sig_var_9' : sig_var_9, 'ls_10' : ls_10, 'noise_11': noise_11}
+ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 's_6': s_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 's_9' : s_9, 'ls_10' : ls_10, 'n_11': n_11}
 
 ml_df = pd.DataFrame(data=ml_deltas, index=['ml'])
 
@@ -178,79 +145,100 @@ with pm.Model() as co2_model:
       # prior on lengthscales
        
        log_l2 = pm.Uniform('log_l2', lower=-5, upper=6)
-       log_l4 = pm.Uniform('log_l4', lower=-5, upper=6)
-       log_l5 = pm.Uniform('log_l5', lower=-5, upper=6)
-       log_l7 = pm.Uniform('log_l7', lower=-5, upper=6)
-       log_l10 = pm.Uniform('log_l10', lower=-5, upper=6)
+       #log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
+       #log_l5 = pm.Uniform('log_l5', lower=-10, upper=10, testval=np.log(ml_deltas['ls_5']))
+       log_l7 = pm.Uniform('log_l7', lower=-5, upper=6, testval=np.log(ml_deltas['ls_7']))
+       #log_l10 = pm.Uniform('log_l10', lower=-5, upper=6, testval=np.log(ml_deltas['ls_10']))
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
-       ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
+       #ls_2 = 69
+       #ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       ls_4 = 85
+       #ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
+       ls_5 = 0.8
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       #ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       #ls_7 = ml_deltas['ls_7']
+       ls_10 = ml_deltas['ls_10']
        
        # prior on amplitudes
        
-       log_sv1 = pm.Uniform('log_sv1', lower=-2, upper=5, testval=2.0)
-       log_sv3 = pm.Uniform('log_sv3', lower=-2, upper=5, testval=1.0)
-       log_sv6 = pm.Uniform('log_sv6', lower=-2, upper=5, testval=0.1)
-       log_sv9 = pm.Uniform('log_sv9', lower=-2, upper=5, testval=0.05)
+       #log_s1 = pm.Uniform('log_s1', lower=0, upper=10, testval=np.log(ml_deltas['s_1']))
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.2)
+       #log_s3 = pm.Uniform('log_s3', lower=-2, upper=3)
+       log_s6 = pm.Uniform('log_s6', lower=-2, upper=5, testval=np.log(ml_deltas['s_6']))
+       #log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
+       #log_s9 = pm.Uniform('log_s9', lower=-2, upper=5, testval=np.log(ml_deltas['s_9']))
 
-       sig_var_1 = pm.Deterministic('sig_var_1', tt.exp(log_sv1))
-       sig_var_3 = pm.Deterministic('sig_var_3', tt.exp(log_sv3))
-       sig_var_6 = pm.Deterministic('sig_var_6', tt.exp(log_sv6))
-       sig_var_9 = pm.Deterministic('sig_var_9', tt.exp(log_sv9))
+       s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
+       #s_1 = pm.HalfCauchy('s_1', beta=20.0, testval=66.0)
+       #s_1 = 70
+       #s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
+       s_3 = 2.6
+       s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
+       #s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
+       #s_6 = ml_deltas['s_6']
+       s_9 = ml_deltas['s_9']
 
        # prior on alpha
       
-       log_alpha8 = pm.Uniform('log_alpha8', lower=-1, upper=5)
+       log_alpha8 = pm.Uniform('log_alpha8', lower=-4, upper=2, testval=np.log(ml_deltas['alpha_8']))
        alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
+       #alpha_8 =  ml_deltas['alpha_8']
        
        # prior on noise variance term
       
-       log_nv11 = pm.Uniform('log_nv11', lower=-5, upper=5)
-       noise_11 = pm.Deterministic('noise_11', tt.exp(log_nv11))
+       log_n11 = pm.Uniform('log_n11', lower=-5, upper=5, testval=np.log(ml_deltas['n_11']))
+       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
+       
+       #n_11 =  ml_deltas['n_11']
          
        
        # Specify the covariance function
        
-       k1 = pm.gp.cov.Constant(sig_var_1)*pm.gp.cov.ExpQuad(1, ls_2) 
-       k2 = pm.gp.cov.Constant(sig_var_3)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
-       k3 = pm.gp.cov.Constant(sig_var_6)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-       k4 = pm.gp.cov.Constant(sig_var_9)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(noise_11)
+       k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
+       k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+       k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
+       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
 
        k = k1 + k2 + k3 + k4
           
        gp = pm.gp.Marginal(cov_func=k)
             
        # Marginal Likelihood
-       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=np.sqrt(noise_11))
+       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=n_11)
        
-
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
-      trace_hmc = pm.sample(chains=1, start=ml_deltas)
+      trace_hmc = pm.sample(draws=400, tune=50, chains=1)
             
 with co2_model:
     
-    pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior/')
+      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior/')
     
 with co2_model:
       
-       advi = pm.FullRankADVI()
-       advi.fit(n=7000)
-       trace_advi = advi.approx.sample(include_transformed=True)       
+     trace_hmc_load = pm.load_trace(directory = path +'Traces_pickle_hmc/u_prior/0')
+    
+with co2_model:
+      
+      advi = pm.FullRankADVI(start=ml_deltas)
+      tracker = pm.callbacks.Tracker(
+                  mean=advi.approx.mean.eval,  # callable that returns mean
+                  std=advi.approx.std.eval  # callable that returns std
+                  )
+      advi.fit(callbacks=[tracker])
+      trace_advi = advi.approx.sample(include_transformed=True)       
        
 with co2_model:
       
-   pm.save_trace(trace_advi, directory = path + 'Traces_pickle_advi/u_prior/')
+   pm.save_trace(trace_advi, directory = path + 'Traces_pickle_advi/u_prior/', overwrite=True)
    
 with co2_model:
       
-      trace_advi_load = pm.load_trace(directory= path +'Traces_pickle_advi/u_prior/')
+   trace_advi_load = pm.load_trace(directory = path + 'Traces_pickle_advi/u_prior/0')
 
-varnames = ['ls_2','ls_4','ls_5','ls_7','ls_10','sig_var_1','sig_var_3','sig_var_6','sig_var_9','alpha_8','noise_11']  
 
 def get_trace_df(trace_hmc, varnames):
       
@@ -288,6 +276,10 @@ def traceplots(trace, varnames, deltas):
             traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
             traces_part2[i][0].axes.set_xscale('log')
             traces_part2[i][0].legend(fontsize='x-small')
+            
+
+traceplots(trace_hmc)
+traceplots(trace_advi, varnames, ml_deltas)
       
 # Constructing posterior predictive distribution
 
@@ -310,7 +302,7 @@ def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
 
 def get_posterior_predictive_mean(sample_means):
       
-      return np.mean(sample_means)*std_co2 + first_co2
+      return np.mean(sample_means)
 
 def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
       
@@ -353,22 +345,20 @@ lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_mea
 
 # Get ADVI results 
 
-sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 20, t_test, path, method='advi') 
+sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 10, t_test, path, method='advi') 
 mu_advi = get_posterior_predictive_mean(sample_means_advi)
 lower_advi, upper_advi = get_posterior_predictive_uncertainty_intervals(sample_means_advi, sample_stds_advi)
 
 # Plot with HMC + ADVI + Type II results
 
-idx = [0:177]
-
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-plt.plot(df['year'][sep_idx:][0:177], mu_test[0:177], alpha=0.5, label='Type II ML', color='b')
-#plt.plot(df['year'][sep_idx:][0:177], mu_hmc[0:177], alpha=0.5, label='HMC', color='r')
-plt.plot(df['year'][sep_idx:][0:177], mu_advi[0:177], alpha=0.5, label='ADVI', color='g')
-plt.fill_between(df['year'][sep_idx:][0:177], (mu_test - 1.96*std_test)[0:177], (mu_test + 1.96*std_test)[0:177], color='red', alpha=0.2)
+plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
+plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='HMC', color='b')
+plt.plot(df['year'][sep_idx:], mu_advi, alpha=0.5, label='ADVI', color='g')
+plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], lower_advi, upper_advi, color='green', alpha=0.2)
-#plt.fill_between(df['year'][sep_idx:][0:177], lower_hmc, upper_hmc, color='blue', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
 
 plt.legend(fontsize='x-small')
 
@@ -383,8 +373,26 @@ summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
 np.round(summary_df,3).to_csv(prefix + 'trace_summary_co2_' + model + '.csv')
       
 # Pair plots to look at 2-way relationships in hyperparameters
+varnames = ['ls_2','ls_4','ls_5','ls_7','ls_10','sig_var_1','sig_var_3','sig_var_6','sig_var_9','alpha_8','noise_11'] 
 
-# TODO
+k1_names = ['s_1', 'ls_2']
+k2_names = ['s_3', 'ls_4', 'ls_5']
+k3_names = ['s_6', 'ls_7', 'alpha_8']
+k4_names = ['s_9', 'ls_10', 'n_11']
+
+def get_subset_trace(trace, varnames):
+      
+      trace_df = pd.DataFrame()
+      for i in varnames:
+            trace_df[i] = trace.get_values(i)
+      return trace_df
+
+trace_k1 = get_subset_trace(trace_advi_load, k1_names)
+
+g = sns.PairGrid(trace_df, palette="Set2")
+g = g.map_lower(sns.kdeplot, cmap="Blues_d", n_levels=20)
+g = g.map_diag(sns.kdeplot, lw=1, legend=False)
+g = g.map_upper(plt.scatter, s=0.5)
       
 #with pm.Model() as co2_model:
 #      
@@ -445,7 +453,7 @@ np.round(summary_df,3).to_csv(prefix + 'trace_summary_co2_' + model + '.csv')
 #
 ##-------------------------------------------------------------------------------
 #
-#with pm.Model() as priors:
+with pm.Model() as priors:
 #      
 #    sig_var_3 = pm.HalfCauchy("sig_var_3", beta=2, testval=1.0)
 #    ls_4 = pm.Gamma("ls_4", alpha=10, beta=0.1)
@@ -455,7 +463,7 @@ np.round(summary_df,3).to_csv(prefix + 'trace_summary_co2_' + model + '.csv')
 #    ls_7 = pm.Gamma("ls_7", alpha=5, beta=0.75)
 #    alpha_8 = pm.Gamma("alpha_8", alpha=3, beta=2)
 #      
-#    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=10, testval=2.0)
+    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=30, testval=2.0)
 #    ls_2 = pm.Gamma("ls_2", alpha=4, beta=0.1)
 #    
 #    sig_var_9 = pm.HalfNormal("sig_var_9", sd=0.5, testval=0.05)
