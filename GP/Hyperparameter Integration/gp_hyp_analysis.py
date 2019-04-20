@@ -2,6 +2,8 @@
 """
 Spyder Editor
 
+A script to conduct GPR with 3 frameworks for Hyperparameter fitting: Type II, HMC and VI
+
 """
 
 import pymc3 as pm

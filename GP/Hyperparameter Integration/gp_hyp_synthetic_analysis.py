@@ -9,6 +9,7 @@ Created on Fri Apr 19 19:48:56 2019
 
 import pymc3 as pm
 import theano.tensor as tt
+from sampled import sampled
 import pandas as pd
 import numpy as np
 from matplotlib import cm
@@ -79,50 +80,53 @@ def load_datasets(path, n_train):
 
 #----------------------------GP Inference-------------------------------------
     
-# Type II ML for hyp.
+# Type II ML 
     
     
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(10.0, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
+          kernel = Ck(10, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
           
           gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
               
           # Fit to data 
           gpr.fit(X, y)        
-          post_mean, post_cov = gpr.predict(X_star, return_cov = True) 
+          post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
           post_std = np.sqrt(np.diag(post_cov))
           post_samples = np.random.multivariate_normal(post_mean, post_cov, 10)
           rmse_ = rmse(post_mean, f_star)
           lpd_ = log_predictive_density(f_star, post_mean, post_cov)
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
           ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
-          ml_deltas_dict = {'lengthscale': ml_deltas[1], 'noise_var': ml_deltas[2], 'sig_var': ml_deltas[0]}
+          ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': ml_deltas[2], 'sig_sd': np.sqrt(ml_deltas[0]), 
+                            'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(ml_deltas[2]), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           #plot_lml_surface_3way(gpr, ml_deltas_dict['sig_var'], ml_deltas_dict['lengthscale'], ml_deltas_dict['noise_var'])
           return post_mean, post_std, rmse_, lpd_, ml_deltas_dict, title
+
+# Generative model for full Bayesian treatment
 
 @sampled
 def generative_model(X, y):
       
        # prior on lengthscale 
-       log_l = pm.Uniform('log_l', lower=-5, upper=5)
-       lengthscale = pm.Deterministic('lengthscale', tt.exp(log_l))
+       log_ls = pm.Uniform('log_ls', lower=-2, upper=2)
+       ls = pm.Deterministic('ls', tt.exp(log_ls))
        
         #prior on noise variance
-       log_nv = pm.Uniform('log_nv', lower=-5, upper=5)
-       noise_var = pm.Deterministic('noise_var', tt.exp(log_nv))
+       log_n = pm.Uniform('log_n', lower=-5, upper=5)
+       noise_sd = pm.Deterministic('noise_sd', tt.exp(log_n))
          
        #prior on signal variance
-       log_sv = pm.Uniform('log_sv', lower=-10, upper=5)
-       sig_var = pm.Deterministic('sig_var', tt.exp(log_sv))
+       log_s = pm.Uniform('log_s', lower=-5, upper=5)
+       sig_sd = pm.Deterministic('sig_sd', tt.exp(log_s))
        
        # Specify the covariance function.
-       cov_func = sig_var*pm.gp.cov.ExpQuad(1, ls=lengthscale)
+       cov_func = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
     
        gp = pm.gp.Marginal(cov_func=cov_func)
             
        # Marginal Likelihood
-       y_ = gp.marginal_likelihood("y", X=X, y=y, noise=np.sqrt(noise_var))
+       y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
                    
   
 #--------------------Predictive performance metrics-------------------------
@@ -174,13 +178,14 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
       
       plt.figure(figsize=(20,5))
       
-      for i in [0, 1,2,3]:
+      for i in [0,1,2,3]:
             plt.subplot(1,4,i+1)
             plt.plot(X_star[i], pred_mean[i], color='r')
             plt.plot(X_star[i], f_star[i], 'k', linestyle='dashed')
             plt.plot(X[i], y[i], 'ko', markersize=2)
             plt.fill_between(X_star[i].ravel(), pred_mean[i] -1.96*pred_std[i], pred_mean[i] + 1.96*pred_std[i], color='r', alpha=0.3)
             plt.title(title[i], fontsize='small')
+      plt.tight_layout()
       plt.suptitle('Type II ML')
       
 
@@ -188,7 +193,35 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
       plt.plot(n_train, [rmse_ml_10, rmse_ml_20, rmse_ml_40, rmse_ml_60])
       plt.xlabel('N train')
       plt.ylabel('RMSE')
- 
+      
+#  PairGrid plot 
+      
+def pair_grid_plot(trace_df, ml_deltas, color):
+
+      g = sns.PairGrid(trace_df, vars=['log_s','log_n', 'log_ls'], diag_sharey=False)
+      g = g.map_lower(plot_bi_kde, ml_deltas=ml_deltas)
+      g = g.map_diag(plot_hist, ml_deltas=ml_deltas, color=color)
+      g = g.map_upper(plot_scatter, ml_deltas=ml_deltas, color=color)
+      
+def plot_bi_kde(x,y, ml_deltas, color, label):
+      
+      sns.kdeplot(x, y, n_levels=20, color=color, shade=True, shade_lowest=False)
+      plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
+      
+def plot_hist(x, ml_deltas, color, label):
+      
+      sns.distplot(x, bins=100, color=color, kde=True)
+      plt.axvline(x=ml_deltas[label], color='r')
+
+def plot_scatter(x, y, ml_deltas, color, label):
+      
+      plt.scatter(x, y, c=color, s=0.5, alpha=0.7)
+      plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
+
+#-----------------Trace post-processing & analysis ------------------------------------
+      
+
+
 
 if __name__ == "__main__":
 
@@ -204,10 +237,12 @@ if __name__ == "__main__":
       n_train = [10, 20, 40, 60]
       path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/Training/' 
 
-      
+      varnames = ['sig_sd', 'ls', 'noise_sd']
       #----------------------------------------------------
       # Joint Analysis
       #----------------------------------------------------
+      
+      # Type II ML
       
       X_10, y_10, X_star_10, f_star_10 = load_datasets(path, 10)
       X_20, y_20, X_star_20, f_star_20 = load_datasets(path, 20)
@@ -230,24 +265,58 @@ if __name__ == "__main__":
       pred_mean = [pp_mean_ml_10, pp_mean_ml_20, pp_mean_ml_40, pp_mean_ml_60] 
       pred_std = [pp_std_ml_10, pp_std_ml_20, pp_std_ml_40, pp_std_ml_60]
 
+      # ML Report
+      
+      plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title)
+       
+      # Full Bayesian HMC / MFVB / FR
+      
+      with generative_model(X=X_10, y=y_10):
+            
+            #trace_hmc_10 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_10)
+            
+            mf = pm.ADVI()
+            fr = pm.FullRankADVI()
+      
+            tracker_mf = pm.callbacks.Tracker(
+            mean = mf.approx.mean.eval,    
+            std = mf.approx.std.eval)
+            
+            tracker_fr = pm.callbacks.Tracker(
+            mean = fr.approx.mean.eval,    
+            std = fr.approx.std.eval)
+      
+            mf.fit(callbacks=[tracker_mf])
+            fr.fit(callbacks=[tracker_fr])
+            
+            trace_mf_10 = mf.approx.sample(10000)
+            trace_fr_10 = fr.approx.sample(10000)
+          
+
+      trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
+      trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
+      trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      
+      # Check convergence of VI - Evolution of means of hyperparameters
+      
+      
+      
+      # Pair Grid report
+      
+      pair_grid_plot(trace_hmc_10_df, ml_deltas_dict_10, 'b')
+      pair_grid_plot(trace_mf_10_df, ml_deltas_dict_10, 'coral')
+      pair_grid_plot(trace_fr_10_df, ml_deltas_dict_10, 'g')
+
+      # Marginal Posterior report
+      
+      
+      # Autocorrelation report
+      
+      
+      # Predictive distribution 
 
 
-# TODO Clean up from here
 
-# Collecting HMC stats for 1 generative model
-model_10 = get_pymc3_model(X_10, y_10)
-model_20 = get_pymc3_model(X_20, y_20)
-model_40 = get_pymc3_model(X_40, y_40)
-model_60 = get_pymc3_model(X_60, y_60)
-
-trace_hmc_10 = get_hmc_report(get_pymc3_model(X_10, y_10), X_star_10)
-trace_hmc_20 =  get_hmc_report(get_pymc3_model(X_20, y_20), X_star_20)
-trace_hmc_40 =  get_hmc_report(get_pymc3_model(X_40, y_40), X_star_40)
-trace_hmc_60 =  get_hmc_report(get_pymc3_model(X_60, y_60), X_star_60)
-
-# Persist traces
-
-with model_10:
       
 
 
@@ -268,26 +337,12 @@ plt.plot(X_star_10, f_star_10, 'k', linestyle='dashed')
 
 plt.plot(X_star_10, pp_mean_hmc_10['f_pred'].T, 'b', alpha=0.4)
 
-# Collecting ADVI stats for 1 generative model
 
 
 
-from scipy.stats import gaussian_kde
 
 # Handling HMC traces for N_train
       
-traces = pm.traceplot(trace_hmc_60, varnames, combined=True) 
-
-for i in [0,1,2]:
-      
-      density_40 = gaussian_kde(trace_hmc_40.get_values(varnames[i]))
-      density_20 = gaussian_kde(trace_hmc_20.get_values(varnames[i]))
-      density_10 = gaussian_kde(trace_hmc_10.get_values(varnames[i]))
-
-      traces[0][i].plot(np.linspace(0,140,1000), density_40(np.linspace(0,140, 1000)))
-      traces[0][i].plot(np.linspace(0,140,1000), density_20(np.linspace(0,140, 1000)))
-      traces[0][i].plot(np.linspace(0,140,1000), density_10(np.linspace(0,140, 1000)))
-
       
 # Handling HMC traces for SNR
       

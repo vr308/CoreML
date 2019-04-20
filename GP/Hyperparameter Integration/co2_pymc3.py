@@ -144,41 +144,41 @@ with pm.Model() as co2_model:
   
       # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=-5, upper=6)
-       #log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
-       #log_l5 = pm.Uniform('log_l5', lower=-10, upper=10, testval=np.log(ml_deltas['ls_5']))
-       log_l7 = pm.Uniform('log_l7', lower=-5, upper=6, testval=np.log(ml_deltas['ls_7']))
-       #log_l10 = pm.Uniform('log_l10', lower=-5, upper=6, testval=np.log(ml_deltas['ls_10']))
+       log_l2 = pm.Uniform('log_l2', lower=-5, upper=5, testval=np.log(ml_deltas['ls_2']))
+       log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
+       log_l5 = pm.Uniform('log_l5', lower=-5, upper=10, testval=np.log(ml_deltas['ls_5']))
+       log_l7 = pm.Uniform('log_l7', lower=-5, upper=5, testval=np.log(ml_deltas['ls_7']))
+       log_l10 = pm.Uniform('log_l10', lower=-5, upper=2, testval=np.log(ml_deltas['ls_10']))
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        #ls_2 = 69
-       #ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
-       ls_4 = 85
-       #ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-       ls_5 = 0.8
+       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       #ls_4 = 85
+       ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
+       #ls_5 = 0.8
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       #ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
        #ls_7 = ml_deltas['ls_7']
-       ls_10 = ml_deltas['ls_10']
+       #ls_10 = ml_deltas['ls_10']
        
        # prior on amplitudes
        
        #log_s1 = pm.Uniform('log_s1', lower=0, upper=10, testval=np.log(ml_deltas['s_1']))
-       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.2)
-       #log_s3 = pm.Uniform('log_s3', lower=-2, upper=3)
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.1)
+       log_s3 = pm.Uniform('log_s3', lower=-2, upper=3, testval=np.log(ml_deltas['s_3']))
        log_s6 = pm.Uniform('log_s6', lower=-2, upper=5, testval=np.log(ml_deltas['s_6']))
        #log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
-       #log_s9 = pm.Uniform('log_s9', lower=-2, upper=5, testval=np.log(ml_deltas['s_9']))
+       log_s9 = pm.Uniform('log_s9', lower=-5, upper=2, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        #s_1 = pm.HalfCauchy('s_1', beta=20.0, testval=66.0)
        #s_1 = 70
-       #s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
-       s_3 = 2.6
+       s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
+       #s_3 = 2.6
        s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
-       #s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
+       s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
        #s_6 = ml_deltas['s_6']
-       s_9 = ml_deltas['s_9']
+       #s_9 = ml_deltas['s_9']
 
        # prior on alpha
       
@@ -201,7 +201,7 @@ with pm.Model() as co2_model:
        k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
        k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
 
-       k = k1 + k2 + k3 + k4
+       k =  k1 + k2 + k3 + k4
           
        gp = pm.gp.Marginal(cov_func=k)
             
@@ -211,7 +211,7 @@ with pm.Model() as co2_model:
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
-      trace_hmc = pm.sample(draws=400, tune=50, chains=1)
+      trace_hmc = pm.sample(draws=500, tune=200, chains=1)
             
 with co2_model:
     
