@@ -194,24 +194,28 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
       plt.xlabel('N train')
       plt.ylabel('RMSE')
       
-#  PairGrid plot 
+#  PairGrid plot  - bivariate relationships
       
 def pair_grid_plot(trace_df, ml_deltas, color):
 
       g = sns.PairGrid(trace_df, vars=['log_s','log_n', 'log_ls'], diag_sharey=False)
-      g = g.map_lower(plot_bi_kde, ml_deltas=ml_deltas)
-      g = g.map_diag(plot_hist, ml_deltas=ml_deltas, color=color)
+      g = g.map_lower(plot_bi_kde, ml_deltas=ml_deltas, color=color)
+      g = g.map_diag(plot_hist, color=color)
       g = g.map_upper(plot_scatter, ml_deltas=ml_deltas, color=color)
+      
+      g.axes[0,0].axvline(ml_deltas[g.x_vars[0]], color='r')
+      g.axes[1,1].axvline(ml_deltas[g.x_vars[1]], color='r')
+      g.axes[2,2].axvline(ml_deltas[g.x_vars[2]], color='r')
+
       
 def plot_bi_kde(x,y, ml_deltas, color, label):
       
       sns.kdeplot(x, y, n_levels=20, color=color, shade=True, shade_lowest=False)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
-def plot_hist(x, ml_deltas, color, label):
+def plot_hist(x, color, label):
       
       sns.distplot(x, bins=100, color=color, kde=True)
-      plt.axvline(x=ml_deltas[label], color='r')
 
 def plot_scatter(x, y, ml_deltas, color, label):
       
@@ -219,9 +223,77 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
 
 #-----------------Trace post-processing & analysis ------------------------------------
+
+def get_trace_means(trace, varnames):
       
+      trace_means = []
+      for i in varnames:
+            trace_means.append(trace[i].mean())
+      return trace_means
+
+def get_trace_sd(trace, varnames):
+      
+      trace_sd = []
+      for i in varnames:
+            trace_sd.append(trace[i].std())
+      return trace_sd
+
+sigmoid = lambda x : 1 / (1 + np.exp(-x))
 
 
+def get_implicit_variational_posterior(var, means, std, x):
+      
+      eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
+      backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+      width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
+      total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+      pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
+      return pdf(x)
+
+def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, true_hyp):
+      
+      hyp_mean_mf = np.round(get_trace_means(trace_mf, varnames),3)
+      hyp_sd_mf = np.round(get_trace_sd(trace_mf, varnames),3)
+      
+      hyp_mean_fr = np.round(get_trace_means(trace_fr, varnames),3)
+      hyp_sd_fr = np.round(get_trace_sd(trace_fr, varnames),3)
+      
+      means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
+      std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
+      
+      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
+      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+
+      traces = pm.traceplot(trace_hmc, varnames=varnames, lines=ml_deltas_dict, combined=True, bw=1)
+      
+      l_int = np.linspace(min(trace_fr['ls'])-1, max(trace_fr['ls'])+1, 1000)
+      n_int = np.linspace(min(trace_fr['noise_sd'])-1, max(trace_fr['noise_sd'])+1, 1000)
+      s_int = np.linspace(min(trace_fr['sig_sd'])-1, max(trace_fr['sig_sd'])+1, 1000)
+      
+      mf_rv = [mf.approx.model.log_s_interval__, mf.approx.model.log_ls_interval__, mf.approx.model.log_n_interval__]
+      fr_rv = [fr.approx.model.log_s_interval__, fr.approx.model.log_ls_interval__, fr.approx.model.log_n_interval__]
+      
+      ranges = [s_int, l_int, n_int]
+      
+      for i, j in [(0,0), (1,0), (2,0)]:
+            
+            traces[i][j].axvline(x=hyp_mean_mf[i], color='coral', alpha=0.5, label='MF ' + str(hyp_mean_mf[i]))
+            traces[i][j].axvline(x=hyp_mean_fr[i], color='g', alpha=0.5, label='FR ' + str(hyp_mean_fr[i]))
+            traces[i][j].axvline(x=ml_deltas[varnames[i]], color='r', alpha=0.5, label='ML ' + str(ml_deltas[varnames[i]]))
+            traces[i][j].axvline(x=true_hyp[i], color='k', linestyle='--', label='True ' + str(true_hyp[i]))
+            #traces[i][j].axes.set_xscale('log')
+            
+            #traces[i][j].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            #traces[i][j].hist(trace_mf[varnames[i]], bins=100, normed=True, color='coral', alpha=0.3)
+            #traces[i][j].hist(trace_fr[varnames[i]], bins=100, normed=True, color='g', alpha=0.3)
+
+            traces[i][j].plot(ranges[i], get_implicit_variational_posterior(mf_rv[i], means_mf, std_mf, ranges[i]), color='coral')
+            traces[i][j].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
+            traces[i][j].legend(fontsize='x-small')
+
+def get_summary_hyp_table(trace_hmc, trace_mf, trace_fr):
+      
+      
 
 if __name__ == "__main__":
 
@@ -236,8 +308,11 @@ if __name__ == "__main__":
       snr = 10
       n_train = [10, 20, 40, 60]
       path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/Training/' 
-
+      
+      
+      true_hyp = [np.round(np.sqrt(10),3), 2, 1]
       varnames = ['sig_sd', 'ls', 'noise_sd']
+      
       #----------------------------------------------------
       # Joint Analysis
       #----------------------------------------------------
@@ -297,7 +372,7 @@ if __name__ == "__main__":
       trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
       trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
       
-      # Check convergence of VI - Evolution of means of hyperparameters
+      # Check convergence of VI - Evolution of means of variational posterior
       
       
       
@@ -308,6 +383,8 @@ if __name__ == "__main__":
       pair_grid_plot(trace_fr_10_df, ml_deltas_dict_10, 'g')
 
       # Marginal Posterior report
+      
+      trace_report(trace_hmc_10, trace_mf_10, trace_fr_10)
       
       
       # Autocorrelation report

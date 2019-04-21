@@ -140,59 +140,45 @@ ml_df = pd.read_csv(path + 'co2_ml.csv', index_col=None)
     
      #-----------------------------------------------------
 
+
 with pm.Model() as co2_model:
   
       # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=-5, upper=5, testval=np.log(ml_deltas['ls_2']))
+       log_l2 = pm.Uniform('log_l2', lower=-5, upper=10, testval=np.log(ml_deltas['ls_2']))
        log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
-       log_l5 = pm.Uniform('log_l5', lower=-5, upper=10, testval=np.log(ml_deltas['ls_5']))
-       log_l7 = pm.Uniform('log_l7', lower=-5, upper=5, testval=np.log(ml_deltas['ls_7']))
-       log_l10 = pm.Uniform('log_l10', lower=-5, upper=2, testval=np.log(ml_deltas['ls_10']))
+       log_l5 = pm.Uniform('log_l5', lower=-5, upper=1, testval=np.log(ml_deltas['ls_5']))
+       log_l7 = pm.Uniform('log_l7', lower=-1, upper=2, testval=np.log(ml_deltas['ls_7']))
+       log_l10 = pm.Uniform('log_l10', lower=-10, upper=-1, testval=np.log(ml_deltas['ls_10']))
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-       #ls_2 = 69
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
-       #ls_4 = 85
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-       #ls_5 = 0.8
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
        ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
-       #ls_7 = ml_deltas['ls_7']
-       #ls_10 = ml_deltas['ls_10']
+     
        
        # prior on amplitudes
        
-       #log_s1 = pm.Uniform('log_s1', lower=0, upper=10, testval=np.log(ml_deltas['s_1']))
-       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.1)
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.05)
        log_s3 = pm.Uniform('log_s3', lower=-2, upper=3, testval=np.log(ml_deltas['s_3']))
-       log_s6 = pm.Uniform('log_s6', lower=-2, upper=5, testval=np.log(ml_deltas['s_6']))
-       #log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
-       log_s9 = pm.Uniform('log_s9', lower=-5, upper=2, testval=np.log(ml_deltas['s_9']))
+       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.05)
+       log_s9 = pm.Uniform('log_s9', lower=-10, upper=-1, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
-       #s_1 = pm.HalfCauchy('s_1', beta=20.0, testval=66.0)
-       #s_1 = 70
        s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
-       #s_3 = 2.6
        s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
        s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
-       #s_6 = ml_deltas['s_6']
-       #s_9 = ml_deltas['s_9']
-
+      
        # prior on alpha
       
-       log_alpha8 = pm.Uniform('log_alpha8', lower=-4, upper=2, testval=np.log(ml_deltas['alpha_8']))
+       log_alpha8 = pm.Normal('log_alpha8', mu=np.log(ml_deltas['alpha_8']), sd=0.05)
        alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
-       #alpha_8 =  ml_deltas['alpha_8']
        
        # prior on noise variance term
       
-       log_n11 = pm.Uniform('log_n11', lower=-5, upper=5, testval=np.log(ml_deltas['n_11']))
+       log_n11 = pm.Uniform('log_n11', lower=-2, upper=5, testval=np.log(ml_deltas['n_11']))
        n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
-       
-       #n_11 =  ml_deltas['n_11']
-         
        
        # Specify the covariance function
        
@@ -211,15 +197,13 @@ with pm.Model() as co2_model:
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
-      trace_hmc = pm.sample(draws=500, tune=200, chains=1)
+      trace_hmc = pm.sample(draws=700, tune=700, chains=1)
             
 with co2_model:
     
       pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior/')
     
-with co2_model:
-      
-     trace_hmc_load = pm.load_trace(directory = path +'Traces_pickle_hmc/u_prior/0')
+      trace_hmc_load = pm.load_trace(directory = path +'Traces_pickle_hmc/u_prior/')
     
 with co2_model:
       
@@ -239,6 +223,11 @@ with co2_model:
       
    trace_advi_load = pm.load_trace(directory = path + 'Traces_pickle_advi/u_prior/0')
 
+
+# Loading persisted results
+   
+trace_hmc_load = pm.load_trace(path +'Traces_pickle_hmc/u_prior/', model=co2_model)
+trace_advi_load = pm.load_trace(path +'Traces_pickle_advi/u_prior/', model=co2_model)
 
 def get_trace_df(trace_hmc, varnames):
       
