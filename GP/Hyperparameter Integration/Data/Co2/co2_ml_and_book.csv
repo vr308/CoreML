@@ -1,6 +1,0 @@
-,k1 (LT Trend),,k2 (LT Trend x periodic),,,k3 (Medium term irregularities),,,k4 (Noise model),,
-,Theta_1 / n_trend,Theta_2 / l_trend,Theta_3 / n_per,Theta_4 / l_pdecay,Theta_5 / l_psmooth,Theta_6 / n_med ,Theta_7 / l_med,Theta_8 / alpha,Theta_9 / n_noise,Theta_10 / l_noise,Theta_11 / sigma
-Book ,61,67,2.4,90,1.3,0.66,1.2,0.78,0.18,1.6,0.19
-L-BFGS,5.6,59.01,1,149.8,3.27,0.1,10,0.39,0.0001,0.33,6E-05
-MP,1.75,50.87,0.107,132.49,0.7494,0.0244,1.637,1.17,0.0077,0.164,0.0066
-L-BFGS (Unconst),10.11,75.4,0.009,94.3,1.52,0.00051,0.464,0.1,0.0004,2.6,5E-05

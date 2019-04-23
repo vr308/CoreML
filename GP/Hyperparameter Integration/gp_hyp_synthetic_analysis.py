@@ -283,7 +283,7 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
             traces[i][j].axvline(x=true_hyp[i], color='k', linestyle='--', label='True ' + str(true_hyp[i]))
             #traces[i][j].axes.set_xscale('log')
             
-            #traces[i][j].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            traces[i][j].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
             #traces[i][j].hist(trace_mf[varnames[i]], bins=100, normed=True, color='coral', alpha=0.3)
             #traces[i][j].hist(trace_fr[varnames[i]], bins=100, normed=True, color='g', alpha=0.3)
 
@@ -292,6 +292,8 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
             traces[i][j].legend(fontsize='x-small')
 
 def get_summary_hyp_table(trace_hmc, trace_mf, trace_fr):
+      
+      
       
       
 
