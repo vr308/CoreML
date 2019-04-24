@@ -22,6 +22,11 @@ N=100000
 
 # Chris data 
 
+home_path = '~/Desktop/Workspace/CoreML/Mixture Models/'
+uni_path = '/home/vidhi/Desktop//Workspace/CoreML/Mixture Models/'
+      
+path = uni_path
+
 data = pd.read_csv('Data/1dDensity.csv', sep=',', names=['x','density'])
 data['prob'] = data['density']/ np.sum(data['density'])
 data['cdf'] = np.cumsum(data['prob'])

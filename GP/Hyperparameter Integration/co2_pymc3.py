@@ -118,8 +118,10 @@ def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
       upper_ = []
       for i in np.arange(n_test):
             print(i)
-            mix_idx = np.random.choice(np.arange(components), size=5000, replace=True)
+            mix_idx = np.random.choice(np.arange(components), size=2000, replace=True)
             mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
+            for j in mix_idx:
+                  mixture_draws.append(st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]))
             lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
             lower_.append(lower)
             upper_.append(upper)
@@ -308,51 +310,50 @@ with pm.Model() as co2_model:
   
       # prior on lengthscales
        
-       #log_l2 = pm.Uniform('log_l2', lower=-5, upper=10, testval=np.log(ml_deltas['ls_2']))
-       #log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
-       #log_l5 = pm.Uniform('log_l5', lower=-1, upper=1, testval=np.log(ml_deltas['ls_5']))
-       log_l5 = pm.Normal('log_l5', mu=np.log(ml_deltas['ls_5']), sd=0.01)
-       #log_l7 = pm.Uniform('log_l7', lower=-1, upper=2, testval=np.log(ml_deltas['ls_7']))
-       #log_l10 = pm.Uniform('log_l10', lower=-10, upper=-1, testval=np.log(ml_deltas['ls_10']))
+       log_l2 = pm.Uniform('log_l2', lower=-5, upper=10, testval=np.log(ml_deltas['ls_2']))
+       log_l4 = pm.Uniform('log_l4', lower=-5, upper=5, testval=np.log(ml_deltas['ls_4']))
+       log_l5 = pm.Uniform('log_l5', lower=-1, upper=1, testval=np.log(ml_deltas['ls_5']))
+       log_l7 = pm.Uniform('log_l7', lower=-1, upper=2, testval=np.log(ml_deltas['ls_7']))
+       log_l10 = pm.Uniform('log_l10', lower=-10, upper=-1, testval=np.log(ml_deltas['ls_10']))
 
-       #ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-       #ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
+       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-       #ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       #ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
+       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
        
-       ls_2 = 70
-       ls_4 = 85
-       ls_7 = 1.88
-       ls_10 = 0.1219
+       #ls_2 = 70
+       #ls_4 = 85
+       #ls_7 = 1.88
+       #ls_10 = 0.1219
      
        # prior on amplitudes
        
        log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=1)
-       #log_s3 = pm.Uniform('log_s3', lower=-2, upper=3, testval=np.log(ml_deltas['s_3']))
-       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=1)
-       #log_s9 = pm.Uniform('log_s9', lower=-10, upper=-1, testval=np.log(ml_deltas['s_9']))
+       log_s3 = pm.Uniform('log_s3', lower=-2, upper=3, testval=np.log(ml_deltas['s_3']))
+       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
+       log_s9 = pm.Uniform('log_s9', lower=-10, upper=-1, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
-       #s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
+       s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
        s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
-       #s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
+       s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
        
-       s_3 = 2.59
-       s_9 = 0.169
+       #s_3 = 2.59
+       #s_9 = 0.169
       
        # prior on alpha
       
-       #log_alpha8 = pm.Normal('log_alpha8', mu=np.log(ml_deltas['alpha_8']), sd=0.05)
-       #alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
-       alpha_8 = 0.121
+       log_alpha8 = pm.Normal('log_alpha8', mu=np.log(ml_deltas['alpha_8']), sd=0.05)
+       alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
+       #alpha_8 = 0.121
        
        # prior on noise variance term
       
-       #log_n11 = pm.Uniform('log_n11', lower=-2, upper=5, testval=np.log(ml_deltas['n_11']))
-       #n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
+       log_n11 = pm.Uniform('log_n11', lower=-2, upper=5, testval=np.log(ml_deltas['n_11']))
+       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
-       n_11 = 0.195
+       #n_11 = 0.195
        
        # Specify the covariance function
        
@@ -367,15 +368,15 @@ with pm.Model() as co2_model:
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=n_11)
-       
+              
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
-      trace_hmc = pm.sample(draws=300, tune=500, chains=1)
+      trace_hmc = pm.sample(draws=800, tune=1000, chains=1, discard_tuned_samples=False)
             
 with co2_model:
     
-      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior/')
+      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior2/', overwrite=True)
         
 with co2_model:
       
@@ -385,9 +386,9 @@ with co2_model:
       mean = mf.approx.mean.eval,    
       std = mf.approx.std.eval)
      
-      mf.fit(callbacks=[tracker_mf])
+      mf.fit(n=8000, callbacks=[tracker_mf])
       
-      trace_mf = mf.approx.sample(10000)
+      trace_mf = mf.approx.sample(4000)
       
 with co2_model:
       
@@ -401,17 +402,23 @@ with co2_model:
       trace_fr = fr.approx.sample(10000)
 
 
+bij = mf.approx.groups[0].bij
+saveparam = {param.name: bij.rmap(param.eval())
+	 for param in mf.approx.params}
+
+
+
 with co2_model:
       
-   pm.save_trace(trace_mf_10, directory = path + 'Traces_pickle_advi/u_prior_mf/', overwrite=True)
+   pm.save_trace(trace_mf, directory = path + 'Traces_pickle_advi/u_prior_mf/', overwrite=True)
    pm.save_trace(trace_fr, directory = path + 'Traces_pickle_advi/u_prior_fr/', overwrite=True)
 
 
 # Loading persisted results
    
-trace_hmc_load = pm.load_trace(path + 'Traces_pickle_hmc/u_prior/', model=co2_model)
+trace_hmc_load = pm.load_trace(path + 'Traces_pickle_hmc/u_prior2/', model=co2_model)
 trace_mf_load = pm.load_trace(path + 'Traces_pickle_advi/u_prior_mf/', model=co2_model)
-trace_advi_load = pm.load_trace(path + 'Traces_pickle_advi/u_prior_fr/0', model=co2_model)
+trace_advi_load = pm.load_trace(path + 'Traces_pickle_advi/u_prior_fr/', model=co2_model)
 
 
 # Traceplots with deltas
@@ -425,7 +432,7 @@ results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integrati
 
 # Get HMC results
 
-sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 10, t_test, results_path + 'pred_dist/', method='hmc') 
+sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
 
 sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
 
@@ -434,43 +441,63 @@ lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_mea
 
 # Get ADVI results 
 
-sample_means_advi,sample_stds_advi = get_posterior_predictive_samples(trace_advi, 10, t_test, path, method='advi') 
-mu_advi = get_posterior_predictive_mean(sample_means_advi)
-lower_advi, upper_advi = get_posterior_predictive_uncertainty_intervals(sample_means_advi, sample_stds_advi)
+# MF
+
+sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 100, t_test, results_path, method='mf') 
+mu_mf = get_posterior_predictive_mean(sample_means_mf)
+lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+
+
+# FR
+
+sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
+mu_fr = get_posterior_predictive_mean(sample_means_fr)
+lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+
 
 # Metrics
 
 rmse_hmc = rmse(mu_hmc, y_test)
-rmse_mf = 
-rmse_fr = 
+rmse_mf = rmse(mu_mf, y_test)
+rmse_fr = rmse(mu_fr, y_test)
+
+lpd_hmc = log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+lpd_mf = log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
+lpd_fr = log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
 
 
-# Plot with HMC + ADVI + Type II results
+# Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
+
+title = 'Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) + '\n' + 
+      'HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc) + '\n' + 
+      'MF' + '\n' + 'RMSE: ' + str(rmse_mf) + '\n' + 'LPD: ' + str(lpd_mf) + '\n' + 
+      'FR' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'LPD: ' + str(lpd_fr) 
+
 
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
-plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='HMC', color='b')
-plt.plot(df['year'][sep_idx:], mu_advi, alpha=0.5, label='ADVI', color='g')
+plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.9, label='HMC', color='b')
+plt.plot(df['year'][sep_idx:], mu_mf, alpha=0.8, label='MF', color='coral')
+plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='FR', color='g')
+
 plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], lower_advi, upper_advi, color='green', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
 plt.legend(fontsize='x-small')
+plt.title(title, fontsize='x-small')
 
 # Write out trace summary & autocorrelation plots
 
-model = 'hmc'
-trace = trace_hmc 
+model = 'fr'
+trace = trace_fr
 
 summary_df = pm.summary(trace)
-summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
+#summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
 np.round(summary_df,3).to_csv(results_path + 'trace_summary_co2_' + model + '.csv')
       
 # TODO Convert summary_df to box-whisker or violen plot
-
-# RMSE and LPD for co2 data
-
-
 
 # Pair plots to look at 2-way relationships in hyperparameters
 
@@ -513,10 +540,10 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
       
-pair_grid_plot(trace_k1, ml_deltas, k1_names, color='b')
-pair_grid_plot(trace_k2, ml_deltas, k2_names, color='b')
-pair_grid_plot(trace_k3, ml_deltas, k3_names, color='b')
-pair_grid_plot(trace_k4, ml_deltas, k4_names, color='b')
+pair_grid_plot(trace_k1, ml_deltas, k1_names, color='green')
+pair_grid_plot(trace_k2, ml_deltas, k2_names, color='green')
+pair_grid_plot(trace_k3, ml_deltas, k3_names, color='green')
+pair_grid_plot(trace_k4, ml_deltas, k4_names, color='green')
 
 # Pair grid catalog
 
