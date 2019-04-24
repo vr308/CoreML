@@ -197,7 +197,7 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
       
-      path = uni_path
+      path = home_path
       
       df = pd.read_table(home_path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
       
@@ -329,9 +329,11 @@ with pm.Model() as co2_model:
      
        # prior on amplitudes
        
-       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=1)
+
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
+       #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
        log_s3 = pm.Uniform('log_s3', lower=-2, upper=3, testval=np.log(ml_deltas['s_3']))
-       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
+       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=1)
        log_s9 = pm.Uniform('log_s9', lower=-10, upper=-1, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
@@ -372,7 +374,8 @@ with pm.Model() as co2_model:
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
-      trace_hmc = pm.sample(draws=800, tune=1000, chains=1, discard_tuned_samples=False)
+
+      trace_hmc = pm.sample(draws=700, tune=500, chains=1)
             
 with co2_model:
     
