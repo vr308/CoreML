@@ -18,6 +18,7 @@ from bokeh.palettes import brewer
 import  scipy.stats as st 
 import seaborn as sns
 import warnings
+import time
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
@@ -51,8 +52,7 @@ def traceplots(trace, varnames, deltas):
             #traces_part2[i][0].axes.set_xscale('log')
             traces_part2[i][0].legend(fontsize='x-small')
             
-
-def traceplot_compare(trace_hmc, trace_mf, varnames, deltas):
+def traceplot_compare(trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
       traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=deltas)
       traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=deltas)
@@ -64,12 +64,13 @@ def traceplot_compare(trace_hmc, trace_mf, varnames, deltas):
             
             delta = deltas.get(str(varnames[i]))
             xmax = max(max(trace[varnames[i]]), delta)
+            xmin = min(min(trace[varnames[i]]), delta)
             traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
             traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(mf_rv[i], means_mf, std_mf, ranges[i]), color='coral')
+            traces_part1[i][0].plot(np.linspace(xmin, xmax,1000), get_implicit_variational_posterior(getattr(co2_model, varnames[i]), means_mf, std_mf, np.linspace(xmin, xmax,1000)), color='coral')
+            traces_part1[i][0].hist(np.linspace(xmin, xmax,1000), get_implicit_variational_posterior(getattr(co2_model, varnames[i]), means_mf, std_mf, np.linspace(xmin, xmax,1000)), color='coral')
             #traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
-            traces[i][0].legend(fontsize='x-small')
             #traces_part1[i][0].axes.set_xlim(xmin, xmax)
             traces_part1[i][0].legend(fontsize='x-small')
       
@@ -120,8 +121,6 @@ def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
             print(i)
             mix_idx = np.random.choice(np.arange(components), size=2000, replace=True)
             mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
-            for j in mix_idx:
-                  mixture_draws.append(st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]))
             lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
             lower_.append(lower)
             upper_.append(upper)
@@ -138,11 +137,9 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
     
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
-      #sq_writer = csv.writer(open('sq_hmc.csv','w'))
       
       means_writer.writerow(df['year'][sep_idx:])
       std_writer.writerow(df['year'][sep_idx:])
-      #sq_writer.writerow(df['year'][sep_idx:])
       
       for i in np.arange(len(trace))[::thin_factor]:
             
@@ -153,13 +150,10 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
             print('Writing out ' + str(i) + ' predictions')
             means_writer.writerow(np.round(mu, 3))
             std_writer.writerow(np.round(std, 3))
-            #sq_writer.writerow(np.multiply(mu, mu))
 
+      time.sleep(5.0)    # pause 5.5 seconds
       sample_means =  pd.read_csv(means_file, sep=',', header=0)
-      #rescaled_means = (sample_means)*std_co2 + first_co2
-      
       sample_stds = pd.read_csv(std_file, sep=',', header=0)
-      #sample_sqs = pd.read_csv(path+ 'sq_hmc.csv')
       
       return sample_means, sample_stds
 
@@ -186,8 +180,9 @@ def log_predictive_mixture_density(y_test, list_means, list_std):
             for j in np.arange(len(list_means)):
                   components.append(st.norm.pdf(y_test[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
             lppd_per_point.append(np.mean(components))
-      return np.round(np.mean(np.log(lppd_per_point)),3)
-            
+      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
+
+                  
 if __name__ == "__main__":
 
 
@@ -379,7 +374,7 @@ with co2_model:
             
 with co2_model:
     
-      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior2/', overwrite=True)
+      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior3/', overwrite=True)
         
 with co2_model:
       
@@ -402,13 +397,16 @@ with co2_model:
       std = fr.approx.std.eval)
       
       fr.fit(callbacks=[tracker_fr])
-      trace_fr = fr.approx.sample(10000)
+      trace_fr = fr.approx.sample(4000)
 
 
-bij = mf.approx.groups[0].bij
-saveparam = {param.name: bij.rmap(param.eval())
+bij_mf = mf.approx.groups[0].bij
+mf_param = {param.name: bij_mf.rmap(param.eval())
 	 for param in mf.approx.params}
 
+bij_fr = fr.approx.groups[0].bij
+fr_param = {param.name: bij_fr.rmap(param.eval())
+	 for param in fr.approx.params}
 
 
 with co2_model:
@@ -438,6 +436,7 @@ results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integrati
 sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
 
 sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
+sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
 
 mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
 lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
@@ -447,6 +446,10 @@ lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_mea
 # MF
 
 sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 100, t_test, results_path, method='mf') 
+
+sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
+sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
+
 mu_mf = get_posterior_predictive_mean(sample_means_mf)
 lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
 
@@ -455,7 +458,31 @@ lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means
 
 sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
 mu_fr = get_posterior_predictive_mean(sample_means_fr)
+
+sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+
 lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+
+
+plt.figure()
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=2)
+for i in range(0,30):
+      #plt.fill_between(df['year'][sep_idx:], sample_means_hmc.ix[i] - 2*sample_stds_hmc.ix[i],  sample_means_hmc.ix[i] + 2*sample_stds_hmc.ix[i], alpha=0.3, color='grey')
+      plt.plot(df['year'][sep_idx:], sample_means_hmc.ix[i], color='b', alpha=0.3)
+
+
+plt.figure()
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=2)
+for i in range(0,30):
+      plt.fill_between(df['year'][sep_idx:], sample_means_mf.ix[i] - 2*sample_stds_mf.ix[i],  sample_means_mf.ix[i] + 2*sample_stds_mf.ix[i], alpha=0.3, color='grey')
+      plt.plot(df['year'][sep_idx:], sample_means_mf.ix[i], color='coral', alpha=0.3)
+      
+plt.figure()
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=2)
+for i in range(0,30):
+     plt.fill_between(df['year'][sep_idx:], sample_means_fr.ix[i] - 2*sample_stds_fr.ix[i],  sample_means_fr.ix[i] + 2*sample_stds_fr.ix[i], alpha=0.3, color='grey')
+     plt.plot(df['year'][sep_idx:], sample_means_fr.ix[i], color='green', alpha=0.3)
 
 
 # Metrics
@@ -464,32 +491,31 @@ rmse_hmc = rmse(mu_hmc, y_test)
 rmse_mf = rmse(mu_mf, y_test)
 rmse_fr = rmse(mu_fr, y_test)
 
-lpd_hmc = log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
-lpd_mf = log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
-lpd_fr = log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+lppd_hmc, lpd_hmc = log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+lppd_mf, lpd_mf = log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
+lppd_fr, lpd_fr = log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+
 
 
 # Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
 
-title = 'Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_) + '\n' + 
-      'HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc) + '\n' + 
-      'MF' + '\n' + 'RMSE: ' + str(rmse_mf) + '\n' + 'LPD: ' + str(lpd_mf) + '\n' + 
-      'FR' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'LPD: ' + str(lpd_fr) 
+title = 'Type II ML   ' + ' RMSE: ' + str(rmse_)  + '   LPD: ' + str(lpd_) + '\n' +  ' HMC         '  + '    RMSE: ' + str(rmse_hmc) + '   LPD: ' + str(lpd_hmc) + '\n' + ' MF           ' +  '     RMSE: ' + str(rmse_mf) + '    LPD: ' + str(lpd_mf) +  '\n' + ' FR           '  +  '     RMSE: ' + str(rmse_fr)  + '    LPD: ' + str(lpd_fr) 
 
 
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='Type II ML', color='r')
-plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.9, label='HMC', color='b')
-plt.plot(df['year'][sep_idx:], mu_mf, alpha=0.8, label='MF', color='coral')
-plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='FR', color='g')
+plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='Type II ML', color='r')
+plt.plot(df['year'][sep_idx:], mu_hmc, alpha=1, label='HMC', color='b')
+plt.plot(df['year'][sep_idx:], mu_mf, alpha=1, label='MF', color='coral')
+plt.plot(df['year'][sep_idx:], mu_fr, alpha=1, label='FR', color='g')
 
 plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
 plt.legend(fontsize='x-small')
 plt.title(title, fontsize='x-small')
+plt.ylim(370,420)
 
 # Write out trace summary & autocorrelation plots
 
@@ -543,10 +569,10 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
       
-pair_grid_plot(trace_k1, ml_deltas, k1_names, color='green')
-pair_grid_plot(trace_k2, ml_deltas, k2_names, color='green')
-pair_grid_plot(trace_k3, ml_deltas, k3_names, color='green')
-pair_grid_plot(trace_k4, ml_deltas, k4_names, color='green')
+pair_grid_plot(trace_k1, ml_deltas, k1_names, color='b')
+pair_grid_plot(trace_k2, ml_deltas, k2_names, color='b')
+pair_grid_plot(trace_k3, ml_deltas, k3_names, color='b')
+pair_grid_plot(trace_k4, ml_deltas, k4_names, color='b')
 
 # Pair grid catalog
 
@@ -563,14 +589,29 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
       if np.mod(j,8) == 0:
             fig = plt.figure(figsize=(15,8))
       plt.subplot(2,4,np.mod(j, 8)+1)
-      g = sns.kdeplot(trace[i[0]], trace[i[1]], color="b", shade=True, alpha=0.7, bw='silverman')
-      g.scatter(trace[i[0]], trace[i[1]], s=0.5, color='b', alpha=0.4)
+      g = sns.kdeplot(trace[i[0]], trace[i[1]], color="g", shade=True, alpha=0.7, bw='silverman')
+      g.scatter(trace[i[0]][::20], trace[i[1]][::20], s=0.5, color='g', alpha=0.4)
       g.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
       plt.xlabel(i[0])
       plt.ylabel(i[1])
       plt.tight_layout()
+      
 
-
+for i, j  in zip(bi_list, np.arange(len(bi_list))):
+        print(i)
+        print(j)
+        if np.mod(j,8) == 0:
+            fig = plt.figure(figsize=(15,8))
+        plt.subplot(2,4,np.mod(j, 8)+1)
+        sns.kdeplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', shade=True, bw='silverman', shade_lowest=False, alpha=1)
+        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=1)
+        sns.kdeplot(trace_hmc_load[i[0]], trace_hmc_load[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.4)
+        plt.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
+        plt.xlabel(i[0])
+        plt.ylabel(i[1])
+        plt.tight_layout()
+      
+       
 
 #with pm.Model() as co2_model:
 #      
