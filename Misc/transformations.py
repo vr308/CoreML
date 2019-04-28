@@ -37,3 +37,18 @@ plt.hist(z_rv, 100, normed=True)
 plt.plot(x, st.norm.pdf(np.log(x),4, 1)/x)
 #plt.plot(x, st.lognorm.pdf(x, loc=4, s=1, scale=np.exp(4)))
 
+# VI to fit a bivariate distribution of Gaussian / Non-Gaussian
+
+x = st.lognorm.rvs(loc=0, scale=1.0, s=1, size=1000)
+y = st.lognorm.rvs(loc=1.0, scale=2.0, s=1, size=1000)
+sns.kdeplot(data= x, data2=y, shade=True, shade_lowest=False)
+
+
+with pm.Model() as model:
+  
+    obs = pm.Normal('obs', mu=mu, sd=sd, observed=np.random.randn(100))
+    approx_ADVI = pm.fit()
+    approx_fullrankADVI = pm.fit(method='fullrank_advi')
+
+
+

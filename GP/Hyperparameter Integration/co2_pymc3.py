@@ -94,14 +94,29 @@ def get_subset_trace(trace, varnames):
 
 # Implicit variational posterior density
       
+sigmoid = lambda x : 1 / (1 + np.exp(-x))
+
+      
 def get_implicit_variational_posterior(var, means, std, x):
       
-      eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
-      backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
-      width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
-      total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
-      pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
-      return pdf(x)
+      if (var.name[-2:] == '__'):
+            # Then it is an interval variable
+            
+            eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
+            backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+            width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
+            total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+            pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
+            return pdf(x)
+
+      
+      else:
+            # Then it is just a log variable
+            
+            pdf = lambda x: st.norm.pdf(np.log(x), means[var.name], std[var.name])/x   
+            return pdf(x)
+            
+      
 
 # Digging
       
