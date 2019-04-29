@@ -54,35 +54,66 @@ def traceplots(trace, varnames, deltas):
             
 def traceplot_compare(trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
-      traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=deltas)
+      traces_part1 = pm.traceplot(trace_mf, varnames[0:5], lines=deltas)
+      traces_part2 = pm.traceplot(trace_mf, varnames[5:], lines=deltas)
       
       means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
       std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
       
+      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
+      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+      
       for i in np.arange(5):
             
             delta = deltas.get(str(varnames[i]))
-            xmax = max(max(trace[varnames[i]]), delta)
-            xmin = min(min(trace[varnames[i]]), delta)
+            xmax = max(max(trace_hmc[varnames[i]]), delta)
+            xmin = min(min(trace_hmc[varnames[i]]), delta)
+            range_i = np.linspace(xmin, xmax, 1000)  
             traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part1[i][0].hist(trace_mf[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part1[i][0].plot(np.linspace(xmin, xmax,1000), get_implicit_variational_posterior(getattr(co2_model, varnames[i]), means_mf, std_mf, np.linspace(xmin, xmax,1000)), color='coral')
-            traces_part1[i][0].hist(np.linspace(xmin, xmax,1000), get_implicit_variational_posterior(getattr(co2_model, varnames[i]), means_mf, std_mf, np.linspace(xmin, xmax,1000)), color='coral')
+            traces_part1[i][0].plot(range_i, get_implicit_variational_posterior( rv_mapping.get(varnames[i]), means_fr, std_fr, range_i), color='coral')
+            traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3)
+
             #traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
-            #traces_part1[i][0].axes.set_xlim(xmin, xmax)
+            #traces_part1[i][0].axes.set_ylim(0, 0.005)
             traces_part1[i][0].legend(fontsize='x-small')
       
       for i in np.arange(6):
             
             delta = deltas.get(str(varnames[i+5]))
+            xmax = max(max(trace_hmc[varnames[i+5]]), delta)
+            xmin = min(min(trace_hmc[varnames[i+5]]), delta)
+            range_i = np.linspace(xmin, xmax, 1000)  
             traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part2[i][0].hist(trace_mf[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_par2[i][0].plot(ranges[i], get_implicit_variational_posterior(mf_rv[i], means_mf, std_mf, ranges[i]), color='coral')
+            traces_part2[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_fr, std_fr, range_i), color='green')
+            traces_part2[i][0].hist(trace_fr[varnames[i+5]], bins=100, normed=True, color='green', alpha=0.3)
+
             #traces_part2[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
             traces_part2[i][0].legend(fontsize='x-small')
+            
+rv_mapping = {'s_1':  co2_model.log_s1, 
+              'ls_2': co2_model.log_l2_interval__, 
+              's_3':  co2_model.log_s3_interval__,
+              'ls_4': co2_model.log_l4_interval__,
+              'ls_5': co2_model.log_l5_interval__,
+              's_6': co2_model.log_s6,
+              'ls_7': co2_model.log_l7_interval__,
+              'alpha_8': co2_model.log_alpha8,
+              's_9': co2_model.log_s9_interval__,
+              'ls_10': co2_model.log_l10_interval__,
+               'n_11': co2_model.log_n11_interval__
+                    }
+
+
+def model_vars(model, varname):
+      
+      if (varname in ['s_1', 's_6','alpha_8']):
+            cont_name = 
+      else:
+            return False
             
 
 def get_subset_trace(trace, varnames):
@@ -94,10 +125,11 @@ def get_subset_trace(trace, varnames):
 
 # Implicit variational posterior density
       
-sigmoid = lambda x : 1 / (1 + np.exp(-x))
 
       
 def get_implicit_variational_posterior(var, means, std, x):
+      
+      sigmoid = lambda x : 1 / (1 + np.exp(-x))
       
       if (var.name[-2:] == '__'):
             # Then it is an interval variable
@@ -108,7 +140,6 @@ def get_implicit_variational_posterior(var, means, std, x):
             total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
             pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
             return pdf(x)
-
       
       else:
             # Then it is just a log variable
@@ -116,11 +147,6 @@ def get_implicit_variational_posterior(var, means, std, x):
             pdf = lambda x: st.norm.pdf(np.log(x), means[var.name], std[var.name])/x   
             return pdf(x)
             
-      
-
-# Digging
-      
-
 
 # Constructing posterior predictive distribution
 
@@ -413,8 +439,14 @@ with co2_model:
       
       fr.fit(callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
+      
 
-
+with co2_model:
+      
+      check_mf = pm.ADVI()
+      check_fr = pm.FullRankADVI()
+      
+      
 bij_mf = mf.approx.groups[0].bij
 mf_param = {param.name: bij_mf.rmap(param.eval())
 	 for param in mf.approx.params}
@@ -422,6 +454,9 @@ mf_param = {param.name: bij_mf.rmap(param.eval())
 bij_fr = fr.approx.groups[0].bij
 fr_param = {param.name: bij_fr.rmap(param.eval())
 	 for param in fr.approx.params}
+
+check_mf.approx.params[0].set_value(bij_mf.map(mf_param['mu']))
+check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
 
 
 with co2_model:

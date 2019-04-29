@@ -18,6 +18,7 @@ from theano.tensor.nlinalg import matrix_inverse
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
+import seaborn as sns
 import scipy.stats as st
 import warnings
 warnings.filterwarnings("ignore")
@@ -221,6 +222,38 @@ def plot_scatter(x, y, ml_deltas, color, label):
       
       plt.scatter(x, y, c=color, s=0.5, alpha=0.7)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
+      
+
+def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
+
+      traces_part1 = pm.traceplot(trace_hmc, varnames, lines=deltas, combined=True)
+      
+      means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
+      std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
+      
+      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
+      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+      
+      for i in np.arange(3):
+            
+            delta = deltas.get(str(varnames[i]))
+            xmax = max(max(trace_hmc[varnames[i]]), delta)
+            xmin = min(min(trace_hmc[varnames[i]]), delta)
+            range_i = np.linspace(xmin, xmax, 1000)  
+            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, density=True, color='b', alpha=0.3)
+            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
+            traces_part1[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i), color='green')
+            traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, density=True, color='green', alpha=0.3)
+
+            #traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
+            #traces_part1[i][0].axes.set_ylim(0, 0.005)
+            traces_part1[i][0].legend(fontsize='x-small')
+            
+rv_mapping = {'sig_sd': model.log_s_interval__, 'ls': model.log_ls_interval__, 'noise_sd': model.log_n_interval__}
+      
+      
+      
 
 #-----------------Trace post-processing & analysis ------------------------------------
 
@@ -238,11 +271,10 @@ def get_trace_sd(trace, varnames):
             trace_sd.append(trace[i].std())
       return trace_sd
 
-sigmoid = lambda x : 1 / (1 + np.exp(-x))
-
-
 def get_implicit_variational_posterior(var, means, std, x):
       
+      sigmoid = lambda x : 1 / (1 + np.exp(-x))
+
       eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
       backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
       width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
@@ -350,7 +382,7 @@ if __name__ == "__main__":
       
       with generative_model(X=X_10, y=y_10):
             
-            #trace_hmc_10 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_10)
+            trace_hmc_10 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_10)
             
             mf = pm.ADVI()
             fr = pm.FullRankADVI()
@@ -368,6 +400,33 @@ if __name__ == "__main__":
             
             trace_mf_10 = mf.approx.sample(10000)
             trace_fr_10 = fr.approx.sample(10000)
+          
+
+      trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
+      trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
+      trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      
+      
+        with generative_model(X=X_20, y=y_20):
+            
+            #trace_hmc_20 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_20)
+            
+            mf = pm.ADVI()
+            #fr = pm.FullRankADVI()
+      
+            tracker_mf = pm.callbacks.Tracker(
+            mean = mf.approx.mean.eval,    
+            std = mf.approx.std.eval)
+            
+            tracker_fr = pm.callbacks.Tracker(
+            mean = fr.approx.mean.eval,    
+            std = fr.approx.std.eval)
+      
+            mf.fit(callbacks=[CheckParametersConvergence(), tracker_mf])
+            #fr.fit(callbacks=[tracker_fr])
+            
+            trace_mf_20 = mf.approx.sample(4000)
+            #trace_fr_20 = fr.approx.sample(4000)
           
 
       trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
