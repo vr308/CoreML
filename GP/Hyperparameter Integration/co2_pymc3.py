@@ -52,10 +52,10 @@ def traceplots(trace, varnames, deltas):
             #traces_part2[i][0].axes.set_xscale('log')
             traces_part2[i][0].legend(fontsize='x-small')
             
-def traceplot_compare(trace_hmc, trace_mf, trace_fr, varnames, deltas):
+def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
-      traces_part1 = pm.traceplot(trace_mf, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace_mf, varnames[5:], lines=deltas)
+      traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=deltas)
+      traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=deltas)
       
       means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
       std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
@@ -67,53 +67,38 @@ def traceplot_compare(trace_hmc, trace_mf, trace_fr, varnames, deltas):
             
             delta = deltas.get(str(varnames[i]))
             xmax = max(max(trace_hmc[varnames[i]]), delta)
-            xmin = min(min(trace_hmc[varnames[i]]), delta)
+            xmin = 0
             range_i = np.linspace(xmin, xmax, 1000)  
+            mf_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_mf, std_mf, range_i)
+            fr_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i)
             traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace_mf[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part1[i][0].plot(range_i, get_implicit_variational_posterior( rv_mapping.get(varnames[i]), means_fr, std_fr, range_i), color='coral')
-            traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3)
-
-            #traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
-            #traces_part1[i][0].axes.set_ylim(0, 0.005)
+            traces_part1[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
+            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
+            #traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3)
+            traces_part1[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
+            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
+            #races_part1[i][0].axes.set_ylim(0, max(mf_pdf))
             traces_part1[i][0].legend(fontsize='x-small')
       
       for i in np.arange(6):
             
             delta = deltas.get(str(varnames[i+5]))
             xmax = max(max(trace_hmc[varnames[i+5]]), delta)
-            xmin = min(min(trace_hmc[varnames[i+5]]), delta)
-            range_i = np.linspace(xmin, xmax, 1000)  
+            xmin = 0
+            range_i = np.linspace(xmin, xmax, 1000) 
+            mf_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_mf, std_mf, range_i)
+            fr_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_fr, std_fr, range_i)
             traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace_mf[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part2[i][0].hist(trace_hmc[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
             traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part2[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_fr, std_fr, range_i), color='green')
-            traces_part2[i][0].hist(trace_fr[varnames[i+5]], bins=100, normed=True, color='green', alpha=0.3)
-
+            traces_part2[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
+            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
+            traces_part2[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
+            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
             #traces_part2[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
             traces_part2[i][0].legend(fontsize='x-small')
-            
-rv_mapping = {'s_1':  co2_model.log_s1, 
-              'ls_2': co2_model.log_l2_interval__, 
-              's_3':  co2_model.log_s3_interval__,
-              'ls_4': co2_model.log_l4_interval__,
-              'ls_5': co2_model.log_l5_interval__,
-              's_6': co2_model.log_s6,
-              'ls_7': co2_model.log_l7_interval__,
-              'alpha_8': co2_model.log_alpha8,
-              's_9': co2_model.log_s9_interval__,
-              'ls_10': co2_model.log_l10_interval__,
-               'n_11': co2_model.log_n11_interval__
-                    }
-
-
-def model_vars(model, varname):
-      
-      if (varname in ['s_1', 's_6','alpha_8']):
-            cont_name = 
-      else:
-            return False
             
 
 def get_subset_trace(trace, varnames):
@@ -124,9 +109,7 @@ def get_subset_trace(trace, varnames):
       return trace_df
 
 # Implicit variational posterior density
-      
-
-      
+            
 def get_implicit_variational_posterior(var, means, std, x):
       
       sigmoid = lambda x : 1 / (1 + np.exp(-x))
@@ -147,6 +130,57 @@ def get_implicit_variational_posterior(var, means, std, x):
             pdf = lambda x: st.norm.pdf(np.log(x), means[var.name], std[var.name])/x   
             return pdf(x)
             
+
+# Converting raw params back to param space
+
+def analytical_variational_opt(model, param_dict, summary_trace):
+      
+      keys = list(param_dict['mu'].keys())
+      
+      # First tackling transformed means
+      
+      mu_implicit = {}
+      rho_implicit = {}
+      for i in keys:
+            if (i[-2:] == '__'):
+                  name = name_mapping[i]
+                  mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
+                  sd_value = summary_trace['sd'][name]
+                  mu_implicit.update({name : mean_value})
+                  rho_implicit.update({name : sd_value})
+            else:
+                  name = name_mapping[i]
+                  mean_value = np.exp(param_dict['mu'][i])
+                  sd_value = summary_trace['sd'][name]
+                  name = name_mapping[i]
+                  mu_implicit.update({name : mean_value})
+                  rho_implicit.update({name : sd_value})
+      param_dict.update({'mu_implicit' : mu_implicit})
+      param_dict.update({'rho_implicit' : rho_implicit})
+
+      return param_dict
+
+def get_empirical_covariance(trace, varnames):
+      
+      df = pm.trace_to_dataframe(trace)
+      return pd.DataFrame(np.cov(df[varnames], rowvar=False), index=varnames, columns=varnames)
+
+
+def convergence_report(tracker, elbo):
+      
+      # Plot Negative ElBO track with params in true space
+      
+      fig = plt.figure(figsize=(16, 9))
+      mu_ax = fig.add_subplot(221)
+      std_ax = fig.add_subplot(222)
+      hist_ax = fig.add_subplot(212)
+      mu_ax.plot(tracker['mean'])
+      mu_ax.set_title('Mean track')
+      std_ax.plot(tracker['std'])
+      std_ax.set_title('Std track')
+      hist_ax.plot(advi.hist)
+      hist_ax.set_title('Negative ELBO track');
+
 
 # Constructing posterior predictive distribution
 
@@ -232,6 +266,9 @@ if __name__ == "__main__":
 
       home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
+      
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/Co2/'
+
       
       path = home_path
       
@@ -415,7 +452,7 @@ with co2_model:
             
 with co2_model:
     
-      pm.save_trace(trace_hmc, directory = path + 'Traces_pickle_hmc/u_prior3/', overwrite=True)
+      pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/u_prior3/', overwrite=True)
         
 with co2_model:
       
@@ -425,7 +462,7 @@ with co2_model:
       mean = mf.approx.mean.eval,    
       std = mf.approx.std.eval)
      
-      mf.fit(n=8000, callbacks=[tracker_mf])
+      mf.fit(n=40000, callbacks=[tracker_mf])
       
       trace_mf = mf.approx.sample(4000)
       
@@ -437,7 +474,7 @@ with co2_model:
       mean = fr.approx.mean.eval,    
       std = fr.approx.std.eval)
       
-      fr.fit(callbacks=[tracker_fr])
+      fr.fit(n=40000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
 
@@ -458,18 +495,57 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 check_mf.approx.params[0].set_value(bij_mf.map(mf_param['mu']))
 check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
 
+# Saving raw ADVI results
 
-with co2_model:
-      
-   pm.save_trace(trace_mf, directory = path + 'Traces_pickle_advi/u_prior_mf/', overwrite=True)
-   pm.save_trace(trace_fr, directory = path + 'Traces_pickle_advi/u_prior_fr/', overwrite=True)
+mf_df = pd.DataFrame(mf_param)
+fr_df = pd.DataFrame(fr_param)
+
+mf_df.to_csv(results_path  + 'VI/mf_df_raw.csv', sep=',')
+fr_df.to_csv(results_path + 'VI/fr_df_raw.csv', sep=',')
+
+
+rv_mapping = {'s_1':  co2_model.log_s1, 
+              'ls_2': co2_model.log_l2_interval__, 
+              's_3':  co2_model.log_s3_interval__,
+              'ls_4': co2_model.log_l4_interval__,
+              'ls_5': co2_model.log_l5_interval__,
+              's_6': co2_model.log_s6,
+              'ls_7': co2_model.log_l7_interval__,
+              'alpha_8': co2_model.log_alpha8,
+              's_9': co2_model.log_s9_interval__,
+              'ls_10': co2_model.log_l10_interval__,
+               'n_11': co2_model.log_n11_interval__
+                    }
+
+raw_mapping = {'log_s1':  co2_model.log_s1, 
+              'log_l2_interval__': co2_model.log_l2_interval__, 
+              'log_s3_interval__':  co2_model.log_s3_interval__,
+              'log_l4_interval__': co2_model.log_l4_interval__,
+              'log_l5_interval__': co2_model.log_l5_interval__,
+              'log_s6': co2_model.log_s6,
+              'log_l7_interval__': co2_model.log_l7_interval__,
+              'log_alpha8': co2_model.log_alpha8,
+              'log_s9_interval__': co2_model.log_s9_interval__,
+              'log_l10_interval__': co2_model.log_l10_interval__,
+               'log_n11_interval__': co2_model.log_n11_interval__ }
+
+
+name_mapping = {'log_s1':  's_1', 
+              'log_l2_interval__': 'ls_2', 
+              'log_s3_interval__':  's_3',
+              'log_l4_interval__': 'ls_4',
+              'log_l5_interval__': 'ls_5',
+              'log_s6': 's_6',
+              'log_l7_interval__': 'ls_7',
+              'log_alpha8': 'alpha_8',
+              'log_s9_interval__': 's_9',
+              'log_l10_interval__': 'ls_10',
+              'log_n11_interval__': 'n_11'}
 
 
 # Loading persisted results
    
-trace_hmc_load = pm.load_trace(path + 'Traces_pickle_hmc/u_prior2/', model=co2_model)
-trace_mf_load = pm.load_trace(path + 'Traces_pickle_advi/u_prior_mf/', model=co2_model)
-trace_advi_load = pm.load_trace(path + 'Traces_pickle_advi/u_prior_fr/', model=co2_model)
+trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/u_prior2/', model=co2_model)
 
 
 # Traceplots with deltas
@@ -478,10 +554,35 @@ traceplots(trace_hmc, varnames, ml_deltas)
 traceplots(trace_mf, varnames, ml_deltas)
 traceplots(trace_fr, varnames, ml_deltas)
 
-      
-results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/Co2/'
+# Convergence of VI
 
-# Get HMC results
+
+
+# Covariance matrix
+
+hmc_cov = np.corrcoef(pm.trace_to_dataframe(trace_hmc)[varnames], rowvar=False)
+fr_cov = np.corrcoef(pm.trace_to_dataframe(trace_fr)[varnames], rowvar=False)
+
+fig = plt.figure(figsize=(10,6))
+ax1 = plt.subplot(121)
+ax1.matshow(hmc_cov)
+ax1.set_xticks(np.arange(11))
+ax1.set_xticklabels(varnames, rotation=70, minor=False)
+ax1.set_yticks(np.arange(11))
+ax1.set_yticklabels(varnames, minor=False)
+ax1.set_title('HMC')
+ax2 = plt.subplot(122)
+ax2.matshow(fr_cov)
+ax2.set_xticks(np.arange(11))
+ax2.set_xticklabels(varnames, rotation=70, minor=False)
+ax2.set_yticks(np.arange(11))
+ax2.set_yticklabels(varnames, minor=False)
+ax2.set_title('Full Rank VI')
+
+      
+# Predictions
+
+# HMC
 
 sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
 
@@ -491,7 +592,6 @@ sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
 mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
 lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
 
-# Get ADVI results 
 
 # MF
 
@@ -569,11 +669,11 @@ plt.ylim(370,420)
 
 # Write out trace summary & autocorrelation plots
 
-model = 'fr'
-trace = trace_fr
+model = 'hmc'
+trace = trace_hmc
 
 summary_df = pm.summary(trace)
-#summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
+summary_df['Acc Rate'] = np.mean(trace.get_sampler_stats('mean_tree_accept'))
 np.round(summary_df,3).to_csv(results_path + 'trace_summary_co2_' + model + '.csv')
       
 # TODO Convert summary_df to box-whisker or violen plot
@@ -619,10 +719,10 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
       
-pair_grid_plot(trace_k1, ml_deltas, k1_names, color='b')
-pair_grid_plot(trace_k2, ml_deltas, k2_names, color='b')
-pair_grid_plot(trace_k3, ml_deltas, k3_names, color='b')
-pair_grid_plot(trace_k4, ml_deltas, k4_names, color='b')
+pair_grid_plot(trace_k1, ml_deltas, k1_names, color='coral')
+pair_grid_plot(trace_k2, ml_deltas, k2_names, color='coral')
+pair_grid_plot(trace_k3, ml_deltas, k3_names, color='coral')
+pair_grid_plot(trace_k4, ml_deltas, k4_names, color='coral')
 
 # Pair grid catalog
 
@@ -653,9 +753,9 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
         if np.mod(j,8) == 0:
             fig = plt.figure(figsize=(15,8))
         plt.subplot(2,4,np.mod(j, 8)+1)
+        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=0.5)
+        sns.kdeplot(trace_hmc[i[0]], trace_hmc[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.4)
         sns.kdeplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', shade=True, bw='silverman', shade_lowest=False, alpha=1)
-        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=1)
-        sns.kdeplot(trace_hmc_load[i[0]], trace_hmc_load[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.4)
         plt.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
         plt.xlabel(i[0])
         plt.ylabel(i[1])

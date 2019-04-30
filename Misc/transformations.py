@@ -67,12 +67,22 @@ sns.kdeplot(trace_hmc['x'][:,0], trace_hmc['x'][:,1], shade=True, shade_lowest=F
 
 # Transformed Gaussian
 
+import theano.tensor as tt
 
+def pot1(z):
+    z = z.T
+    return .5*((z.norm(2, axis=0)-2.)/.4)**2 - tt.log(tt.exp(-.5*((z[0]-2.)/.6)**2) +
+                                                      tt.exp(-.5*((z[0]+2.)/.6)**2))
+    
+def cust_logp(z):
+    #return bound(-pot1(z), z>-5, z<5)
+    return -pot1(z)
 
-with pm.Model() as model:
-    
-    pm.Lognormal('y', mu=mu, sd=sd)
-    
+with pm.Model() as pot1m:
+    pm.DensityDist('pot1', logp=cust_logp, shape=(2,))
+
+with pot1m:
+        
     trace_hmc = pm.sample(1000)
     
     approx_ADVI = pm.fit(method='advi')
@@ -80,4 +90,8 @@ with pm.Model() as model:
     
     trace_mf = approx_ADVI.sample(2000)
     trace_fr = approx_fullrankADVI.sample(2000)
+    
+sns.kdeplot(trace_mf['pot1'][:,0], trace_mf['pot1'][:,1], shade=True, shade_lowest=False)
+sns.kdeplot(trace_fr['x'][:,0], trace_fr['x'][:,1], shade=True, shade_lowest=False, alpha=0.5)
+sns.kdeplot(trace_hmc['x'][:,0], trace_hmc['x'][:,1], shade=True, shade_lowest=False, alpha=0.5)
 

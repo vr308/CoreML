@@ -226,8 +226,10 @@ def plot_scatter(x, y, ml_deltas, color, label):
 
 def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
-      traces_part1 = pm.traceplot(trace_hmc, varnames, lines=deltas, combined=True)
+      traces = pm.traceplot(trace_hmc, varnames, lines=deltas, combined=True)
       
+      rv_mapping = {'sig_sd': model.log_s_interval__, 'ls': model.log_ls_interval__, 'noise_sd': model.log_n_interval__}
+
       means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
       std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
       
@@ -240,17 +242,31 @@ def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
             xmax = max(max(trace_hmc[varnames[i]]), delta)
             xmin = min(min(trace_hmc[varnames[i]]), delta)
             range_i = np.linspace(xmin, xmax, 1000)  
-            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, density=True, color='b', alpha=0.3)
-            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part1[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i), color='green')
-            traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, density=True, color='green', alpha=0.3)
-
-            #traces_part1[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
+            traces[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces[i][0].hist(trace_hmc[varnames[i]], bins=100, density=True, color='b', alpha=0.3)
+            traces[i][1].axhline(y=delta, color='r', alpha=0.5)
+            traces[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i), color='green')
+            traces[i][0].plot(range_i, get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_mf, std_mf, range_i), color='coral')
             #traces_part1[i][0].axes.set_ylim(0, 0.005)
-            traces_part1[i][0].legend(fontsize='x-small')
+            traces[i][0].legend(fontsize='x-small')
             
-rv_mapping = {'sig_sd': model.log_s_interval__, 'ls': model.log_ls_interval__, 'noise_sd': model.log_n_interval__}
+
+# Variational approximation
+            
+def get_implicit_variational_posterior(var, means, std, x):
+      
+      sigmoid = lambda x : 1 / (1 + np.exp(-x))
+
+      eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
+      backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+      width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
+      total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+      pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
+      return pdf(x)
+
+
+def         
+
       
       
       
@@ -271,16 +287,7 @@ def get_trace_sd(trace, varnames):
             trace_sd.append(trace[i].std())
       return trace_sd
 
-def get_implicit_variational_posterior(var, means, std, x):
-      
-      sigmoid = lambda x : 1 / (1 + np.exp(-x))
 
-      eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
-      backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
-      width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
-      total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
-      pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
-      return pdf(x)
 
 def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, true_hyp):
       
@@ -296,7 +303,7 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
       means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
       std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
 
-      traces = pm.traceplot(trace_hmc, varnames=varnames, lines=ml_deltas_dict, combined=True, bw=1)
+      traces = pm.traceplot(trace_hmc, varnames=varnames, lines=ml_deltas, combined=True, bw=1)
       
       l_int = np.linspace(min(trace_fr['ls'])-1, max(trace_fr['ls'])+1, 1000)
       n_int = np.linspace(min(trace_fr['noise_sd'])-1, max(trace_fr['noise_sd'])+1, 1000)
@@ -322,13 +329,8 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
             traces[i][j].plot(ranges[i], get_implicit_variational_posterior(mf_rv[i], means_mf, std_mf, ranges[i]), color='coral')
             traces[i][j].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
             traces[i][j].legend(fontsize='x-small')
-
-def get_summary_hyp_table(trace_hmc, trace_mf, trace_fr):
+            
       
-      
-      
-      
-
 if __name__ == "__main__":
 
 
@@ -409,10 +411,10 @@ if __name__ == "__main__":
       
         with generative_model(X=X_20, y=y_20):
             
-            #trace_hmc_20 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_20)
+            trace_hmc_20 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_20)
             
             mf = pm.ADVI()
-            #fr = pm.FullRankADVI()
+            fr = pm.FullRankADVI()
       
             tracker_mf = pm.callbacks.Tracker(
             mean = mf.approx.mean.eval,    
@@ -422,18 +424,28 @@ if __name__ == "__main__":
             mean = fr.approx.mean.eval,    
             std = fr.approx.std.eval)
       
-            mf.fit(callbacks=[CheckParametersConvergence(), tracker_mf])
-            #fr.fit(callbacks=[tracker_fr])
+            mf.fit(n=30000, callbacks=[tracker_mf])
+            fr.fit(n=30000, callbacks=[tracker_fr])
             
             trace_mf_20 = mf.approx.sample(4000)
-            #trace_fr_20 = fr.approx.sample(4000)
+            trace_fr_20 = fr.approx.sample(4000)
           
 
-      trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
-      trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
-      trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      trace_hmc_20_df = pm.trace_to_dataframe(trace_hmc_20)
+      trace_mf_20_df = pm.trace_to_dataframe(trace_mf_20)
+      trace_fr_20_df = pm.trace_to_dataframe(trace_fr_20)
+      
       
       # Check convergence of VI - Evolution of means of variational posterior
+      # by converting tracker values 
+      
+      bij_mf = mf.approx.groups[0].bij
+      mf_param = {param.name: bij_mf.rmap(param.eval())
+	 for param in mf.approx.params}
+
+      bij_fr = fr.approx.groups[0].bij
+      fr_param = {param.name: bij_fr.rmap(param.eval())
+      	 for param in fr.approx.params}
       
       
       
