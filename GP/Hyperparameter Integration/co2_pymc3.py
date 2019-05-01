@@ -166,9 +166,38 @@ def get_empirical_covariance(trace, varnames):
       return pd.DataFrame(np.cov(df[varnames], rowvar=False), index=varnames, columns=varnames)
 
 
-def convergence_report(tracker, elbo):
+def transform_tracker_values(tracker, param_dict):
+
+      mean_df = pd.DataFrame(np.array(tracker['mean']), columns=list(param_dict['mu'].keys()))
+      sd_df = pd.DataFrame(np.array(tracker['std']), columns=list(param_dict['mu'].keys()))
+      for i in mean_df.columns:
+            print(i)
+            if (i[-2:] == '__'):
+                 mean_df[name_mapping[i]] = np.exp(raw_mapping.get(i).distribution.transform_used.backward(mean_df[i]).eval()) 
+            else:
+                mean_df[name_mapping[i]] = np.exp(mean_df[i]) 
+      return mean_df, sd_df
+                
+def convergence_report(tracker, param_dict, elbo, title):
       
       # Plot Negative ElBO track with params in true space
+      
+      mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
+      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
+
+      fig = plt.figure(figsize=(16, 9))
+      for i in np.arange(3):
+            print(i)
+#            if (np.mod(i,8) == 0):
+#                   fig = plt.figure(figsize=(16,9))
+#                   i = i + 8
+#                   print(i)
+            plt.subplot(2,4,np.mod(i, 8)+1)
+            plt.plot(mean_mf_df[varnames[i+8]], color='coral')
+            plt.plot(mean_fr_df[varnames[i+8]], color='green')
+            plt.title(varnames[i+8])
+            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
+      
       
       fig = plt.figure(figsize=(16, 9))
       mu_ax = fig.add_subplot(221)
@@ -178,8 +207,9 @@ def convergence_report(tracker, elbo):
       mu_ax.set_title('Mean track')
       std_ax.plot(tracker['std'])
       std_ax.set_title('Std track')
-      hist_ax.plot(advi.hist)
+      hist_ax.plot(elbo)
       hist_ax.set_title('Negative ELBO track');
+      fig.suptitle(title)
 
 
 # Constructing posterior predictive distribution
@@ -401,7 +431,6 @@ with pm.Model() as co2_model:
        #ls_10 = 0.1219
      
        # prior on amplitudes
-       
 
        log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
        #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
@@ -554,9 +583,6 @@ traceplots(trace_hmc, varnames, ml_deltas)
 traceplots(trace_mf, varnames, ml_deltas)
 traceplots(trace_fr, varnames, ml_deltas)
 
-# Convergence of VI
-
-
 
 # Covariance matrix
 
@@ -565,14 +591,14 @@ fr_cov = np.corrcoef(pm.trace_to_dataframe(trace_fr)[varnames], rowvar=False)
 
 fig = plt.figure(figsize=(10,6))
 ax1 = plt.subplot(121)
-ax1.matshow(hmc_cov)
+ax1.imshow(hmc_cov)
 ax1.set_xticks(np.arange(11))
 ax1.set_xticklabels(varnames, rotation=70, minor=False)
 ax1.set_yticks(np.arange(11))
 ax1.set_yticklabels(varnames, minor=False)
 ax1.set_title('HMC')
 ax2 = plt.subplot(122)
-ax2.matshow(fr_cov)
+ax2.imshow(fr_cov)
 ax2.set_xticks(np.arange(11))
 ax2.set_xticklabels(varnames, rotation=70, minor=False)
 ax2.set_yticks(np.arange(11))
@@ -595,7 +621,7 @@ lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_mea
 
 # MF
 
-sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 100, t_test, results_path, method='mf') 
+sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 200, t_test, results_path, method='mf') 
 
 sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
 sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
@@ -624,7 +650,7 @@ for i in range(0,30):
 
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=2)
-for i in range(0,30):
+for i in range(0,20):
       plt.fill_between(df['year'][sep_idx:], sample_means_mf.ix[i] - 2*sample_stds_mf.ix[i],  sample_means_mf.ix[i] + 2*sample_stds_mf.ix[i], alpha=0.3, color='grey')
       plt.plot(df['year'][sep_idx:], sample_means_mf.ix[i], color='coral', alpha=0.3)
       
@@ -645,8 +671,6 @@ lppd_hmc, lpd_hmc = log_predictive_mixture_density(y_test, sample_means_hmc, sam
 lppd_mf, lpd_mf = log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 lppd_fr, lpd_fr = log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
 
-
-
 # Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
 
 title = 'Type II ML   ' + ' RMSE: ' + str(rmse_)  + '   LPD: ' + str(lpd_) + '\n' +  ' HMC         '  + '    RMSE: ' + str(rmse_hmc) + '   LPD: ' + str(lpd_hmc) + '\n' + ' MF           ' +  '     RMSE: ' + str(rmse_mf) + '    LPD: ' + str(lpd_mf) +  '\n' + ' FR           '  +  '     RMSE: ' + str(rmse_fr)  + '    LPD: ' + str(lpd_fr) 
@@ -659,10 +683,10 @@ plt.plot(df['year'][sep_idx:], mu_hmc, alpha=1, label='HMC', color='b')
 plt.plot(df['year'][sep_idx:], mu_mf, alpha=1, label='MF', color='coral')
 plt.plot(df['year'][sep_idx:], mu_fr, alpha=1, label='FR', color='g')
 
-plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.2)
 plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.2)
-plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.5)
+plt.fill_between(df['year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.5)
+plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.3)
 plt.legend(fontsize='x-small')
 plt.title(title, fontsize='x-small')
 plt.ylim(370,420)
@@ -753,9 +777,9 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
         if np.mod(j,8) == 0:
             fig = plt.figure(figsize=(15,8))
         plt.subplot(2,4,np.mod(j, 8)+1)
-        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=0.5)
-        sns.kdeplot(trace_hmc[i[0]], trace_hmc[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.4)
-        sns.kdeplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', shade=True, bw='silverman', shade_lowest=False, alpha=1)
+        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=0.9)
+        sns.kdeplot(trace_hmc[i[0]], trace_hmc[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.8)
+        sns.kdeplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', shade=True, bw='silverman', shade_lowest=False, alpha=0.8)
         plt.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
         plt.xlabel(i[0])
         plt.ylabel(i[1])
