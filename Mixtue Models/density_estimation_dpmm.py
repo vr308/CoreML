@@ -16,6 +16,7 @@ import scipy.stats as st
 from sklearn.mixture import BayesianGaussianMixture
 from sklearn.mixture import GaussianMixture
 import pandas as pd
+import pymc3 as pm
 import scipy 
 
 N=100000
@@ -23,7 +24,7 @@ N=100000
 # Chris data 
 
 home_path = '~/Desktop/Workspace/CoreML/Mixture Models/'
-uni_path = '/home/vidhi/Desktop//Workspace/CoreML/Mixture Models/'
+uni_path = '/home/vidhi/Desktop/Workspace/CoreML/Mixture Models/'
       
 path = uni_path
 
@@ -47,11 +48,11 @@ plt.title('Raw data')
 
 plt.figure()
 plt.plot(np.log(data['x']), np.log(data['density']))
-plt.xlabel('log_x')
-plt.ylabel('log_density')
-plt.yscale('log')
+plt.xlabel('log(x)')
+plt.ylabel('log(density)')
 
 u = np.random.uniform(np.min(log_data['cdf']), 1, (N, ))
+u = np.random.uniform(np.min(data['cdf']), 1, (N, ))
 
 #Find the location 
    
@@ -64,9 +65,11 @@ for i in u:
 
 
 plt.figure()
-plt.hist(samples, bins=500, density=True, log=True, alpha=0.8)
+plt.hist(samples, bins=500, density=True, alpha=0.8, log=True)
 plt.title('Samples generated using inverse CDF', fontsize='small')
 plt.xscale('log')
+plt.xlim(0,100)
+plt.ylim(0,16)
 
 # Given 2 points of a discrete distribution, form a continuous pdf connecting the two points
 
@@ -112,45 +115,41 @@ plt.plot(x_range, y_pdf)
 plt.plot(x_range, y_cdf)
 
 
-      
+def stick_breaking(beta):
+    portion_remaining = tt.concatenate([[1], tt.extra_ops.cumprod(1 - beta)[:-1]])
+    return beta * portion_remaining
+
+K = 10
+
+with pm.Model() as model:
+    alpha = pm.Gamma('alpha', 1., 1.)
+    beta = pm.Beta('beta', 5, alpha, shape=K)
+    w = pm.Deterministic('w', stick_breaking(beta))
+    mu = pm.Uniform('mu', -2., 8., shape=K)
+    sd = pm.Uniform('sd', 0.2, 3, shape=K)
+    obs = pm.Mixture('obs', w, pm.Normal.dist(mu, sd), observed=np.array(samples[::10]))
+
+with model:
+    #trace = pm.sample(500, chains=1)
+    trace_vi =
+x_plot = np.linspace(-2, 8,1000)
+post_pdf_contribs = st.norm.pdf(np.atleast_3d(x_plot),
+                                         trace['mu'][:, np.newaxis, :], trace['sd'][:,np.newaxis,:])
+post_pdfs = (trace['w'][:, np.newaxis, :] * post_pdf_contribs).sum(axis=-1)
+post_pdf_low, post_pdf_high = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
+
+plt.figure()
+plt.plot(x_plot, post_pdfs.T, c='gray');
+plt.hist(samples[::10], bins=100, density=True)
+plt.plot(x_plot, post_pdfs.mean(axis=0),
+        c='k', label='Posterior expected density');
+plt.fill_between(x_plot, post_pdf_low, post_pdf_high,
+                 color='red', alpha=0.45)
+plt.title('Non-parametric (loc-scale) mixture of Gaussians')
+plt.ylim(0,0.7)
 
 
+plt.figure()
+plt.plot(x_plot, post_pdf_contribs[0], color='b')
+plt.plot(x_plot, post_pdf_contribs[1], color='g')
 
-
-
-
-
-
-
-
-
-
-
-
-
-#GMM
-
-estimator_gmm = mixture.GaussianMixture(n_components=5,
-                                        covariance_type='full').fit(X)
-
-
-#BGMM
-
-estimator_bgmm = BayesianGaussianMixture(n_components=5, 
-                                    covariance_type='full', 
-                                    weight_concentration_prior_type='dirichlet_distribution',
-                                    weight_concentration_prior=None,
-                                    verbose=1).fit(X)
-
-# Infinite Bayesian mixture 
-
-estimator_dpgmm = BayesianGaussianMixture(n_components=4, 
-                                    covariance_type='full', 
-                                    weight_concentration_prior_type='dirichlet_process',
-                                    weight_concentration_prior=10,
-                                    verbose=1).fit(X)
-
-x_ = np.linspace(-1,5,1000)
-plot_results(X, x_, estimator_gmm, 'GMM, Inference: EM')
-plot_results(X, x_, estimator_bgmm, 'Bayesian GMM')
-plot_results(X,x_, estimator_dpgmm, 'Dirichlet process mixture model')
