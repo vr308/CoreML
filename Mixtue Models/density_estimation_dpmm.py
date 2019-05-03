@@ -119,19 +119,32 @@ def stick_breaking(beta):
     portion_remaining = tt.concatenate([[1], tt.extra_ops.cumprod(1 - beta)[:-1]])
     return beta * portion_remaining
 
-K = 10
+K = 11
 
 with pm.Model() as model:
+    
     alpha = pm.Gamma('alpha', 1., 1.)
     beta = pm.Beta('beta', 5, alpha, shape=K)
+    
     w = pm.Deterministic('w', stick_breaking(beta))
-    mu = pm.Uniform('mu', -2., 8., shape=K)
-    sd = pm.Uniform('sd', 0.2, 3, shape=K)
+    
+    mu = pm.Uniform('mu', -2., 8., shape=K, testval=start['mu'])
+    sd = pm.Uniform('sd', 0.001, 3, shape=K, testval=start['sd'])
+    
     obs = pm.Mixture('obs', w, pm.Normal.dist(mu, sd), observed=np.array(samples[::10]))
+    
+    
+ start = {'mu': np.array([-0.2, 0, 1.2, 2.3, 4.5, -0.5, 0, 1,2,3,4]).reshape(11,), 
+          'sd': np.array([0.03, 0.03, 0.045, 0.03, 0.03, 0.25, 0.5, 0.5, 0.5, 0.5, 0.5]).reshape(11,),
+          'beta': np.array([0.0206186, 0.0421053, 0.10989, 0.0246914, 0.0506329, 0.0666667, 0.257143, 0.307692, 0.388889, 0.545455, 1.]).reshape(11,)}
 
 with model:
-    #trace = pm.sample(500, chains=1)
-    trace_vi =
+    trace = pm.sample(500, discard_tuned_samples=False, chains=1)
+
+
+
+
+
 x_plot = np.linspace(-2, 8,1000)
 post_pdf_contribs = st.norm.pdf(np.atleast_3d(x_plot),
                                          trace['mu'][:, np.newaxis, :], trace['sd'][:,np.newaxis,:])
