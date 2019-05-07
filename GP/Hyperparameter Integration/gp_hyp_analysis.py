@@ -296,12 +296,12 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_var_true = 10.0
+    sig_sd_true = 10.0
     lengthscale_true = 2.0
-    noise_var_true = 10.0
+    noise_sd_true = 10.0
     
-    hyp = [sig_var_true, lengthscale_true, noise_var_true]
-    cov = get_kernel('SE', [sig_var_true, lengthscale_true])
+    hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
+    cov = get_kernel('SE', [sig_sd_true, lengthscale_true])
     hyp_string = get_kernel_hyp_string('SE', [sig_var_true, lengthscale_true, noise_var_true])
     
     f_all = generate_gp_latent(X_all, mean, cov)

@@ -92,13 +92,13 @@ def get_ml_report(X, y, X_star, f_star):
               
           # Fit to data 
           gpr.fit(X, y)        
+          ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
           post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
-          post_std = np.sqrt(np.diag(post_cov))
+          post_std = np.sqrt(np.diag(post_cov) - ml_deltas[2])
           post_samples = np.random.multivariate_normal(post_mean, post_cov, 10)
           rmse_ = rmse(post_mean, f_star)
           lpd_ = log_predictive_density(f_star, post_mean, post_cov)
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
-          ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': ml_deltas[2], 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(ml_deltas[2]), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           #plot_lml_surface_3way(gpr, ml_deltas_dict['sig_var'], ml_deltas_dict['lengthscale'], ml_deltas_dict['noise_var'])
@@ -138,7 +138,7 @@ def rmse(post_mean, f_star):
 
 def log_predictive_density(f_star, post_mean, post_cov):
 
-      return np.round(np.sum(np.log(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))), 3)
+      return np.round(np.mean(np.log(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))), 3)
 
 def log_predictive_mixture_density(f_star, list_means, list_cov):
       
@@ -186,6 +186,7 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
             plt.plot(X[i], y[i], 'ko', markersize=2)
             plt.fill_between(X_star[i].ravel(), pred_mean[i] -1.96*pred_std[i], pred_mean[i] + 1.96*pred_std[i], color='r', alpha=0.3)
             plt.title(title[i], fontsize='small')
+            plt.ylim(-10, 10)
       plt.tight_layout()
       plt.suptitle('Type II ML')
       
@@ -264,9 +265,6 @@ def get_implicit_variational_posterior(var, means, std, x):
       pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
       return pdf(x)
 
-
-def         
-
       
       
       
@@ -340,13 +338,13 @@ if __name__ == "__main__":
       home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1-d/'
 
       
-      input_dist =  'Unif'
-      snr = 10
+      input_dist =  'NUnif'
+      snr = 1
       n_train = [10, 20, 40, 60]
       path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/Training/' 
       
       
-      true_hyp = [np.round(np.sqrt(10),3), 2, 1]
+      true_hyp = [np.round(np.sqrt(10),3), 2, np.round(np.sqrt(10),3)]
       varnames = ['sig_sd', 'ls', 'noise_sd']
       
       #----------------------------------------------------
