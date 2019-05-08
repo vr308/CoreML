@@ -221,7 +221,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.figure(figsize=(15,6))
     plt.subplot(131)
     l_log = np.logspace(-2, 3, 100)
-    noise_log  = np.logspace(-2, 2, 100)
+    noise_log  = np.logspace(-6, 2, 100)
     l_log_mesh, noise_log_mesh = np.meshgrid(l_log, noise_log)
     LML = [[gpr.log_marginal_likelihood(np.log([sig_var, l_log_mesh[i, j], noise_log_mesh[i, j]]))
             for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
@@ -259,7 +259,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.ylabel("Signal-Var")
     
     plt.subplot(133)
-    noise_log = np.logspace(-2, 3, 100)
+    noise_log = np.logspace(-6, 2, 100)
     signal_log  = np.logspace(-3, 5, 100)
     noise_log_mesh, signal_log_mesh = np.meshgrid(noise_log, signal_log)
     LML = [[gpr.log_marginal_likelihood(np.log([signal_log_mesh[i,j], lengthscale, noise_log_mesh[i,j]]))

@@ -83,12 +83,11 @@ def load_datasets(path, n_train):
     
 # Type II ML 
     
-    
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(10, (1e-10, 1e2)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(10.0, noise_level_bounds=(1e-5,100))
+          kernel = Ck(50, (1e-10, 1e3)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-2,100))
           
-          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
+          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
               
           # Fit to data 
           gpr.fit(X, y)        
@@ -97,11 +96,10 @@ def get_ml_report(X, y, X_star, f_star):
           post_std = np.sqrt(np.diag(post_cov) - ml_deltas[2])
           post_samples = np.random.multivariate_normal(post_mean, post_cov, 10)
           rmse_ = rmse(post_mean, f_star)
-          lpd_ = log_predictive_density(f_star, post_mean, post_cov)
+          lpd_ = log_predictive_density(f_star, post_mean, post_std)
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
-          ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': ml_deltas[2], 'sig_sd': np.sqrt(ml_deltas[0]), 
-                            'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(ml_deltas[2]), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
-          #plot_lml_surface_3way(gpr, ml_deltas_dict['sig_var'], ml_deltas_dict['lengthscale'], ml_deltas_dict['noise_var'])
+          ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
+                            'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           return post_mean, post_std, rmse_, lpd_, ml_deltas_dict, title
 
 # Generative model for full Bayesian treatment
@@ -110,7 +108,7 @@ def get_ml_report(X, y, X_star, f_star):
 def generative_model(X, y):
       
        # prior on lengthscale 
-       log_ls = pm.Uniform('log_ls', lower=-2, upper=2)
+       log_ls = pm.Uniform('log_ls', lower=-5, upper=5)
        ls = pm.Deterministic('ls', tt.exp(log_ls))
        
         #prior on noise variance
@@ -129,16 +127,19 @@ def generative_model(X, y):
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
                    
-  
 #--------------------Predictive performance metrics-------------------------
       
 def rmse(post_mean, f_star):
     
     return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),3)
 
-def log_predictive_density(f_star, post_mean, post_cov):
-
-      return np.round(np.mean(np.log(st.multivariate_normal.pdf(f_star, post_mean, post_cov, allow_singular=True))), 3)
+def log_predictive_density(f_star, list_means, list_stds):
+      
+      lppd_per_point = []
+      for i in np.arange(len(f_star)):
+            print(i)
+            lppd_per_point.append(st.norm.pdf(f_star[i], list_means[i], list_stds[i]))
+      return np.round(np.mean(np.log(lppd_per_point)),3)
 
 def log_predictive_mixture_density(f_star, list_means, list_cov):
       
@@ -186,15 +187,35 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
             plt.plot(X[i], y[i], 'ko', markersize=2)
             plt.fill_between(X_star[i].ravel(), pred_mean[i] -1.96*pred_std[i], pred_mean[i] + 1.96*pred_std[i], color='r', alpha=0.3)
             plt.title(title[i], fontsize='small')
-            plt.ylim(-10, 10)
+            plt.ylim(-25, 25)
       plt.tight_layout()
       plt.suptitle('Type II ML')
       
+
 
       plt.figure()
       plt.plot(n_train, [rmse_ml_10, rmse_ml_20, rmse_ml_40, rmse_ml_60])
       plt.xlabel('N train')
       plt.ylabel('RMSE')
+      
+
+def plot_hyp_convergence(tracks, n_train, true_hyp):
+      
+      plt.figure(figsize=(10,6))
+      
+      plt.subplot(131)
+      plt.axhline(true_hyp[0], color='r', label=r'$\sigma_{f}^{2}$')
+      plt.plot(n_train, tracks['sig_sd_track'], 'ro-')
+
+      plt.subplot(132)
+      plt.axhline(true_hyp[1], color='b', label=r'$\gamma$')
+      plt.plot(n_train, tracks['ls_track'], 'bo-')
+
+      
+      plt.subplot(133)
+      plt.plot(n_train, tracks['noise_sd_track'], 'go-')
+      plt.axhline(true_hyp[2], color='g', label=r'$\sigma_{n}^{2}$')
+
       
 #  PairGrid plot  - bivariate relationships
       
@@ -266,9 +287,6 @@ def get_implicit_variational_posterior(var, means, std, x):
       return pdf(x)
 
       
-      
-      
-
 #-----------------Trace post-processing & analysis ------------------------------------
 
 def get_trace_means(trace, varnames):
@@ -334,17 +352,17 @@ if __name__ == "__main__":
 
       # Loading data
       
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1-d/'
-      home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1-d/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
+      home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
 
       
-      input_dist =  'NUnif'
-      snr = 1
-      n_train = [10, 20, 40, 60]
-      path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/Training/' 
+      input_dist =  'Unif'
+      snr = 2
+      n_train = [5, 10, 20, 40]
+      path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/'
       
       
-      true_hyp = [np.round(np.sqrt(10),3), 2, np.round(np.sqrt(10),3)]
+      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(50),3)]
       varnames = ['sig_sd', 'ls', 'noise_sd']
       
       #----------------------------------------------------
@@ -353,36 +371,62 @@ if __name__ == "__main__":
       
       # Type II ML
       
+      X_5, y_5, X_star_5, f_star_5 = load_datasets(path, 5)
       X_10, y_10, X_star_10, f_star_10 = load_datasets(path, 10)
       X_20, y_20, X_star_20, f_star_20 = load_datasets(path, 20)
       X_40, y_40, X_star_40, f_star_40 = load_datasets(path, 40)
-      X_60, y_60, X_star_60, f_star_60 = load_datasets(path, 60)
       
-      X = [X_10, X_20, X_40, X_60]
-      y = [y_10, y_20, y_40, y_60]
-      X_star = [X_star_10, X_star_20, X_star_40, X_star_60]
-      f_star = [f_star_10, f_star_20, f_star_40, f_star_60] 
+      X = [X_5, X_10, X_20, X_40]
+      y = [y_5, y_10, y_20, y_40]
+      X_star = [X_star_5, X_star_10, X_star_20, X_star_40]
+      f_star = [f_star_5, f_star_10, f_star_20, f_star_40] 
       
       # Collecting ML stats for 1 generative model
       
+      pp_mean_ml_5, pp_std_ml_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
       pp_mean_ml_10, pp_std_ml_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
       pp_mean_ml_20, pp_std_ml_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
       pp_mean_ml_40, pp_std_ml_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
-      pp_mean_ml_60, pp_std_ml_60, rmse_ml_60, lpd_ml_60, ml_deltas_dict_60, title_60 =  get_ml_report(X_60, y_60, X_star_60, f_star_60)
+     
 
-      title = [title_10, title_20, title_40, title_60]
-      pred_mean = [pp_mean_ml_10, pp_mean_ml_20, pp_mean_ml_40, pp_mean_ml_60] 
-      pred_std = [pp_std_ml_10, pp_std_ml_20, pp_std_ml_40, pp_std_ml_60]
+      # Collecting means and stds in a list for plotting
+
+      title = [ title_5, title_10, title_20, title_40]
+      pred_mean = [pp_mean_ml_5, pp_mean_ml_10, pp_mean_ml_20, pp_mean_ml_40] 
+      pred_std = [pp_std_ml_5, pp_std_ml_10, pp_std_ml_20, pp_std_ml_40]
+      rmse_track = [rmse_ml_5, rmse_ml_10, rmse_ml_20, rmse_ml_40]
+      lpd_track = [-lpd_ml_5, -lpd_ml_10, -lpd_ml_20, -lpd_ml_40]
+      
+      # Collecting hyp tracks for plotting
+      
+      sig_sd_track = [ml_deltas_dict_5['sig_sd'], ml_deltas_dict_10['sig_sd'], ml_deltas_dict_20['sig_sd'], ml_deltas_dict_40['sig_sd']]
+      noise_sd_track = [ml_deltas_dict_5['noise_sd'], ml_deltas_dict_10['noise_sd'], ml_deltas_dict_20['noise_sd'], ml_deltas_dict_40['noise_sd']]
+      ls_track = [ml_deltas_dict_5['ls'], ml_deltas_dict_10['ls'], ml_deltas_dict_20['ls'], ml_deltas_dict_40['ls']]
+      
+      tracks = {}
+      tracks.update({'sig_sd_track': sig_sd_track})
+      tracks.update({'noise_sd_track': noise_sd_track})
+      tracks.update({'ls_track': ls_track})
+      
+      # Collecting metrics for plotting 
+      
+      
+      # Convergence to hyp 
+      
+       plot_hyp_convergence(tracks, n_train, true_hyp)
 
       # ML Report
       
       plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title)
-       
+      
+
       # Full Bayesian HMC / MFVB / FR
+      
+      
       
       with generative_model(X=X_10, y=y_10):
             
-            trace_hmc_10 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_10)
+            #trace_hmc_10 = pm.sample(draws=1000, tune=3000)
             
             mf = pm.ADVI()
             fr = pm.FullRankADVI()
@@ -395,16 +439,29 @@ if __name__ == "__main__":
             mean = fr.approx.mean.eval,    
             std = fr.approx.std.eval)
       
-            mf.fit(callbacks=[tracker_mf])
-            fr.fit(callbacks=[tracker_fr])
+            mf.fit(callbacks=[tracker_mf], n=25000)
+            fr.fit(callbacks=[tracker_fr], n=25000)
             
-            trace_mf_10 = mf.approx.sample(10000)
-            trace_fr_10 = fr.approx.sample(10000)
+            trace_mf_10 = mf.approx.sample(2000)
+            trace_fr_10 = fr.approx.sample(2000)
           
 
       trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
       trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
       trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      
+      fig = plt.figure(figsize=(16, 9))
+      mu_ax = fig.add_subplot(221)
+      std_ax = fig.add_subplot(222)
+      hist_ax = fig.add_subplot(212)
+      mu_ax.plot(tracker_mf['mean'])
+      mu_ax.set_title('Mean track')
+      std_ax.plot(tracker_mf['std'])
+      std_ax.set_title('Std track')
+      hist_ax.plot(mf.hist)
+      hist_ax.set_title('Negative ELBO track');
+      fig.suptitle(title)
+
       
       
         with generative_model(X=X_20, y=y_20):
