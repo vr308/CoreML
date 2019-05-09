@@ -23,51 +23,6 @@ import scipy.stats as st
 import warnings
 warnings.filterwarnings("ignore")
 
-
-#------------------------Data Generation----------------------------------------------------------
-
-def generate_gp_latent(X_star, mean, cov):
-    
-    return np.random.multivariate_normal(mean(X_star).eval(), cov=cov(X_star, X_star).eval())
-
-def generate_gp_training(X_all, f_all, n_train, noise_var, uniform):
-    
-    if uniform == True:
-         X = np.random.choice(X_all.ravel(), n_train, replace=False)
-    else:
-         pdf = 0.5*st.norm.pdf(X_all, 2, 0.7) + 0.5*st.norm.pdf(X_all, 15.0,1)
-         prob = pdf/np.sum(pdf)
-         X = np.random.choice(X_all.ravel(), n_train, replace=False,  p=prob.ravel())
-     
-    train_index = []
-    for i in X:
-          train_index.append(X_all.ravel().tolist().index(i))
-    test_index = [i for i in np.arange(len(X_all)) if i not in train_index]
-    X = X_all[train_index]
-    f = f_all[train_index]
-    X_star = X_all[test_index]
-    f_star = f_all[test_index]
-    y = f + np.random.normal(0, scale=np.sqrt(noise_var), size=n_train)
-    return X, y, X_star, f_star, f
-
-def generate_fixed_domain_training_sets(X_all, f_all, noise_var, uniform, seq_n_train):
-      
-      data_sets = {}
-      for i in seq_n_train:
-            X, y, X_star, f_star, f = generate_gp_training(X_all, f_all, i, noise_var, uniform)
-            data_sets.update({'X_' + str(i): X})
-            data_sets.update({'y_' + str(i): y})
-            data_sets.update({'X_star_' + str(i): X_star})
-            data_sets.update({'f_star_' + str(i): f_star})
-      return data_sets
-            
-def persist_datasets(X, y, X_star, f_star, path, suffix):
-      
-     X.tofile(path + 'X' + suffix + '.csv', sep=',')
-     X_star.tofile(path + 'X_star' + suffix + '.csv', sep=',')
-     y.tofile(path + 'y' +  suffix + '.csv', sep=',')
-     f_star.tofile(path + 'f_star' + suffix + '.csv', sep=',')
-
 #----------------------------Loading persisted data----------------------------
 
 def load_datasets(path, n_train):
@@ -85,7 +40,7 @@ def load_datasets(path, n_train):
     
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(50, (1e-10, 1e3)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-2,100))
+          kernel = Ck(50, (1e-10, 1e3)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-1,100))
           
           gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
               
@@ -94,7 +49,7 @@ def get_ml_report(X, y, X_star, f_star):
           ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
           post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
           post_std = np.sqrt(np.diag(post_cov) - ml_deltas[2])
-          post_samples = np.random.multivariate_normal(post_mean, post_cov, 10)
+          post_samples = np.random.multivariate_normal(post_mean, post_cov , 10)
           rmse_ = rmse(post_mean, f_star)
           lpd_ = log_predictive_density(f_star, post_mean, post_std)
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
@@ -133,12 +88,12 @@ def rmse(post_mean, f_star):
     
     return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),3)
 
-def log_predictive_density(f_star, list_means, list_stds):
+def log_predictive_density(f_star, post_mean, post_std):
       
       lppd_per_point = []
       for i in np.arange(len(f_star)):
-            print(i)
-            lppd_per_point.append(st.norm.pdf(f_star[i], list_means[i], list_stds[i]))
+            lppd_per_point.append(st.norm.pdf(f_star[i], post_mean[i], post_std[i]))
+      #lppd_per_point.remove(0.0)
       return np.round(np.mean(np.log(lppd_per_point)),3)
 
 def log_predictive_mixture_density(f_star, list_means, list_cov):
@@ -189,15 +144,7 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title):
             plt.title(title[i], fontsize='small')
             plt.ylim(-25, 25)
       plt.tight_layout()
-      plt.suptitle('Type II ML')
-      
-
-
-      plt.figure()
-      plt.plot(n_train, [rmse_ml_10, rmse_ml_20, rmse_ml_40, rmse_ml_60])
-      plt.xlabel('N train')
-      plt.ylabel('RMSE')
-      
+      plt.suptitle('Type II ML')      
 
 def plot_hyp_convergence(tracks, n_train, true_hyp):
       
@@ -219,22 +166,25 @@ def plot_hyp_convergence(tracks, n_train, true_hyp):
       
 #  PairGrid plot  - bivariate relationships
       
-def pair_grid_plot(trace_df, ml_deltas, color):
+def pair_grid_plot(trace_df, ml_deltas, true_hyp_dict, color, title, varnames):
 
-      g = sns.PairGrid(trace_df, vars=['log_s','log_n', 'log_ls'], diag_sharey=False)
-      g = g.map_lower(plot_bi_kde, ml_deltas=ml_deltas, color=color)
+      g = sns.PairGrid(trace_df, vars=varnames, diag_sharey=False)
+      g = g.map_lower(plot_bi_kde, ml_deltas=ml_deltas,true_hyp_dict=true_hyp_dict, color=color)
       g = g.map_diag(plot_hist, color=color)
       g = g.map_upper(plot_scatter, ml_deltas=ml_deltas, color=color)
       
       g.axes[0,0].axvline(ml_deltas[g.x_vars[0]], color='r')
       g.axes[1,1].axvline(ml_deltas[g.x_vars[1]], color='r')
       g.axes[2,2].axvline(ml_deltas[g.x_vars[2]], color='r')
-
       
-def plot_bi_kde(x,y, ml_deltas, color, label):
+      plt.suptitle(title, fontsize='small')
+
+def plot_bi_kde(x,y, ml_deltas,true_hyp_dict, color, label):
       
       sns.kdeplot(x, y, n_levels=20, color=color, shade=True, shade_lowest=False)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
+      plt.axvline(true_hyp_dict[x.name], color='k', alpha=0.5)
+      plt.axhline(true_hyp_dict[y.name], color='k', alpha=0.5)
       
 def plot_hist(x, color, label):
       
@@ -245,6 +195,30 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(x, y, c=color, s=0.5, alpha=0.7)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
+      
+def plot_autocorrelation(trace_hmc, varnames, title):
+      
+      pm.autocorrplot(trace_hmc, varnames=varnames)
+      plt.suptitle(title, fontsize='small')
+      
+
+# Marginal
+
+def plot_simple_traceplot(trace, varnames, ml_deltas, log, title):
+      
+      traces = pm.traceplot(trace, varnames=varnames, lines=ml_deltas, combined=True)
+      
+      for i in np.arange(3):
+           
+            delta = ml_deltas.get(str(varnames[i]))
+            traces[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces[i][0].hist(trace[varnames[i]], bins=100, density=True, color='b', alpha=0.3)
+            traces[i][1].axhline(y=delta, color='r', alpha=0.5) 
+            traces[i][0].legend(fontsize='x-small')
+            if log:
+                 traces[i][0].axes.set_xscale('log')
+      plt.suptitle(title, fontsize='small')
+
 
 def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
@@ -272,7 +246,6 @@ def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
             #traces_part1[i][0].axes.set_ylim(0, 0.005)
             traces[i][0].legend(fontsize='x-small')
             
-
 # Variational approximation
             
 def get_implicit_variational_posterior(var, means, std, x):
@@ -349,21 +322,25 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
       
 if __name__ == "__main__":
 
-
       # Loading data
       
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
       home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
 
+      # Edit here to change generative model
       
       input_dist =  'Unif'
       snr = 2
       n_train = [5, 10, 20, 40]
-      path = uni_path + input_dist + '/' + 'SNR_' + str(snr) + '/'
-      
-      
+      suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
       true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(50),3)]
+
+      data_path = uni_path + suffix
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
+      
+      true_hyp_dict = {'sig_sd': true_hyp[0], 'ls': true_hyp[1] , 'noise_sd': true_hyp[2], 'log_s': np.log(true_hyp[0]),  'log_ls':np.log(true_hyp[1]) , 'log_n':np.log(true_hyp[2])}
       varnames = ['sig_sd', 'ls', 'noise_sd']
+      log_varnames = ['log_s', 'log_ls', 'log_n']
       
       #----------------------------------------------------
       # Joint Analysis
@@ -371,10 +348,10 @@ if __name__ == "__main__":
       
       # Type II ML
       
-      X_5, y_5, X_star_5, f_star_5 = load_datasets(path, 5)
-      X_10, y_10, X_star_10, f_star_10 = load_datasets(path, 10)
-      X_20, y_20, X_star_20, f_star_20 = load_datasets(path, 20)
-      X_40, y_40, X_star_40, f_star_40 = load_datasets(path, 40)
+      X_5, y_5, X_star_5, f_star_5 = load_datasets(data_path, 5)
+      X_10, y_10, X_star_10, f_star_10 = load_datasets(data_path, 10)
+      X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20)
+      X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40)
       
       X = [X_5, X_10, X_20, X_40]
       y = [y_5, y_10, y_20, y_40]
@@ -407,28 +384,117 @@ if __name__ == "__main__":
       tracks.update({'sig_sd_track': sig_sd_track})
       tracks.update({'noise_sd_track': noise_sd_track})
       tracks.update({'ls_track': ls_track})
-      
-      # Collecting metrics for plotting 
-      
-      
+            
       # Convergence to hyp 
       
        plot_hyp_convergence(tracks, n_train, true_hyp)
 
       # ML Report
       
-      plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title)
+       plot_gp_ml_II_joint(X, y, X_star, pred_mean, pred_std, title)
       
 
-      # Full Bayesian HMC / MFVB / FR
+      #-----------------------------Full Bayesian HMC--------------------------------------- 
+            
+      # Generating traces with NUTS
       
+      with generative_model(X=X_5, y=y_5): trace_hmc_5 = pm.sample(draws=1000, tune=2000)
+      with generative_model(X=X_10, y=y_10): trace_hmc_10 = pm.sample(draws=1000, tune=2000)
+      with generative_model(X=X_20, y=y_20): trace_hmc_20 = pm.sample(draws=1000, tune=2000)
+      with generative_model(X=X_40, y=y_40): trace_hmc_40 = pm.sample(draws=1000, tune=2000)
+
+      trace_hmc_5_df = pm.trace_to_dataframe(trace_hmc_5)
+      trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
+      trace_hmc_20_df = pm.trace_to_dataframe(trace_hmc_20)
+      trace_hmc_40_df = pm.trace_to_dataframe(trace_hmc_40)
+
+      # Traceplot Marginals
+       
+       title_b_5 = input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(5)
+       title_b_10 =  input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(10)
+       title_b_20 = input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(20)
+       title_b_40 = input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(40)
+       
+       plot_simple_traceplot(trace_hmc_5, varnames, ml_deltas_dict_5, log=True, title = title_b_5)
+       plot_simple_traceplot(trace_hmc_10, varnames, ml_deltas_dict_10, log=True, title = title_b_10)
+       plot_simple_traceplot(trace_hmc_20, varnames, ml_deltas_dict_20, log=True, title = title_b_20)
+       plot_simple_traceplot(trace_hmc_40, varnames, ml_deltas_dict_40, log=True, title = title_b_40)
+       
+       # Autocorrelation plots
+       
+       plot_autocorrelation(trace_hmc_5, varnames, title_b_5)
+       plot_autocorrelation(trace_hmc_10, varnames, title_b_10)
+       plot_autocorrelation(trace_hmc_20, varnames, title_b_20)
+       plot_autocorrelation(trace_hmc_40, varnames, title_b_40)
+       
+       # Sampler stats
+       
+       summary_df_5 = pm.summary(trace_hmc_5)
+       summary_df_10 = pm.summary(trace_hmc_10) 
+       summary_df_20 = pm.summary(trace_hmc_20)
+       summary_df_40 = pm.summary(trace_hmc_40)
+       
+       summary_df_5.to_csv(results_path + 'summary_hmc_5.csv', sep=',')
+       summary_df_10.to_csv(results_path + 'summary_hmc_10.csv', sep=',')
+       summary_df_20.to_csv(results_path + 'summary_hmc_20.csv', sep=',')
+       summary_df_40.to_csv(results_path + 'summary_hmc_40.csv', sep=',')
+
+       # Pair-Grid report
+      
+       pair_grid_plot(trace_hmc_5_df, ml_deltas_dict_5,  true_hyp_dict, 'b', title_b_5, varnames)
+       pair_grid_plot(trace_hmc_10_df, ml_deltas_dict_10, true_hyp_dict, 'b', title_b_10, varnames)
+       pair_grid_plot(trace_hmc_20_df, ml_deltas_dict_20, true_hyp_dict, 'b', title_b_20, varnames)
+       pair_grid_plot(trace_hmc_40_df, ml_deltas_dict_40, true_hyp_dict, 'b', title_b_40, varnames)
+       
+       pair_grid_plot(trace_hmc_5_df, ml_deltas_dict_5, true_hyp_dict, 'b', title_b_5, log_varnames)
+       pair_grid_plot(trace_hmc_10_df, ml_deltas_dict_10,true_hyp_dict, 'b', title_b_10, log_varnames)
+       pair_grid_plot(trace_hmc_20_df, ml_deltas_dict_20, true_hyp_dict, 'b', title_b_20, log_varnames)
+       pair_grid_plot(trace_hmc_40_df, ml_deltas_dict_40, true_hyp_dict, 'b', title_b_40, log_varnames)
+
+       # Persist traces
+       
+      with generative_model(X=X_5, y=y_5): trace_hmc_5 = pm.save_trace(trace_hmc_5, directory = results_path + 'traces_hmc/x_5/')
+      with generative_model(X=X_10, y=y_10): trace_hmc_10 = pm.save_trace(trace_hmc_10, directory = results_path + 'traces_hmc/x_10/')
+      with generative_model(X=X_20, y=y_20): trace_hmc_20 = pm.save_trace(trace_hmc_20, directory = results_path + 'traces_hmc/x_20/')
+      with generative_model(X=X_40, y=y_40): trace_hmc_40 = pm.save_trace(trace_hmc_40, directory = results_path + 'traces_hmc/x_40/')
+       
+       # Predictions
+       
+       
+            
+            
+
+            
+            
+            l = {'log_ls', 'log_n', 'log_s'}
+            {key: ml_deltas_dict_5[key] for key in ml_deltas_dict_5.keys() & l}
+            
+            mf = pm.ADVI(start = )
+            fr = pm.FullRankADVI(start = )
+      
+            tracker_mf = pm.callbacks.Tracker(
+            mean = mf.approx.mean.eval,    
+            std = mf.approx.std.eval)
+            
+            tracker_fr = pm.callbacks.Tracker(
+            mean = fr.approx.mean.eval,    
+            std = fr.approx.std.eval)
+      
+            mf.fit(callbacks=[tracker_mf], n=25000)
+            fr.fit(callbacks=[tracker_fr], n=25000)
+            
+            trace_mf_10 = mf.approx.sample(2000)
+            trace_fr_10 = fr.approx.sample(2000)
+          
+
+      trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
+      trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
       
       
       with generative_model(X=X_10, y=y_10):
             
-            #trace_hmc_10 = pm.sample(draws=1000, tune=3000)
             
-            mf = pm.ADVI()
+            mf = pm.ADVI(start=)
             fr = pm.FullRankADVI()
       
             tracker_mf = pm.callbacks.Tracker(
@@ -446,9 +512,10 @@ if __name__ == "__main__":
             trace_fr_10 = fr.approx.sample(2000)
           
 
-      trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
       trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
       trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      
+      
       
       fig = plt.figure(figsize=(16, 9))
       mu_ax = fig.add_subplot(221)
@@ -465,9 +532,7 @@ if __name__ == "__main__":
       
       
         with generative_model(X=X_20, y=y_20):
-            
-            trace_hmc_20 = pm.sample(draws=700, tune=500, nuts_kwargs={'target_accept':0.65}, start=ml_deltas_dict_20)
-            
+                        
             mf = pm.ADVI()
             fr = pm.FullRankADVI()
       

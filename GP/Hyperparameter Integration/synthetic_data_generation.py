@@ -157,5 +157,9 @@ if __name__ == "__main__":
           persist_datasets(X, y, X_star, f_star, path, suffix)
 
 
+      # Persist the f_all and X_all
+      
+      X_all.tofile('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/X_all.csv', sep=',')
+      f_all.tofile('/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/f_all.csv', sep=',')
     
     
