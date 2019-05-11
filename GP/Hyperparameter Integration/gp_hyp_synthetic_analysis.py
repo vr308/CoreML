@@ -51,10 +51,10 @@ def get_ml_report(X, y, X_star, f_star):
           gpr.fit(X, y)        
           ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
           post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
-          post_std = np.sqrt(np.diag(post_cov) - ml_deltas[2])
+          post_std = np.sqrt(np.diag(post_cov))
           post_samples = np.random.multivariate_normal(post_mean, post_cov , 10)
           rmse_ = rmse(post_mean, f_star)
-          lpd_ = log_predictive_density(f_star, post_mean, post_std)
+          lpd_ = -log_predictive_density(f_star, post_mean, post_std)
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_)     
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
@@ -155,33 +155,38 @@ def log_predictive_mixture_density(f_star, list_means, list_std):
 
 #--------------Predictions------------------------------------
       
+def compute_log_marginal_likelihood(K_noise, y):
+      
+      return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
+      
 def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
       
       means_file = path + 'means_' + method + '_' + str(len(X)) + '.csv'
       std_file = path + 'std_' + method + '_' + str(len(X)) + '.csv'
+      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
     
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
+      trace_writer = csv.writer(open(trace_file, 'w'))
       
       means_writer.writerow(X_star.flatten())
       std_writer.writerow(X_star.flatten())
+      trace_writer.writerow(varnames + ['lml'])
       
       for i in np.arange(len(trace))[::thin_factor]:
             
             print('Predicting ' + str(i))
             K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
             post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
             #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
             #std = np.sqrt(var)
+            list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
             
             print('Writing out ' + str(i) + ' predictions')
             means_writer.writerow(np.round(post_mean, 3))
             std_writer.writerow(np.round(post_std, 3))
-
-      print('Pausing for 10 seconds')
-      time.sleep(20.0)    # pause
-      print('Finished Writing')
-      
+            trace_writer.writerow(np.round(list_point, 3))
 
 def load_post_samples(means_file, std_file):
       
@@ -214,7 +219,7 @@ def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
     plt.legend(fontsize='x-small')
     plt.title(title, fontsize='x-small')
     
-def plot_gp_ml_II_joint(X, y, X_star, pred_mean_ml, pred_std_ml, titles_ml):
+def plot_gp_ml_II_joint(X, y, X_star, pred_mean_ml, pred_std_ml, titles_ml, suptitle):
       
       plt.figure(figsize=(20,5))
       
@@ -224,12 +229,13 @@ def plot_gp_ml_II_joint(X, y, X_star, pred_mean_ml, pred_std_ml, titles_ml):
             plt.plot(X_star[i], f_star[i], 'k', linestyle='dashed')
             plt.plot(X[i], y[i], 'ko', markersize=2)
             plt.fill_between(X_star[i].ravel(), pred_mean_ml[i] -1.96*pred_std_ml[i], pred_mean_ml[i] + 1.96*pred_std_ml[i], color='r', alpha=0.3)
-            plt.title(titles_ml[i], fontsize='small')
-            plt.ylim(-25, 25)
+            plt.title(titles_ml[i], fontsize='x-small')
+            plt.ylim(-30, 30)
+      plt.suptitle('Type II ML' + '\n' + suptitle, fontsize='small') 
       plt.tight_layout()
-      plt.suptitle('Type II ML')    
+
       
-def plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, titles_hmc):
+def plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, suptitle):
       
       plt.figure(figsize=(20,5))
       
@@ -239,10 +245,9 @@ def plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, titles_
             plt.plot(X_star[i], f_star[i], 'k', linestyle='dashed')
             plt.plot(X[i], y[i], 'ko', markersize=2)
             plt.fill_between(X_star[i].ravel(), lower_hmc[i], upper_hmc[i], color='b', alpha=0.3)
-            plt.title(titles_hmc[i], fontsize='small')
-            plt.ylim(-25, 25)
+            plt.ylim(-30, 30)
       plt.tight_layout()
-      plt.suptitle('HMC')    
+      plt.suptitle('HMC' '\n' + suptitle, fontsize='small')    
 
 def plot_hyp_convergence(tracks, n_train, true_hyp):
       
@@ -279,14 +284,14 @@ def pair_grid_plot(trace_df, ml_deltas, true_hyp_dict, color, title, varnames):
 
 def plot_bi_kde(x,y, ml_deltas,true_hyp_dict, color, label):
       
-      sns.kdeplot(x, y, n_levels=20, color=color, shade=True, shade_lowest=False)
+      sns.kdeplot(x, y, n_levels=20, color=color, shade=True, shade_lowest=False, bw=0.5)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       plt.axvline(true_hyp_dict[x.name], color='k', alpha=0.5)
       plt.axhline(true_hyp_dict[y.name], color='k', alpha=0.5)
       
 def plot_hist(x, color, label):
       
-      sns.distplot(x, bins=100, color=color, kde=True)
+      sns.distplot(x, bins=100, color=color, kde=False)
 
 def plot_scatter(x, y, ml_deltas, color, label):
       
@@ -302,35 +307,38 @@ def plot_autocorrelation(trace_hmc, varnames, title):
 
 # Marginal
 
-def plot_simple_traceplot(trace, varnames, ml_deltas, log, title):
+def plot_simple_traceplot(trace, varnames, ml_deltas, true_hyp_dict, log, title):
       
       traces = pm.traceplot(trace, varnames=varnames, lines=ml_deltas, combined=True)
       
       for i in np.arange(3):
            
             delta = ml_deltas.get(str(varnames[i]))
+            true = true_hyp_dict.get(str(varnames[i]))
             traces[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces[i][0].axvline(x=true, color='k', linestyle='dashed', alpha=0.8, label='True ' + str(np.round(true, 2)))
             traces[i][0].hist(trace[varnames[i]], bins=100, density=True, color='b', alpha=0.3)
             traces[i][1].axhline(y=delta, color='r', alpha=0.5) 
+            traces[i][1].axhline(y=true, color='k', linestyle='dashed', alpha=0.9) 
             traces[i][0].legend(fontsize='x-small')
             if log:
                  traces[i][0].axes.set_xscale('log')
       plt.suptitle(title, fontsize='small')
 
-def span_report(X, y, X_star, f_star, mean_spans_hmc, std_spans_hmc):
+def plot_spans_hmc(X, y, X_star, f_star, mean_spans_hmc, lower_hmc, upper_hmc, suffix_t):
       
       plt.figure(figsize=(20,5))
       
       for i in [0,1,2,3]:
             plt.subplot(1,4,i+1)
-            plt.plot(X_star[i], mean_spans_hmc[i].T, color='b', alpha=0.2)
+            plt.plot(X_star[i], mean_spans_hmc[i].T, color='dodgerblue', alpha=0.2)
+            plt.plot(X_star[i], np.mean(mean_spans_hmc[i]), color='b')
             plt.plot(X_star[i], f_star[i], 'k', linestyle='dashed')
             plt.plot(X[i], y[i], 'ko', markersize=4)
             plt.fill_between(X_star[i].ravel(), lower_hmc[i], upper_hmc[i] , color='grey', alpha=0.2)
-            plt.ylim(-25, 25)
-      plt.suptitle('HMC Span ' + suffix, fontsize='small')   
+            plt.ylim(-30, 30)
+      plt.suptitle('HMC Span ' + '\n' + suffix_t, fontsize='small')   
       plt.tight_layout()
-      
       
 def traceplot_compare(model, trace_hmc, trace_mf, trace_fr, varnames, deltas):
 
@@ -446,6 +454,8 @@ if __name__ == "__main__":
       n_train = [5, 10, 20, 40]
       suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
       true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(50),3)]
+      
+      suffix_t = 'SNR = ' + str(snr) + ', ' + input_dist
 
       data_path = uni_path + suffix
       results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
@@ -484,7 +494,7 @@ if __name__ == "__main__":
       pred_mean_ml = [pp_mean_ml_5, pp_mean_ml_10, pp_mean_ml_20, pp_mean_ml_40] 
       pred_std_ml = [pp_std_ml_5, pp_std_ml_10, pp_std_ml_20, pp_std_ml_40]
       rmse_track_ml = [rmse_ml_5, rmse_ml_10, rmse_ml_20, rmse_ml_40]
-      lpd_track_ml = [-lpd_ml_5, -lpd_ml_10, -lpd_ml_20, -lpd_ml_40]
+      lpd_track_ml = [lpd_ml_5, lpd_ml_10, lpd_ml_20, lpd_ml_40]
       
       # Collecting hyp tracks for plotting
       
@@ -499,21 +509,26 @@ if __name__ == "__main__":
             
       # Convergence to hyp 
       
-       plot_hyp_convergence(tracks, n_train, true_hyp)
+      plot_hyp_convergence(tracks, n_train, true_hyp)
 
       # ML Report
       
-       plot_gp_ml_II_joint(X, y, X_star, pred_mean_ml, pred_std_ml, titles_ml)
+       plot_gp_ml_II_joint(X, y, X_star, pred_mean_ml, pred_std_ml, titles_ml, suffix_t)
       
 
       #-----------------------------Full Bayesian HMC--------------------------------------- 
             
       # Generating traces with NUTS
       
-      with generative_model(X=X_5, y=y_5): trace_hmc_5 = pm.sample(draws=1000, tune=2000)
+      with generative_model(X=X_5, y=y_5): trace_hmc_5 = pm.sample(draws=1000, tune=4000)
       with generative_model(X=X_10, y=y_10): trace_hmc_10 = pm.sample(draws=1000, tune=2000)
       with generative_model(X=X_20, y=y_20): trace_hmc_20 = pm.sample(draws=1000, tune=2000)
       with generative_model(X=X_40, y=y_40): trace_hmc_40 = pm.sample(draws=1000, tune=2000)
+      
+      trace_hmc_5 = pm.load_trace(results_path + 'traces_hmc/x_5/', model=generative_model(X=X_5, y=y_5))
+      trace_hmc_10 = pm.load_trace(results_path + 'traces_hmc/x_10/', model=generative_model(X=X_10, y=y_10))
+      trace_hmc_20 = pm.load_trace(results_path + 'traces_hmc/x_20/', model=generative_model(X=X_20, y=y_20))
+      trace_hmc_40 = pm.load_trace(results_path + 'traces_hmc/x_40/', model=generative_model(X=X_40, y=y_40))
 
       trace_hmc_5_df = pm.trace_to_dataframe(trace_hmc_5)
       trace_hmc_10_df = pm.trace_to_dataframe(trace_hmc_10)
@@ -527,10 +542,11 @@ if __name__ == "__main__":
        title_b_20 = input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(20)
        title_b_40 = input_dist +  ',  SNR: ' + str(snr) + ', N: ' + str(40)
        
-       plot_simple_traceplot(trace_hmc_5, varnames, ml_deltas_dict_5, log=True, title = title_b_5)
-       plot_simple_traceplot(trace_hmc_10, varnames, ml_deltas_dict_10, log=True, title = title_b_10)
-       plot_simple_traceplot(trace_hmc_20, varnames, ml_deltas_dict_20, log=True, title = title_b_20)
-       plot_simple_traceplot(trace_hmc_40, varnames, ml_deltas_dict_40, log=True, title = title_b_40)
+       plot_simple_traceplot(trace_hmc_5, varnames, ml_deltas_dict_5, true_hyp_dict, log=True, title = title_b_5)
+       plot_simple_traceplot(trace_hmc_10, varnames, ml_deltas_dict_10, true_hyp_dict, log=True, title = title_b_10)
+       plot_simple_traceplot(trace_hmc_20, varnames, ml_deltas_dict_20,true_hyp_dict, log=True, title = title_b_20)
+       plot_simple_traceplot(trace_hmc_40, varnames, ml_deltas_dict_40, true_hyp_dict, log=True, title = title_b_40)
+       
        
        # Autocorrelation plots
        
@@ -570,15 +586,10 @@ if __name__ == "__main__":
       with generative_model(X=X_20, y=y_20):  pm.save_trace(trace_hmc_20, directory = results_path + 'traces_hmc/x_20/')
       with generative_model(X=X_40, y=y_40):  pm.save_trace(trace_hmc_40, directory = results_path + 'traces_hmc/x_40/')
       
-      trace_hmc_5 = pm.load_trace(results_path + 'traces_hmc/x_5/', model=generative_model(X=X_5, y=y_5))
-      trace_hmc_10 = pm.load_trace(results_path + 'traces_hmc/x_10/', model=generative_model(X=X_10, y=y_10))
-      trace_hmc_20 = pm.load_trace(results_path + 'traces_hmc/x_20/', model=generative_model(X=X_20, y=y_20))
-      trace_hmc_40 = pm.load_trace(results_path + 'traces_hmc/x_40/', model=generative_model(X=X_40, y=y_40))
-       
        # Predictive means and stds - generate them 
        
-       write_posterior_predictive_samples(trace_hmc_5, 10, X_5, y_5, X_star_5, results_path, 'hmc')
-       write_posterior_predictive_samples(trace_hmc_10, 10, X_10, y_10,  X_star_10, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_5, 40, X_5, y_5, X_star_5, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_10, 25, X_10, y_10,  X_star_10, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_20, 10, X_20, y_20,  X_star_20, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_40, 10, X_40, y_40, X_star_40, results_path, 'hmc') 
        
@@ -587,7 +598,6 @@ if __name__ == "__main__":
        post_means_hmc_20, post_stds_hmc_20 = load_post_samples(results_path + 'means_hmc_20.csv', results_path + 'std_hmc_20.csv')
        post_means_hmc_40, post_stds_hmc_40 = load_post_samples(results_path + 'means_hmc_40.csv', results_path + 'std_hmc_40.csv')
       
-
       # Final predictive mean and stds
 
        pp_mean_hmc_5 = get_posterior_predictive_mean(post_means_hmc_5)
@@ -623,14 +633,14 @@ if __name__ == "__main__":
 
       # HMC Report  
 
-      
+      plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, suffix_t)
       
       # Plot Spans
       
-      span_report(X, y, X_star, f_star, mean_spans_hmc, std_spans_hmc)
+      plot_spans_hmc(X, y, X_star, f_star, mean_spans_hmc, lower_hmc, upper_hmc, suffix_t)
             
             
-      
+      # 
       
       
       
