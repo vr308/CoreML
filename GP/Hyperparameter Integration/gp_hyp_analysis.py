@@ -236,7 +236,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Length-scale")
-    plt.ylabel("Noise-level")
+    plt.ylabel("Noise sd")
     
     plt.subplot(132)
     l_log = np.logspace(-2, 3, 100)
@@ -256,7 +256,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Length-scale")
-    plt.ylabel("Signal-Var")
+    plt.ylabel("Signal sd")
     
     plt.subplot(133)
     noise_log = np.logspace(-6, 2, 100)
@@ -275,8 +275,8 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     #plt.colorbar()
     plt.xscale("log")
     plt.yscale("log")
-    plt.xlabel("Noise-level")
-    plt.ylabel("Signal-Var")    
+    plt.xlabel("Noise sd")
+    plt.ylabel("Signal sd")    
     plt.suptitle('LML Surface ' + '\n' + str(gpr.kernel_), fontsize='small')
     
 
@@ -426,6 +426,7 @@ plot_gp(X_star, f_star, X, y, post_pred_mean, post_pred_std, pred_samples,title)
       #       Hybrid Monte Carlo and VI 
           
       #-----------------------------------------------------
+      
       
 
 def get_pymc3_model(X, y):

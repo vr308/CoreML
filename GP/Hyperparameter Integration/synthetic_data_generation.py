@@ -177,3 +177,10 @@ if __name__ == "__main__":
      
      X_all = np.array(pd.read_csv(path + 'X_all.csv', sep=',', header=None))
      f_all = np.array(pd.read_csv(path + 'f_all.csv', sep=',', header=None)).reshape(200,)
+     
+     
+
+
+     
+     
+     

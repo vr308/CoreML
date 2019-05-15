@@ -59,7 +59,7 @@ def get_ml_report(X, y, X_star, f_star):
           title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + '-LPD: ' + str(lpd_)     
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
-          return post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
+          return gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
 
 # Generative model for full Bayesian treatment
 
@@ -526,11 +526,17 @@ if __name__ == "__main__":
       
       # Collecting ML stats for 1 generative model
       
-      pp_mean_ml_5, pp_std_ml_5, pp_std_ml_nf_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
-      pp_mean_ml_10, pp_std_ml_10, pp_std_ml_nf_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
-      pp_mean_ml_20, pp_std_ml_20, pp_std_ml_nf_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
-      pp_mean_ml_40, pp_std_ml_40, pp_std_ml_nf_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
+      gpr_5, pp_mean_ml_5, pp_std_ml_5, pp_std_ml_nf_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
+      gpr_10, pp_mean_ml_10, pp_std_ml_10, pp_std_ml_nf_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
+      gpr_20, pp_mean_ml_20, pp_std_ml_20, pp_std_ml_nf_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
+      gpr_40, pp_mean_ml_40, pp_std_ml_40, pp_std_ml_nf_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
      
+      # LML Surface
+      
+      plot_lml_surface_3way(gpr_5, ml_deltas_dict_5['sig_sd'], ml_deltas_dict_5['ls'], ml_deltas_dict_5['noise_sd'])
+      plot_lml_surface_3way(gpr_10, ml_deltas_dict_10['sig_sd'], ml_deltas_dict_10['ls'], ml_deltas_dict_10['noise_sd'])
+      plot_lml_surface_3way(gpr_20, ml_deltas_dict_20['sig_sd'], ml_deltas_dict_20['ls'], ml_deltas_dict_20['noise_sd'])
+      
 
       # Collecting means and stds in a list for plotting
 
@@ -634,7 +640,7 @@ if __name__ == "__main__":
        # Predictive means and stds - generate them 
        
        write_posterior_predictive_samples(trace_hmc_5, 20, X_5, y_5, X_star_5, results_path, 'hmc')
-       write_posterior_predictive_samples(trace_hmc_10, 25, X_10, y_10,  X_star_10, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_10, 40, X_10, y_10,  X_star_10, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_20, 20, X_20, y_20,  X_star_20, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_40, 20, X_40, y_40, X_star_40, results_path, 'hmc') 
        
@@ -679,12 +685,13 @@ if __name__ == "__main__":
        pp_mean_hmc_10 = get_posterior_predictive_mean(post_means_hmc_10, weights=None)
        pp_mean_hmc_w_10 = get_posterior_predictive_mean(post_means_hmc_10, weights=w10)
        
-       lower_hmc_10, upper_hmc_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, u10)   lower_hmc_w_10, upper_hmc_w_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, w10)
+       lower_hmc_10, upper_hmc_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, u10)                 
+       lower_hmc_w_10, upper_hmc_w_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, w10)
        
        rmse_hmc_10 = rmse(pp_mean_hmc_10, f_star_10)
        rmse_hmc_w_10 = rmse(pp_mean_hmc_w_10, f_star_10)
 
-       lppd_hmc_10, lpd_hmc_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10)
+       lppd_hmc_10, lpd_hmc_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10, None)
        lppd_hmc_w_10, lpd_hmc_w_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10, w10)
 
        title_hmc_10 = 'RMSE: ' + str(rmse_hmc_10) + '\n' + '-LPD: ' + str(-lpd_hmc_10)
@@ -699,12 +706,13 @@ if __name__ == "__main__":
        pp_mean_hmc_20 = get_posterior_predictive_mean(post_means_hmc_20, weights=None)
        pp_mean_hmc_w_20 = get_posterior_predictive_mean(post_means_hmc_20, weights=w20)
        
-       lower_hmc_20, upper_hmc_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, u20)   lower_hmc_w_20, upper_hmc_w_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, w20)
+       lower_hmc_20, upper_hmc_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, u20)         
+       lower_hmc_w_20, upper_hmc_w_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, w20)
        
        rmse_hmc_20 = rmse(pp_mean_hmc_20, f_star_20)
        rmse_hmc_w_20 = rmse(pp_mean_hmc_w_20, f_star_20)
 
-       lppd_hmc_20, lpd_hmc_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20)
+       lppd_hmc_20, lpd_hmc_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20, None)
        lppd_hmc_w_20, lpd_hmc_w_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20, w20)
 
        title_hmc_20 = 'RMSE: ' + str(rmse_hmc_20) + '\n' + '-LPD: ' + str(-lpd_hmc_20)
@@ -724,7 +732,7 @@ if __name__ == "__main__":
        rmse_hmc_40 = rmse(pp_mean_hmc_40, f_star_40)
        rmse_hmc_w_40 = rmse(pp_mean_hmc_w_40, f_star_40)
 
-       lppd_hmc_40, lpd_hmc_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40)
+       lppd_hmc_40, lpd_hmc_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40, None)
        lppd_hmc_w_40, lpd_hmc_w_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40, w40)
 
        title_hmc_40 = 'RMSE: ' + str(rmse_hmc_40) + '\n' + '-LPD: ' + str(-lpd_hmc_40)
@@ -784,8 +792,9 @@ if __name__ == "__main__":
       #r3 = [x + barWidth for x in r2]
        
       # Make the plot
+      
       plt.bar(r1, rmse_track_ml, color='r', width=barWidth, edgecolor='white', label='ML', alpha=0.4)
-      plt.bar(r2, rmse_track_w_hmc, color='b', width=barWidth, edgecolor='white', label='HMC', alpha=0.5)
+      plt.bar(r2, rmse_track_hmc, color='b', width=barWidth, edgecolor='white', label='HMC', alpha=0.5)
       #plt.bar(r3, rmse_track_w_hmc, color='purple', width=barWidth, edgecolor='white', label='HMC-W', alpha=0.5)
        
       # Add xticks on the middle of the group bars
@@ -806,7 +815,7 @@ if __name__ == "__main__":
        
       # Make the plot
       plt.bar(r1, lpd_track_ml, color='r', width=barWidth, edgecolor='white', label='ML', alpha=0.4)
-      plt.bar(r2, lpd_track_w_hmc, color='b', width=barWidth, edgecolor='white', label='HMC', alpha=0.5)
+      plt.bar(r2, lpd_track_hmc, color='b', width=barWidth, edgecolor='white', label='HMC', alpha=0.5)
       #plt.bar(r3, rmse_track_w_hmc, color='purple', width=barWidth, edgecolor='white', label='HMC-W', alpha=0.5)
        
       # Add xticks on the middle of the group bars
@@ -816,9 +825,6 @@ if __name__ == "__main__":
       # Create legend & Show graphic
       plt.legend()
 
-      
-      
-      
       
       
       
