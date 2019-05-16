@@ -216,14 +216,14 @@ def plot_gp(X_star, f_star, X, y, post_mean, post_std, post_samples, title):
     plt.title(title, fontsize='x-small')
     
     
-def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
+def plot_lml_surface_3way(gpr, sig_sd, lengthscale, noise_sd):
     
     plt.figure(figsize=(15,6))
     plt.subplot(131)
-    l_log = np.logspace(-2, 3, 100)
-    noise_log  = np.logspace(-6, 2, 100)
+    l_log = np.logspace(-5, 5, 100)
+    noise_log  = np.logspace(-6, 6, 100)
     l_log_mesh, noise_log_mesh = np.meshgrid(l_log, noise_log)
-    LML = [[gpr.log_marginal_likelihood(np.log([sig_var, l_log_mesh[i, j], noise_log_mesh[i, j]]))
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(sig_sd), l_log_mesh[i, j], np.square(noise_log_mesh[i, j])]))
             for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
     LML = np.array(LML).T
     
@@ -232,17 +232,17 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
     plt.contourf(l_log_mesh, noise_log_mesh, -LML,
                 levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
-    plt.plot(lengthscale, noise_var, 'rx')
+    plt.plot(lengthscale, noise_sd, 'rx')
     plt.xscale("log")
     plt.yscale("log")
     plt.xlabel("Length-scale")
     plt.ylabel("Noise sd")
     
     plt.subplot(132)
-    l_log = np.logspace(-2, 3, 100)
-    signal_log  = np.logspace(-3, 5, 100)
+    l_log = np.logspace(-5, 5, 100)
+    signal_log  = np.logspace(-5, 5, 100)
     l_log_mesh, signal_log_mesh = np.meshgrid(l_log, signal_log)
-    LML = [[gpr.log_marginal_likelihood(np.log([signal_log_mesh[i,j], l_log_mesh[i, j], noise_var]))
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(signal_log_mesh[i,j]), l_log_mesh[i, j], np.square(noise_sd)]))
             for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
     LML = np.array(LML).T
     
@@ -251,7 +251,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
     plt.contourf(l_log_mesh, signal_log_mesh, -LML,
                 levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
-    plt.plot(lengthscale, sig_var, 'rx')
+    plt.plot(lengthscale, sig_sd, 'rx')
     #plt.colorbar()
     plt.xscale("log")
     plt.yscale("log")
@@ -259,10 +259,10 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     plt.ylabel("Signal sd")
     
     plt.subplot(133)
-    noise_log = np.logspace(-6, 2, 100)
-    signal_log  = np.logspace(-3, 5, 100)
+    noise_log = np.logspace(-5, 4, 100)
+    signal_log  = np.logspace(-5, 2, 100)
     noise_log_mesh, signal_log_mesh = np.meshgrid(noise_log, signal_log)
-    LML = [[gpr.log_marginal_likelihood(np.log([signal_log_mesh[i,j], lengthscale, noise_log_mesh[i,j]]))
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(signal_log_mesh[i,j]), lengthscale, np.square(noise_log_mesh[i,j])]))
             for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
     LML = np.array(LML).T
     
@@ -271,7 +271,7 @@ def plot_lml_surface_3way(gpr, sig_var, lengthscale, noise_var):
     level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
     plt.contourf(noise_log_mesh, signal_log_mesh, -LML,
                 levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
-    plt.plot(noise_var, sig_var, 'rx')
+    plt.plot(noise_sd, sig_sd, 'rx')
     #plt.colorbar()
     plt.xscale("log")
     plt.yscale("log")

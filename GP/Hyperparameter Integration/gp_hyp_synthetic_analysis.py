@@ -43,7 +43,7 @@ def load_datasets(path, n_train):
     
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(50, (1e-10, 1e3)) * RBF(2, length_scale_bounds=(0.5, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-10,100))
+          kernel = Ck(50, (1e-10, 1e3)) * RBF(0.0001, length_scale_bounds=(1e-10, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-10,1000))
           
           gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
               

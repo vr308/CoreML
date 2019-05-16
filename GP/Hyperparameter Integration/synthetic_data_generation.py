@@ -140,7 +140,7 @@ if __name__ == "__main__":
     
     # Data attributes
     
-    noise_sd_true = np.sqrt(10)
+    noise_sd_true = np.sqrt(100)
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
     
