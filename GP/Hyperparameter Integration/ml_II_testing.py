@@ -81,7 +81,7 @@ def generate_fixed_domain_data(X_all, f_all, knots, sds, noise_sd, uniform, seq_
  
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(1, (1e-10, 1e6)) * RBF(0.1, length_scale_bounds=(1e-10, 1e6)) + WhiteKernel(0.0001, noise_level_bounds=(1e-10,1e6))
+          kernel = Ck(100, (1e-10, 1e6)) * RBF(1, length_scale_bounds=(1e-10, 1e6)) + WhiteKernel(0.0001, noise_level_bounds=(1e-10,1e6))
           
           gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
               
@@ -147,7 +147,7 @@ def plot_lml_surface_3way(gpr, sig_sd, lengthscale, noise_sd):
     
     vmin, vmax = (-LML).min(), (-LML).max()
     #vmax = 50
-    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
     plt.contourf(l_log_mesh, signal_log_mesh, -LML,
                 levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
     plt.plot(lengthscale, sig_sd, 'rx')
@@ -167,7 +167,7 @@ def plot_lml_surface_3way(gpr, sig_sd, lengthscale, noise_sd):
     
     vmin, vmax = (-LML).min(), (-LML).max()
     #vmax = 50
-    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
     plt.contourf(noise_log_mesh, signal_log_mesh, -LML,
                 levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
     plt.plot(noise_sd, sig_sd, 'rx')
@@ -233,10 +233,10 @@ if __name__ == "__main__":
     data_sets = generate_fixed_domain_data(X_all, f_all, knots, sds, noise_sd_true, uniform, seq_n_train)
     plot_datasets(data_sets, snr, 'NUnif')
     
-    X = data_sets['X_5']
-    X_star = data_sets['X_star_5']
-    y = data_sets['y_5']
-    f_star = data_sets['f_star_5']
+    X = data_sets['X_40']
+    X_star = data_sets['X_star_40']
+    y = data_sets['y_40']
+    f_star = data_sets['f_star_40']
     
     gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title = get_ml_report(X, y, X_star, f_star)
     plot_lml_surface_3way(gpr, ml_deltas_dict['sig_sd'], ml_deltas_dict['ls'], ml_deltas_dict['noise_sd'])
