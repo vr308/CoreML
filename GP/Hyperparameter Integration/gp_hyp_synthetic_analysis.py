@@ -831,32 +831,7 @@ if __name__ == "__main__":
             l = {'log_ls', 'log_n', 'log_s'}
             {key: ml_deltas_dict_5[key] for key in ml_deltas_dict_5.keys() & l}
             
-            mf = pm.ADVI(start = )
-            fr = pm.FullRankADVI(start = )
-      
-            tracker_mf = pm.callbacks.Tracker(
-            mean = mf.approx.mean.eval,    
-            std = mf.approx.std.eval)
-            
-            tracker_fr = pm.callbacks.Tracker(
-            mean = fr.approx.mean.eval,    
-            std = fr.approx.std.eval)
-      
-            mf.fit(callbacks=[tracker_mf], n=25000)
-            fr.fit(callbacks=[tracker_fr], n=25000)
-            
-            trace_mf_10 = mf.approx.sample(2000)
-            trace_fr_10 = fr.approx.sample(2000)
-          
-
-      trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
-      trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
-      
-      
-      with generative_model(X=X_10, y=y_10):
-            
-            
-            mf = pm.ADVI(start=)
+            mf = pm.ADVI()
             fr = pm.FullRankADVI()
       
             tracker_mf = pm.callbacks.Tracker(
@@ -876,6 +851,9 @@ if __name__ == "__main__":
 
       trace_mf_10_df = pm.trace_to_dataframe(trace_mf_10)
       trace_fr_10_df = pm.trace_to_dataframe(trace_fr_10)
+      
+      
+    
       
       
       
