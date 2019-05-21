@@ -10,9 +10,11 @@ import numpy as np
 import matplotlib.pylab as plt
 import theano.tensor as tt
 import pymc3 as pm
+from theano.tensor.nlinalg import matrix_inverse
 import pandas as pd
 from sampled import sampled
 from scipy.misc import derivative
+import csv
 import scipy.stats as st
 from matplotlib.backends.backend_pdf import PdfPages
 from itertools import combinations
@@ -24,41 +26,108 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, Rational
 from sympy import symbols, diff, exp, log, power
 
 
-def se_kernel(sigma_f, ls, sigma_n, x1, x2):
+def se_kernel(sig_sd, ls, noise_sd, x1, x2):
       
-      return sigma_f**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2) + sigma_n**2
+      return sig_sd**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2) + noise_sd**2
 
-sigma_f, ls, sigma_n, x1, x2 = symbols('sigma_f ls sigma_n x1 x2', real=True)
+sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
 
-dk_dsf = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_f)
-dk_dls = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), ls)
-dk_dsn = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_n)
+dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
 
-d2k_d2sf = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_f, 2)
-d2k_d2ls = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), ls, 2)
-d2k_d2sn = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_n, 2)
+d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
 
-d2k_dsfdls = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_f, ls)
-d2k_dsfdsn = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), sigma_f, sigma_n)
-d2k_dlsdsn = diff(se_kernel(sigma_f, ls, sigma_n, x1, x2), ls, sigma_n)
+d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
 
-def gradient_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta):
+def gradient_K_inv(K_inv, X, x_star, mu_theta):
+      
+      # returns a nxnx3 object 
+      return -K_inv.dot(gradient_K(X_star, x_star, mu_theta)).dot(K_inv)
+
+def gradient_K(X):
+      
+      n_train = len(X) 
+      
+      dK_dsf_m = np.zeros(shape=(n_train, n_train))
+      dK_dls_m = np.zeros(shape=(n_train, n_train))
+      dK_dsn_m = np.zeros(shape=(n_train, n_train))
+      
+      i, j = np.meshgrid(np.arange(n_train), np.arange(n_train))
+      index = np.vstack([j.ravel(), i.ravel()]).T
+      
+      for h in index:
+            dK_dsf_m[h] = dk_dsf.subs({x1: X[h[0]], x2: X[h[1]]})
+            dK_dls_m[h] = dk_dls.subs({x1: X[h[0]], x2: X[h[1]]})
+            dK_dsn_m[h] = dk_dsn.subs({x1: X[h[0]], x2: X[h[1]]})
+      
+      return np.array([dK_dsf_m, dK_dls_m, dK_dsn_m]) 
+
+def curvature_K(dK):
+      
+      # Rank 4 tensor  
+      
+      T1 = [d2K_d2sf_m, d2K_dls_dsf_m, d2K_dsn_dsf_m]  
+      T2 = [d2K_dls, ]
+      T3 = []
+      
+      return np.array([T1, T2, T3])
+
+def gradient_K_star(K_s):
+      
+      return 
+
+def curvature_K_star(K_s):
+      
+      return 
+
+def gradient_K_star_star():
+      
+      return 
+
+def curvature_K_star_star():
+      
+      return 
+
+def gradient_gp_pred_mean(X, x_star, K_inv, K_s, y, mu_theta, cov_theta):
+      
+      return gradient_K_star().T.dot(K_inv).dot(y) + K_s.T.dot(-K_inv.dot(gradient_K_inv(K_inv, X, x_star, mu_theta)).dot(K_inv)).dot(y)
+
+def curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta):
+      
+      return curvature_K_star()
+
+def gradient_gp_pred_var(x_star, K_inv, mu_theta, cov_theta):
+      
+      return 
+
+def curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_theta):
       
       return 
 
 
-def curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_thet):
+def deterministic_gp_pred_mean(X, x_star, y, mu_theta, cov_theta):
       
-      return
-
-
-def gradient_gp_pred_var(x_star, K_inv, mu_theta, cov_thet):
+      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, x_star, n_train, mu_theta)
+      pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
-      return 
-
-def curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_thet):
+      d2_gp_mean = curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta) # 3x3 matrix
       
-      return 
+      return pred_vi_mean + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
+
+def deterministic_gp_pred_covariance(X, x_star, y, mu_theta, cov_theta):
+      
+      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, x_star, n_train, mu_theta)
+      pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+      
+      d1_gp_mean = gradient_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta)
+      d2_gp_var = curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_theta)
+      
+      return pred_vi_sd**2 + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean), cov_theta))
 
 
 def load_datasets(path, n_train):
@@ -90,6 +159,116 @@ def get_ml_report(X, y, X_star, f_star):
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           return gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
+    
+
+def get_kernel_matrix_blocks(X, X_star, n_train, point):
+    
+          cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
+          K = cov(X)
+          K_s = cov(X, X_star)
+          K_ss = cov(X_star, X_star)
+          K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
+          K_inv = matrix_inverse(K_noise)
+          return K, K_s, K_ss, K_noise, K_inv
+
+def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
+    
+          L = np.linalg.cholesky(K_noise.eval())
+          alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+          v = np.linalg.solve(L, K_s.eval())
+          post_mean = np.dot(K_s.eval().T, alpha)
+          post_cov = K_ss.eval() - v.T.dot(v)
+          post_std = np.sqrt(np.diag(post_cov))
+          return post_mean,  post_std
+    
+def compute_log_marginal_likelihood(K_noise, y):
+      
+      return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
+
+def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds, weights):
+      
+      # Fixed at 95% CI
+      
+      prob = weights/np.sum(weights)
+      
+      n_test = sample_means.shape[-1]
+      components = sample_means.shape[0]
+      lower_ = []
+      upper_ = []
+      for i in np.arange(n_test):
+            print(i)
+            mix_idx = np.random.choice(np.arange(components), size=2000, replace=True, p=prob)
+            mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
+            lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
+            lower_.append(lower)
+            upper_.append(upper)
+      return np.array(lower_), np.array(upper_)
+
+def get_posterior_predictive_mean(sample_means, weights):
+      
+      if weights is None:
+            return np.mean(sample_means)
+      else:
+            return np.average(sample_means, axis=0, weights=weights)
+                         
+#--------------------Predictive performance metrics-------------------------
+      
+def rmse(post_mean, f_star):
+    
+    return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),3)
+
+def log_predictive_density(f_star, post_mean, post_std):
+      
+      lppd_per_point = []
+      for i in np.arange(len(f_star)):
+            lppd_per_point.append(st.norm.pdf(f_star[i], post_mean[i], post_std[i]))
+      #lppd_per_point.remove(0.0)
+      return np.round(np.mean(np.log(lppd_per_point)),3)
+
+def log_predictive_mixture_density(f_star, list_means, list_std, weights):
+            
+      lppd_per_point = []
+      for i in np.arange(len(f_star)):
+            print(i)
+            components = []
+            for j in np.arange(len(list_means)):
+                  components.append(st.norm.pdf(f_star[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
+            lppd_per_point.append(np.average(components, weights=weights))
+      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
+    
+
+def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
+      
+      means_file = path + 'means_' + method + '_' + str(len(X)) + '.csv'
+      std_file = path + 'std_' + method + '_' + str(len(X)) + '.csv'
+      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+    
+      means_writer = csv.writer(open(means_file, 'w')) 
+      std_writer = csv.writer(open(std_file, 'w'))
+      trace_writer = csv.writer(open(trace_file, 'w'))
+      
+      means_writer.writerow(X_star.flatten())
+      std_writer.writerow(X_star.flatten())
+      trace_writer.writerow(varnames + ['lml'])
+      
+      for i in np.arange(len(trace))[::thin_factor]:
+            
+            print('Predicting ' + str(i))
+            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
+            post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
+            #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
+            #std = np.sqrt(var)
+            list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
+            
+            print('Writing out ' + str(i) + ' predictions')
+            means_writer.writerow(np.round(post_mean, 3))
+            std_writer.writerow(np.round(post_std, 3))
+            trace_writer.writerow(np.round(list_point, 3))
+
+def load_post_samples(means_file, std_file):
+      
+      return pd.read_csv(means_file, sep=',', header=0), pd.read_csv(std_file, sep=',', header=0)
  
 # Generative model for full Bayesian treatment
 
@@ -247,6 +426,19 @@ def get_bivariate_hyp(bi_list, trace_mf, trace_fr):
               plt.ylabel(i[1])
               plt.tight_layout()
 
+def plot_vi_mf_fr_ml_joint(pp_mean_ml, pp_std_ml_nf, pp_mean_mf, pp_mean_fr, lower_mf, upper_mf, lower_fr, upper_fr):
+             
+             plt.figure()
+             plt.plot(X_star, pp_mean_ml, color='r', label='ML')
+             plt.plot(X_star, pp_mean_mf, color='coral',label='MF')
+             plt.plot(X_star, pp_mean_fr, color='g', label='FR')
+             plt.fill_between(X_star.ravel(), pp_mean_ml - 1.96*pp_std_ml_nf, pp_mean_ml + 1.96*pp_std_ml_nf, color='r', alpha=0.3)
+             plt.fill_between(X_star.ravel(), lower_mf, upper_mf, color='coral', alpha=0.3)
+             plt.fill_between(X_star.ravel(), lower_fr, upper_fr, color='g', alpha=0.3)
+             plt.legend(fontsize='small')
+             plt.title('ML vs. MF vs. FR', fontsize='small')
+             
+
 if __name__ == "__main__":
 
    
@@ -254,6 +446,7 @@ if __name__ == "__main__":
       
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
       home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
+
 
       # Edit here to change generative model
       
@@ -263,6 +456,9 @@ if __name__ == "__main__":
       true_hyp = {'sig_sd' : np.round(np.sqrt(100),3), 'ls' : 5, 'noise_sd' : np.round(np.sqrt(50),3)}
 
       data_path = uni_path + suffix
+      
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
+
       
       varnames = ['sig_sd', 'ls', 'noise_sd']
       log_varnames = ['log_s', 'log_ls', 'log_n']
@@ -295,7 +491,6 @@ if __name__ == "__main__":
             trace_mf = mf.approx.sample(5000)
             trace_fr = fr.approx.sample(5000)
           
-      
       # Post-processing 
 
       trace_mf_df = pm.trace_to_dataframe(trace_mf)
@@ -307,7 +502,6 @@ if __name__ == "__main__":
       means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
       std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
       
-      
       bij_mf = mf.approx.groups[0].bij
       mf_param = {param.name: bij_mf.rmap(param.eval())
       	 for param in mf.approx.params}
@@ -315,7 +509,6 @@ if __name__ == "__main__":
       bij_fr = fr.approx.groups[0].bij
       fr_param = {param.name: bij_fr.rmap(param.eval())
       	 for param in fr.approx.params}
-      
       
       # Variational parameters track  
       
@@ -335,10 +528,44 @@ if __name__ == "__main__":
       
       # Predictions with MCMC
       
-      
+      thin_factor=100
+      write_posterior_predictive_samples(trace_mf, thin_factor, X_40, y_40, X_star_40, results_path, 'mf')
+      write_posterior_predictive_samples(trace_fr, thin_factor, X_40, y_40, X_star_40, results_path, 'fr')
+
+      post_means_mf_40, post_stds_mf_40 = load_post_samples(results_path + 'means_mf_40.csv', results_path + 'std_mf_40.csv')
+      post_means_fr_40, post_stds_fr_40 = load_post_samples(results_path + 'means_fr_40.csv', results_path + 'std_fr_40.csv')
+       
+      u40 = np.ones(len(post_means_mf_40))
+
+      pp_mean_mf_40 = get_posterior_predictive_mean(post_means_mf_40, weights=None)
+      pp_mean_fr_40 = get_posterior_predictive_mean(post_means_fr_40, weights=None)
+       
+      lower_mf_40, upper_mf_40 = get_posterior_predictive_uncertainty_intervals(post_means_mf_40, post_stds_mf_40, u40)
+      lower_fr_40, upper_fr_40 = get_posterior_predictive_uncertainty_intervals(post_means_fr_40, post_stds_fr_40, u40)
+       
+      rmse_mf_40 = rmse(pp_mean_mf_40, f_star_40)
+      rmse_fr_40 = rmse(pp_mean_fr_40, f_star_40)
+
+      lppd_mf_40, lpd_mf_40 = log_predictive_mixture_density(f_star_40, post_means_mf_40, post_stds_mf_40, None)
+      lppd_fr_40, lpd_fr_40 = log_predictive_mixture_density(f_star_40, post_means_fr_40, post_stds_fr_40, None)
+
+      title_mf_40 = 'RMSE: ' + str(rmse_mf_40) + '\n' + '-LPD: ' + str(-lpd_mf_40)
+      title_fr_40 = 'RMSE: ' + str(rmse_fr_40) + '\n' + '-LPD: ' + str(-lpd_fr_40)
+       
+       plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)
       
       # Full deterministic prediction
       
-      mu_theta = {'sigma_f': , 'ls': , 'sigma_n': }
+      # Extracting mu_theta and cov_theta
       
+      cov_theta_mf =  np.cov(trace_mf_df[varnames], rowvar=False)
+      cov_theta_fr = np.cov(trace_fr_df[varnames], rowvar=False)
+      
+      mu_theta_mf = mf_param['mu_implicit']
+      mu_theta_fr = fr_param['mu_implicit']
+      
+      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X_40, X_star_40[0], n_train, mu_theta_mf)
+      vi_pred_mean, vi_pred_sd = analytical_gp(y_40, K, K_s, K_ss, K_noise, K_inv)
+      
+
       
