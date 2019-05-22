@@ -67,17 +67,43 @@ def gradient_K(X):
       
       return np.array([dK_dsf_m, dK_dls_m, dK_dsn_m]) 
 
-def curvature_K(dK):
+def curvature_K(X):
       
-      # Rank 4 tensor  
+      # Rank 4 tensor  -> 3 x 3 x n x n 
       
+      d2K_d2sf_m = np.zeros(shape=(n_train, n_train))
+      d2K_d2ls_m = np.zeros(shape=(n_train, n_train))
+      d2K_d2sn_m = np.zeros(shape=(n_train, n_train))
+      d2K_dls_dsf_m = np.zeros(shape=(n_train, n_train))
+      d2K_dls_dsn_m = np.zeros(shape=(n_train, n_train))
+      d2K_dsn_dsf_m = np.zeros(shape=(n_train, n_train))
+      
+      i, j = np.meshgrid(np.arange(n_train), np.arange(n_train))
+      index = np.vstack([j.ravel(), i.ravel()]).T
+      
+      for h in index:
+          
+            d2K_d2sf_m[h] = d2k_d2sf.subs({x1: X[h[0]], x2: X[h[1]]})
+            d2K_d2ls_m[h] = d2k_d2ls.subs({x1: X[h[0]], x2: X[h[1]]})
+            d2K_d2sn_m[h] = d2k_d2sn.subs({x1: X[h[0]], x2: X[h[1]]})
+   
+            d2K_dls_dsf_m[h] = d2k_dsfdls.subs({x1: X[h[0]], x2: X[h[1]]})
+            d2K_dls_dsn_m[h] = d2k_dlsdsn.subs({x1: X[h[0]], x2: X[h[1]]})
+            d2K_dsn_dsf_m[h] = d2k_dsfdsn.subs({x1: X[h[0]], x2: X[h[1]]})
+
       T1 = [d2K_d2sf_m, d2K_dls_dsf_m, d2K_dsn_dsf_m]  
-      T2 = [d2K_dls, ]
-      T3 = []
+      T2 = [d2K_dls_dsf_m, d2K_d2ls_m, d2K_dls_dsn_m]
+      T3 = [d2K_dsn_dsf_m, d2K_dls_dsn_m, d2K_d2sn_m]
       
       return np.array([T1, T2, T3])
 
-def gradient_K_star(K_s):
+def gradient_K_star(X, x_star):
+      
+      n = len(X)
+      
+      row1 = np.zeros(shape=(1, n))
+      row2 = np.zeros(shape=(1, n))
+      row3 = np.zeros(shape=(1, n))
       
       return 
 
@@ -85,13 +111,18 @@ def curvature_K_star(K_s):
       
       return 
 
-def gradient_K_star_star():
+def gradient_K_star_star(x_star):
       
-      return 
+      return np.array([dk_dsf.subs({x1: x_star, x2: x_star}), dk_dls.subs({x1: x_star, x2: x_star}), dk_dsn.subs({x1: x_star, x2: x_star})])
 
-def curvature_K_star_star():
+def curvature_K_star_star(x_star):
       
-      return 
+      # 3 X 3 matrix
+      row1 = [d2k_d2sf.subs({x1: x_star, x2: x_star}), d2k_dsfdls.subs({x1: x_star, x2: x_star}), d2k_dsfdsn.subs({x1: x_star, x2: x_star})]
+      row2 = [d2k_dsfdls.subs({x1: x_star, x2: x_star}), d2k_d2ls.subs({x1: x_star, x2: x_star}), d2k_dlsdsn.subs({x1: x_star, x2: x_star})]
+      row3 = [d2k_dsfdsn.subs({x1: x_star, x2: x_star}), d2k_dlsdsn.subs({x1: x_star, x2: x_star}), d2k_d2sn.subs({x1: x_star, x2: x_star})]
+      
+      return np.array([row1, row2, row3])
 
 def gradient_gp_pred_mean(X, x_star, K_inv, K_s, y, mu_theta, cov_theta):
       
@@ -110,18 +141,18 @@ def curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_theta):
       return 
 
 
-def deterministic_gp_pred_mean(X, x_star, y, mu_theta, cov_theta):
+def deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta, cov_theta):
       
-      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, x_star, n_train, mu_theta)
+      K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
       pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
       d2_gp_mean = curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta) # 3x3 matrix
       
       return pred_vi_mean + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
 
-def deterministic_gp_pred_covariance(X, x_star, y, mu_theta, cov_theta):
+def deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta, cov_theta):
       
-      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, x_star, n_train, mu_theta)
+      K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
       pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
       d1_gp_mean = gradient_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta)
@@ -160,6 +191,12 @@ def get_ml_report(X, y, X_star, f_star):
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           return gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
     
+def get_star_kernel_matrix_blocks(X, X_star, point):
+    
+          cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
+          K_s = cov(X, X_star)
+          K_ss = cov(X_star, X_star)
+          return K_s, K_ss
 
 def get_kernel_matrix_blocks(X, X_star, n_train, point):
     
@@ -410,9 +447,6 @@ def trace_report(mf, fr, means_mf, std_mf, means_fr, std_fr, true_hyp, trace_mf,
       
 # Pair grid catalog
 
-bi_list = []
-for i in combinations(varnames, 2):
-      bi_list.append(i)
 
 def get_bivariate_hyp(bi_list, trace_mf, trace_fr):
       
@@ -444,8 +478,10 @@ if __name__ == "__main__":
    
       # Loading data
       
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
-      home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      home_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      
+      path = home_path 
 
 
       # Edit here to change generative model
@@ -455,9 +491,8 @@ if __name__ == "__main__":
       suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
       true_hyp = {'sig_sd' : np.round(np.sqrt(100),3), 'ls' : 5, 'noise_sd' : np.round(np.sqrt(50),3)}
 
-      data_path = uni_path + suffix
-      
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
+      data_path = path + 'Data/1d/' + suffix
+      results_path = path + 'Results/1d/' + suffix 
 
       
       varnames = ['sig_sd', 'ls', 'noise_sd']
@@ -510,6 +545,9 @@ if __name__ == "__main__":
       fr_param = {param.name: bij_fr.rmap(param.eval())
       	 for param in fr.approx.params}
       
+      update_param_dict(mf, mf_param, pm.summary(trace_mf))
+      update_param_dict(fr, fr_param, pm.summary(trace_fr))
+      
       # Variational parameters track  
       
       convergence_report(tracker_mf, tracker_fr, true_hyp, varnames)
@@ -523,6 +561,11 @@ if __name__ == "__main__":
       trace_report(mf, fr, means_mf, std_mf, means_fr, std_fr, true_hyp, trace_mf, trace_fr)
       
       # Bi-variate relationship
+      
+      bi_list = []
+      for i in combinations(varnames, 2):
+          bi_list.append(i)
+
       
       get_bivariate_hyp(bi_list, trace_mf, trace_fr)
       
@@ -552,7 +595,7 @@ if __name__ == "__main__":
       title_mf_40 = 'RMSE: ' + str(rmse_mf_40) + '\n' + '-LPD: ' + str(-lpd_mf_40)
       title_fr_40 = 'RMSE: ' + str(rmse_fr_40) + '\n' + '-LPD: ' + str(-lpd_fr_40)
        
-       plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)
+      plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)
       
       # Full deterministic prediction
       
@@ -564,8 +607,53 @@ if __name__ == "__main__":
       mu_theta_mf = mf_param['mu_implicit']
       mu_theta_fr = fr_param['mu_implicit']
       
-      K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X_40, X_star_40[0], n_train, mu_theta_mf)
-      vi_pred_mean, vi_pred_sd = analytical_gp(y_40, K, K_s, K_ss, K_noise, K_inv)
+      x_star = X_star_40[10].reshape(1,1)
+      n_train = 40 
       
+      #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X_40, x_star, n_train, mu_theta_mf)
+      
+      cov = pm.gp.cov.Constant(mu_theta['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=mu_theta['ls'])
+      K = cov(X)
+      K_noise = K + np.square(mu_theta['noise_sd'])*tt.eye(n_train)
+      K_inv = matrix_inverse(K_noise)
+         
+      dK = gradient_K(X)
+      d2K = curvature_K(X)
+      
+      
+      
+      #vi_pred_mean, vi_pred_sd = analytical_gp(y_40, K, K_s, K_ss, K_noise, K_inv)
+      vi_pred_mean_mf = []
+      vi_pred_mean_fr = []
+      
+      vi_pred_var_mf = []
+      vi_pred_var_fr = []
+      
+      for i in np.arange(len(X_star)):
+          
+          x_star = X_star[i].reshape(1,1)
+          
+          vi_pred_mean_mf.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta_mf, cov_theta_mf))
+          vi_pred_mean_fr.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta_fr, cov_theta_fr))
+
+          vi_pred_var_mf.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_mf, cov_theta_mf))
+          vi_pred_var_fr.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_fr, cov_theta_fr))
+          
+          
+        # Checking MF -MCMC vs deter
+      
+        plt.figure()
+        plt.plot(X_star_40, pp_mean_mf_40, color='coral')
+        plt.plot(X_star_40, vi_pred_mean_mf, color='b')
+        plt.fill_between(X_star.ravel(), lower_mf, upper_mf, color='coral', alpha=0.3)
+        plt.fill_between(X_star.ravel(), vi_pred_mean_mf - 1.96*np.sqrt(vi_pred_var_mf), vi_pred_mean_mf + 1.96*np.sqrt(vi_pred_var_mf), alpha=0.5)
 
       
+        # Checking FR -MCMC vs deter
+      
+        plt.figure()
+        plt.plot(X_star_40, pp_mean_fr_40, color='g')
+        plt.plot(X_star_40, vi_pred_mean_fr, color='b')
+        plt.fill_between(X_star.ravel(), lower_fr, upper_fr, color='g', alpha=0.3)
+        plt.fill_between(X_star.ravel(), vi_pred_mean_fr - 1.96*np.sqrt(vi_pred_var_fr), vi_pred_mean_fr + 1.96*np.sqrt(vi_pred_var_fr), alpha=0.5)
+
