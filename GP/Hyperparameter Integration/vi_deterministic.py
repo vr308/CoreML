@@ -30,25 +30,6 @@ def se_kernel(sig_sd, ls, noise_sd, x1, x2):
       
       return sig_sd**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2) + noise_sd**2
 
-sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
-
-dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-
-d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-
-d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-
-def gradient_K_inv(K_inv, X, x_star, mu_theta):
-      
-      # returns a nxnx3 object 
-      return -K_inv.dot(gradient_K(X_star, x_star, mu_theta)).dot(K_inv)
-
 def gradient_K(X):
       
       n_train = len(X) 
@@ -86,7 +67,7 @@ def curvature_K(X):
             d2K_d2sf_m[h] = d2k_d2sf.subs({x1: X[h[0]], x2: X[h[1]]})
             d2K_d2ls_m[h] = d2k_d2ls.subs({x1: X[h[0]], x2: X[h[1]]})
             d2K_d2sn_m[h] = d2k_d2sn.subs({x1: X[h[0]], x2: X[h[1]]})
-   
+            
             d2K_dls_dsf_m[h] = d2k_dsfdls.subs({x1: X[h[0]], x2: X[h[1]]})
             d2K_dls_dsn_m[h] = d2k_dlsdsn.subs({x1: X[h[0]], x2: X[h[1]]})
             d2K_dsn_dsf_m[h] = d2k_dsfdsn.subs({x1: X[h[0]], x2: X[h[1]]})
@@ -100,16 +81,44 @@ def curvature_K(X):
 def gradient_K_star(X, x_star):
       
       n = len(X)
+      row1 = np.zeros(shape=(n))
+      row2 = np.zeros(shape=(n))
+      row3 = np.zeros(shape=(n))
       
-      row1 = np.zeros(shape=(1, n))
-      row2 = np.zeros(shape=(1, n))
-      row3 = np.zeros(shape=(1, n))
-      
-      return 
+      for i in np.arange(n):
+            row1[i] = dk_dsf.subs({x1: X[i], x2: x_star})
+            row2[i] = dk_dls.subs({x1: X[i], x2: x_star})
+            row3[i] = dk_dsn.subs({x1: X[i], x2: x_star})
+            
+      return np.array([row1, row2, row3]).T
 
-def curvature_K_star(K_s):
+def curvature_K_star(X, x_star):
       
-      return 
+      # Rank 3 tensor  -> 3 x 3 x n 
+      
+     row_d2sf = np.zeros(shape=(n_train))
+     row_d2ls = np.zeros(shape=(n_train))
+     row_d2sn = np.zeros(shape=(n_train))
+     
+     row_dsfdls = np.zeros(shape=(n_train))
+     row_dlsdsn = np.zeros(shape=(n_train))
+     row_dsfdsn = np.zeros(shape=(n_train))
+     
+     for h in np.arange(len(X)):
+           
+           row_d2sf[h] = d2k_d2sf.subs({x1: X[h], x2: x_star})
+           row_d2ls[h] = d2k_d2ls.subs({x1: X[h], x2: x_star})
+           row_d2sn[h] = d2k_d2sn.subs({x1: X[h], x2: x_star})
+           
+           row_dsfdls[h] = d2k_dsfdls.subs({x1: X[h], x2: x_star})
+           row_dlsdsn[h] = d2k_dlsdsn.subs({x1: X[h], x2: x_star})
+           row_dsfdsn[h] = d2k_dsfdsn.subs({x1: X[h], x2: x_star})
+           
+     M1 = np.array([row_d2sf, row_dsfdls, row_dsfdsn])
+     M2 = np.array([row_dsfdls, row_d2ls, row_dlsdsn])
+     M3 = np.array([row_dsfdsn, row_dlsdsn, row_d2sn])
+      
+     return np.array([M1, M2, M3]).T
 
 def gradient_K_star_star(x_star):
       
@@ -124,29 +133,30 @@ def curvature_K_star_star(x_star):
       
       return np.array([row1, row2, row3])
 
-def gradient_gp_pred_mean(X, x_star, K_inv, K_s, y, mu_theta, cov_theta):
+def gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s):
       
-      return gradient_K_star().T.dot(K_inv).dot(y) + K_s.T.dot(-K_inv.dot(gradient_K_inv(K_inv, X, x_star, mu_theta)).dot(K_inv)).dot(y)
+      dKsT = gradient_K_star(X, x_star).T
+      
+      return np.matmul(np.matmul(dKsT, K_inv), y)[:, np.newaxis] + np.matmul(np.matmul(K_s.T.eval(), dK_inv), y)
 
-def curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta):
+def curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv):
       
-      return curvature_K_star()
-
-def gradient_gp_pred_var(x_star, K_inv, mu_theta, cov_theta):
+      dKsT = gradient_K_star(X, x_star).T
+      d2KsT = curvature_K_star(X, x_star).T
       
-      return 
+      return  np.matmul(np.matmul(d2KsT, K_inv),y) + 2*np.matmul(np.matmul(dKsT, dK_inv), y) + np.matmul(np.matmul(K_s.T, d2K_inv),y).reshape(3,3).T
 
 def curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_theta):
       
       return 
 
-
-def deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta, cov_theta):
+def deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta):
       
       K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
-      pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+      pred_vi_mean = np.matmul(np.matmul(K_s.T.eval(), K_inv), y)
+      #pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
-      d2_gp_mean = curvature_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta) # 3x3 matrix
+      d2_gp_mean = curvature_gp_pred_mean(X, x_star, y, K_s.eval(), K_inv, dK_inv, d2K_inv) # 3x3 matrix
       
       return pred_vi_mean + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
 
@@ -155,7 +165,7 @@ def deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta, 
       K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
       pred_vi_mean, pred_vi_sd = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
-      d1_gp_mean = gradient_gp_pred_mean(x_star, K_inv, y, mu_theta, cov_theta)
+      d1_gp_mean = gradient_gp_pred_mean(X, x_star, y, K_inv dK_inv, K_s)
       d2_gp_var = curvature_gp_pred_var(x_star, K_inv, mu_theta, cov_theta)
       
       return pred_vi_sd**2 + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean), cov_theta))
@@ -599,7 +609,7 @@ if __name__ == "__main__":
       
       # Full deterministic prediction
       
-      # Extracting mu_theta and cov_theta
+       # Extracting mu_theta and cov_theta
       
       cov_theta_mf =  np.cov(trace_mf_df[varnames], rowvar=False)
       cov_theta_fr = np.cov(trace_fr_df[varnames], rowvar=False)
@@ -607,22 +617,40 @@ if __name__ == "__main__":
       mu_theta_mf = mf_param['mu_implicit']
       mu_theta_fr = fr_param['mu_implicit']
       
-      x_star = X_star_40[10].reshape(1,1)
+      sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
+      
+      mu_theta = mu_theta_fr
+
+      dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      
+      d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      
+      d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      
+     
+      #x_star = X_star_40[10].reshape(1,1)
       n_train = 40 
       
       #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X_40, x_star, n_train, mu_theta_mf)
       
       cov = pm.gp.cov.Constant(mu_theta['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=mu_theta['ls'])
-      K = cov(X)
-      K_noise = K + np.square(mu_theta['noise_sd'])*tt.eye(n_train)
-      K_inv = matrix_inverse(K_noise)
+      
+      K = cov(X).eval()
+      K_noise = (K + np.square(mu_theta['noise_sd'])*tt.eye(n_train))
+      K_inv = matrix_inverse(K_noise).eval()
          
       dK = gradient_K(X)
       d2K = curvature_K(X)
       
-      
-      
-      #vi_pred_mean, vi_pred_sd = analytical_gp(y_40, K, K_s, K_ss, K_noise, K_inv)
+      dK_inv = np.matmul(np.matmul(-K_inv, dK),K_inv)
+      d2K_inv = -np.matmul(np.matmul(dK_inv, dK), K_inv) - np.matmul(np.matmul(K_inv, d2K), K_inv) - np.matmul(np.matmul(K_inv, dK), dK_inv)
+            
       vi_pred_mean_mf = []
       vi_pred_mean_fr = []
       
@@ -631,27 +659,34 @@ if __name__ == "__main__":
       
       for i in np.arange(len(X_star)):
           
+          print(i)
           x_star = X_star[i].reshape(1,1)
           
-          vi_pred_mean_mf.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta_mf, cov_theta_mf))
-          vi_pred_mean_fr.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, mu_theta_fr, cov_theta_fr))
+          #vi_pred_mean_mf.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_mf, cov_theta_mf))
+          vi_pred_mean_fr.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_fr, fr.approx.cov.eval()))
 
-          vi_pred_var_mf.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_mf, cov_theta_mf))
-          vi_pred_var_fr.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_fr, cov_theta_fr))
+          #vi_pred_var_mf.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_mf, cov_theta_mf))
+          #vi_pred_var_fr.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, mu_theta_fr, cov_theta_fr))
           
           
         # Checking MF -MCMC vs deter
       
         plt.figure()
+        plt.plot(X_40, y_40, 'ko')
+        plt.plot(X_star_40, post_means_mf_40.T, 'grey', alpha=0.4)
+        plt.plot(X_star_40, f_star_40, 'k')
         plt.plot(X_star_40, pp_mean_mf_40, color='coral')
         plt.plot(X_star_40, vi_pred_mean_mf, color='b')
-        plt.fill_between(X_star.ravel(), lower_mf, upper_mf, color='coral', alpha=0.3)
+        plt.fill_between(X_star.ravel(), lower_mf_40, upper_mf_40, color='coral', alpha=0.3)
         plt.fill_between(X_star.ravel(), vi_pred_mean_mf - 1.96*np.sqrt(vi_pred_var_mf), vi_pred_mean_mf + 1.96*np.sqrt(vi_pred_var_mf), alpha=0.5)
 
       
         # Checking FR -MCMC vs deter
       
         plt.figure()
+        plt.plot(X_40, y_40, 'ko')
+        plt.plot(X_star_40, post_means_mf_40.T, 'grey', alpha=0.4)
+        plt.plot(X_star_40, f_star_40, 'k')
         plt.plot(X_star_40, pp_mean_fr_40, color='g')
         plt.plot(X_star_40, vi_pred_mean_fr, color='b')
         plt.fill_between(X_star.ravel(), lower_fr, upper_fr, color='g', alpha=0.3)
