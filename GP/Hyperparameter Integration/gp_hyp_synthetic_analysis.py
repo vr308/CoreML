@@ -259,7 +259,6 @@ def plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, titles,
 def plot_hmc_ml_joint(X, y, X_star, pred_mean_hmc, pred_mean_ml, lower_hmc, upper_hmc, pred_std_ml):
             
             plt.figure(figsize=(20,5))
-            
             for i in [0,1,2,3]:
                   plt.subplot(1,4,i+1)
                   plt.plot(X_star[i], pred_mean_hmc[i], color='b', label='HMC')
