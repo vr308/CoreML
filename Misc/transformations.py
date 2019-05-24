@@ -36,8 +36,12 @@ plt.plot(x, st.norm.pdf(np.exp(x), 4, 1)*np.exp(x))
 x = np.linspace(0,1500, 10000)
 plt.figure()
 plt.hist(z_rv, 100, normed=True)
-plt.plot(x, st.norm.pdf(np.log(x),4, 1)/x)
-#plt.plot(x, st.lognorm.pdf(x, loc=4, s=1, scale=np.exp(4)))
+plt.plot(x, st.norm.pdf(np.log(x), 4, 1)/x)
+
+#utterly confusing stuff
+plt.plot(x, st.lognorm.pdf(x, loc=0, s=1, scale=np.exp(4)))
+
+
 
 # MFVB and FR on a correlated Gaussian
 
