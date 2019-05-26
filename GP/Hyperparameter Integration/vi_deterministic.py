@@ -498,9 +498,10 @@ if __name__ == "__main__":
       # Loading data
       
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
-      home_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       
-      path = uni_path 
+      path = desk_home_path
 
 
       # Edit here to change generative model
