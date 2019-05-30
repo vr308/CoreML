@@ -30,10 +30,6 @@ def se_kernel(sig_sd, ls, noise_sd, x1, x2):
       
       return sig_sd**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2) + noise_sd**2
 
-def se_kernel_exn(sig_sd, ls, x1, x2):
-      
-      return sig_sd**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2)
-
 def gradient_K(X):
       
       n_train = len(X) 
