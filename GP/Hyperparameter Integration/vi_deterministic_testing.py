@@ -228,7 +228,7 @@ if __name__ == "__main__":
       varnames = ['sig_sd', 'ls', 'noise_sd']
       log_varnames = ['log_s', 'log_ls', 'log_n']
     
-      X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40)
+      X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20)
     
       cov_theta_mf =  np.cov(trace_mf_df[varnames], rowvar=False)
       cov_theta_fr = np.cov(trace_fr_df[varnames], rowvar=False)
