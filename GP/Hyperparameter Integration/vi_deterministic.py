@@ -355,9 +355,9 @@ def generative_model(X, y):
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
        
 
-raw_mapping = {'log_ls_interval__':  generative_model(X=X_40, y=y_40).log_ls_interval__, 
-              'log_s_interval__': generative_model(X=X_40, y=y_40).log_s_interval__, 
-              'log_n_interval__':  generative_model(X=X_40, y=y_40).log_n_interval__}
+raw_mapping = {'log_ls_interval__':  generative_model(X=X_20, y=y_20).log_ls_interval__, 
+              'log_s_interval__': generative_model(X=X_20, y=y_20).log_s_interval__, 
+              'log_n_interval__':  generative_model(X=X_20, y=y_20).log_n_interval__}
 
 name_mapping = {'log_ls_interval__':  'ls', 
               'log_s_interval__': 'sig_sd', 
