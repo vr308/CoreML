@@ -172,7 +172,7 @@ def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
       
       #d2K_starTT = np.array([J[:,:,0], J[:,:,1], J[:,:,2]])
       
-      return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3).T - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
+      return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3).T - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3).T - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
 
 def deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta):
       
@@ -190,7 +190,7 @@ def deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2
       #pred_vi_mean, pred_vi_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
       
       d1_gp_mean = gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s.eval())
-      d2_gp_var = curvature_gp_pred_var(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv)
+      d2_gp_var = curvature_gp_pred_var(X, x_star, y, K_s.eval(), K_inv, dK_inv, d2K_inv)
       
       return pred_vi_var + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean.T), cov_theta))
 
@@ -246,7 +246,7 @@ if __name__ == "__main__":
       
       sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
       
-      mu_theta = mu_theta_fr
+      mu_theta = mu_theta_mf
 
       dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
       dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
@@ -268,11 +268,29 @@ if __name__ == "__main__":
       K_noise = (K + np.square(mu_theta['noise_sd'])*tt.eye(n_train))
       K_inv = matrix_inverse(K_noise).eval()
          
-      dK = gradient_K(X)
-      d2K = curvature_K(X)
+      dK = gradient_K(X) # 3 x n x n (rank 3 tensor)
+      d2K = curvature_K(X) # 3 x 3 x n x n (rank 4 tensor) 
       
-      dK_inv = -np.matmul(np.matmul(K_inv, dK),K_inv)
-      d2K_inv = -np.matmul(np.matmul(dK_inv, dK), K_inv) - np.matmul(np.matmul(K_inv, d2K), K_inv) - np.matmul(np.matmul(K_inv, dK), dK_inv)
+      dK_inv = -np.matmul(np.matmul(K_inv, dK), K_inv) # # 3 x n x n (rank 3 tensor)
+
+      i, j = np.meshgrid(np.arange(3), np.arange(3))
+      index = np.vstack([j.ravel(), i.ravel()]).T
+      
+      product1 = np.zeros(shape=(3,3,20,20))
+      
+      for i in index:
+            print(i)
+            product1[i[0]][i[1]] = np.matmul(dK_inv[i[0]], dK[i[1]])
+            
+      product2 = np.zeros(shape=(3,3,20,20))
+      
+      prel = np.matmul(K_inv, dK)
+      
+      for i in index:
+            print(i)
+            product2[i[0]][i[1]] = np.matmul(prel[i[0]], dK_inv[i[1]])
+      
+      d2K_inv = -np.matmul(product1, K_inv) - np.matmul(np.matmul(K_inv, d2K), K_inv) - product2
             
       vi_pred_mean_mf = []
       vi_pred_var_mf = []
@@ -287,18 +305,22 @@ if __name__ == "__main__":
           
           print(i)
           x_star = X_star[i].reshape(1,1)
-          #vi_pred_mean_mf.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_mf, cov_theta_mf))
-          vi_pred_mean_fr.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_fr, cov_theta_fr))
-          #vi_pred_var_mf.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_mf, cov_theta_mf))
-          vi_pred_var_fr.append(deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_fr, cov_theta_fr))
+          vi_pred_mean_mf.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_mf, cov_theta_mf))
+          #vi_pred_mean_fr.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_fr, cov_theta_fr))
+          pred_var_mf_ = deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_mf, cov_theta_mf)
+          print(pred_var_mf_ )
+          vi_pred_var_mf.append(pred_var_mf_)
+          #dt_pred_var_fr = deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta_fr, cov_theta_fr)
+          #print(dt_pred_var_fr)
+          #vi_pred_var_fr.append(dt_pred_var_fr)
           
         
         plt.figure()
         plt.plot(X_20, y_20, 'ko')
         plt.plot(X_star_20, post_means_fr_20.T, 'grey', alpha=0.4)
         plt.plot(X_star_20, f_star_20, 'k')
-        plt.plot(X_star_40, pp_mean_fr_20, color='g')
-        plt.plot(X_star_40, np.array(vi_pred_mean_fr).flatten(), color='b')
+        plt.plot(X_star_20, pp_mean_fr_20, color='g')
+        plt.plot(X_star_20, np.array(vi_pred_mean_fr).flatten(), color='b')
         plt.fill_between(X_star_20.ravel(), lower_fr_20, upper_fr_20, color='g', alpha=0.3)
-        plt.fill_between(X_star_20.ravel(), (vi_pred_mean_fr - 1.96*np.sqrt(vi_pred_var_fr)).ravel(), (vi_pred_mean_fr + 1.96*np.sqrt(vi_pred_var_fr)).ravel(), alpha=0.5)
+        plt.fill_between(X_star_20.ravel(), (vi_pred_mean_mf - 1.96*np.sqrt(vi_pred_var_mf)).ravel(), (vi_pred_mean_mf + 1.96*np.sqrt(vi_pred_var_mf)).ravel(), alpha=0.5)
          
