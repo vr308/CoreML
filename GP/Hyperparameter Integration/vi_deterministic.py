@@ -220,7 +220,7 @@ def get_ml_report(X, y, X_star, f_star):
           post_samples = np.random.multivariate_normal(post_mean, post_cov , 10)
           rmse_ = rmse(post_mean, f_star)
           lpd_ = -log_predictive_density(f_star, post_mean, post_std)
-          title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '\n' + '-LPD: ' + str(lpd_)     
+          title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + 'RMSE: ' + str(rmse_) + '  ' + 'NLPD: ' + str(lpd_)     
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           return gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
@@ -496,9 +496,11 @@ def get_bivariate_hyp(bi_list, trace_mf, trace_fr):
               plt.ylabel(i[1])
               plt.tight_layout()
 
-def plot_vi_mf_fr_ml_joint(X_star, pp_mean_ml, pp_std_ml_nf, pp_mean_mf, pp_mean_fr, lower_mf, upper_mf, lower_fr, upper_fr):
+def plot_vi_mf_fr_ml_joint(X, y , X_star, f_star, pp_mean_ml, pp_std_ml_nf, pp_mean_mf, pp_mean_fr, lower_mf, upper_mf, lower_fr, upper_fr, title_ml, title_mf, title_fr):
              
              plt.figure()
+             plt.plot(X, y, 'ko')
+             plt.plot(X_star, f_star, 'k')
              plt.plot(X_star, pp_mean_ml, color='r', label='ML')
              plt.plot(X_star, pp_mean_mf, color='coral',label='MF')
              plt.plot(X_star, pp_mean_fr, color='g', label='FR')
@@ -506,7 +508,7 @@ def plot_vi_mf_fr_ml_joint(X_star, pp_mean_ml, pp_std_ml_nf, pp_mean_mf, pp_mean
              plt.fill_between(X_star.ravel(), lower_mf, upper_mf, color='coral', alpha=0.3)
              plt.fill_between(X_star.ravel(), lower_fr, upper_fr, color='g', alpha=0.3)
              plt.legend(fontsize='small')
-             plt.title('ML vs. MF vs. FR', fontsize='small')
+             plt.title('ML vs. MF vs. FR ' + '\n' + 'N = ' + str(len(X)) + '\n' + 'ML  ' + title_ml + '\n' + title_mf + '\n' + title_fr, fontsize='small')
              
 
 def plot_mcmc_deter_joint(X, y, X_star, f_star, post_samples, pp_mean, lower, upper, pred_mean, pred_var, color):
@@ -626,47 +628,72 @@ if __name__ == "__main__":
       
       # VI - Mean Field and Full-Rank
       
-      with generative_model(X=X_40, y=y_40):
-             
-            mf = pm.ADVI()
-            fr = pm.FullRankADVI()
+      def variational_fitting(X, y, iterations):
       
-            tracker_mf = pm.callbacks.Tracker(
-            mean = mf.approx.mean.eval,    
-            std = mf.approx.std.eval)
+            with generative_model(X=X, y=y):
+                   
+                  mf = pm.ADVI()
+                  fr = pm.FullRankADVI()
             
-            tracker_fr = pm.callbacks.Tracker(
-            mean = fr.approx.mean.eval,    
-            std = fr.approx.std.eval)
+                  tracker_mf = pm.callbacks.Tracker(
+                  mean = mf.approx.mean.eval,    
+                  std = mf.approx.std.eval)
+                  
+                  tracker_fr = pm.callbacks.Tracker(
+                  mean = fr.approx.mean.eval,    
+                  std = fr.approx.std.eval)
+            
+                  mf.fit(callbacks=[tracker_mf], n=iterations)
+                  fr.fit(callbacks=[tracker_fr], n=iterations)
+                  
+                  trace_mf = mf.approx.sample(5000)
+                  trace_fr = fr.approx.sample(5000)
+            
+            return  mf, fr, trace_mf, trace_fr, tracker_mf, tracker_fr
       
-            mf.fit(callbacks=[tracker_mf], n=25000)
-            fr.fit(callbacks=[tracker_fr], n=25000)
-            
-            trace_mf = mf.approx.sample(5000)
-            trace_fr = fr.approx.sample(5000)
+      
+      def variational_post_processing(mf, fr, trace_mf, trace_fr):
           
-      # Post-processing 
+            # Post-processing 
+      
+            trace_mf_df = pm.trace_to_dataframe(trace_mf)
+            trace_fr_df = pm.trace_to_dataframe(trace_fr)
+            
+            means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
+            std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
+            
+            means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
+            std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+            
+            bij_mf = mf.approx.groups[0].bij
+            mf_param = {param.name: bij_mf.rmap(param.eval())
+            	 for param in mf.approx.params}
+            
+            bij_fr = fr.approx.groups[0].bij
+            fr_param = {param.name: bij_fr.rmap(param.eval())
+            	 for param in fr.approx.params}
+            
+            update_param_dict(mf, mf_param, pm.summary(trace_mf))
+            update_param_dict(fr, fr_param, pm.summary(trace_fr))
+            
+            return trace_mf_df, trace_fr_df, mf_param, fr_param, means_mf, std_mf, means_fr, std_fr
+      
+      # Variational fitting
 
-      trace_mf_df = pm.trace_to_dataframe(trace_mf)
-      trace_fr_df = pm.trace_to_dataframe(trace_fr)
+      mf_5, fr_5, trace_mf_5, trace_fr_5, tracker_mf_5, tracker_fr_5 = variational_fitting(X_5, y_5, 60000)
+      mf_10, fr_10, trace_mf_10, trace_fr_10, tracker_mf_10, tracker_fr_10 = variational_fitting(X_10, y_10, 40000)
+      mf_20, fr_20, trace_mf_20, trace_fr_20, tracker_mf_20, tracker_fr_20 = variational_fitting(X_20, y_20, 25000)
+      mf_40, fr_40, trace_mf_40, trace_fr_40, tracker_mf_40, tracker_fr_40 = variational_fitting(X_40, y_40, 25000)
       
-      means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
-      std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
+      # Variational post-processing
       
-      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
-      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+      trace_mf_df_5, trace_fr_df_5, mf_param_5, fr_param_5, means_mf_5, std_mf_5, means_fr_5, std_fr_5 = variational_post_processing(mf_5, fr_5, trace_mf_5, trace_fr_5)
+      trace_mf_df_10, trace_fr_df_10, mf_param_10, fr_param_10, means_mf_10, std_mf_10, means_fr_10, std_fr_10 = variational_post_processing(mf_10, fr_10, trace_mf_10, trace_fr_10)
+      trace_mf_df_20, trace_fr_df_20, mf_param_20, fr_param_20, means_mf_20, std_mf_20, means_fr_20, std_fr_20 = variational_post_processing(mf_20, fr_20, trace_mf_20, trace_fr_20)
+      trace_mf_df_40, trace_fr_df_40, mf_param_40, fr_param_40, means_mf_40, std_mf_40, means_fr_40, std_fr_40 = variational_post_processing(mf_40, fr_40, trace_mf_40, trace_fr_40)
+
       
-      bij_mf = mf.approx.groups[0].bij
-      mf_param = {param.name: bij_mf.rmap(param.eval())
-      	 for param in mf.approx.params}
-      
-      bij_fr = fr.approx.groups[0].bij
-      fr_param = {param.name: bij_fr.rmap(param.eval())
-      	 for param in fr.approx.params}
-      
-      update_param_dict(mf, mf_param, pm.summary(trace_mf))
-      update_param_dict(fr, fr_param, pm.summary(trace_fr))
-      
+
       # Variational parameters track  
       
       convergence_report(tracker_mf_5, tracker_fr_5, true_hyp, varnames)
@@ -683,10 +710,10 @@ if __name__ == "__main__":
 
       # Traceplot with Mean-Field and Full-Rank
       
-      trace_report(mf_5, fr_5, means_mf_5, std_mf_5, means_fr_5, std_fr_5, true_hyp, trace_mf_5, trace_fr_5)
-      trace_report(mf_10, fr_10, means_mf_10, std_mf_10, means_fr_10, std_fr_10, true_hyp, trace_mf_10, trace_fr_10)
+      trace_report(mf_5, fr_5, means_mf_5, std_mf_5, means_fr_5, std_fr_5, true_hyp, trace_mf_5, trace_fr_5, ml_deltas_dict_5)
+      trace_report(mf_10, fr_10, means_mf_10, std_mf_10, means_fr_10, std_fr_10, true_hyp, trace_mf_10, trace_fr_10, ml_deltas_dict_10)
       trace_report(mf_20, fr_20, means_mf_20, std_mf_20, means_fr_20, std_fr_20, true_hyp, trace_mf_20, trace_fr_20, ml_deltas_dict_20)
-      trace_report(mf_40, fr_40, means_mf_40, std_mf_40, means_fr_40, std_fr_40, true_hyp, trace_mf_40, trace_fr_40)
+      trace_report(mf_40, fr_40, means_mf_40, std_mf_40, means_fr_40, std_fr_40, true_hyp, trace_mf_40, trace_fr_40, ml_deltas_dict_40)
 
       # Bi-variate relationship
       
@@ -752,8 +779,8 @@ if __name__ == "__main__":
       lppd_mf_20, lpd_mf_20 = log_predictive_mixture_density(f_star_20, post_means_mf_20, post_stds_mf_20, None)
       lppd_fr_20, lpd_fr_20 = log_predictive_mixture_density(f_star_20, post_means_fr_20, post_stds_fr_20, None)
 
-      title_mf_20 = 'RMSE: ' + str(rmse_mf_20) + '\n' + '-LPD: ' + str(-lpd_mf_20)
-      title_fr_20 = 'RMSE: ' + str(rmse_fr_20) + '\n' + '-LPD: ' + str(-lpd_fr_20)
+      title_mf_20 = 'MF   ' +  'RMSE: ' + str(rmse_mf_20) + ' ' + 'NLPD: ' + str(-lpd_mf_20)
+      title_fr_20 =  'FR  ' + 'RMSE: ' + str(rmse_fr_20) + ' ' + 'NLPD: ' + str(-lpd_fr_20)
        
        # N = 10
       
@@ -778,8 +805,8 @@ if __name__ == "__main__":
       lppd_mf_10, lpd_mf_10 = log_predictive_mixture_density(f_star_10, post_means_mf_10, post_stds_mf_10, None)
       lppd_fr_10, lpd_fr_10 = log_predictive_mixture_density(f_star_10, post_means_fr_10, post_stds_fr_10, None)
 
-      title_mf_10 = 'RMSE: ' + str(rmse_mf_10) + '\n' + '-LPD: ' + str(-lpd_mf_10)
-      title_fr_10 = 'RMSE: ' + str(rmse_fr_10) + '\n' + '-LPD: ' + str(-lpd_fr_10)
+      title_mf_10 = 'MF  ' + 'RMSE: ' + str(rmse_mf_10) + '  ' + 'NLPD: ' + str(-lpd_mf_10)
+      title_fr_10 = 'FR  ' + 'RMSE: ' + str(rmse_fr_10) + '  ' + 'NLPD: ' + str(-lpd_fr_10)
       
       
       # N = 5
@@ -805,14 +832,14 @@ if __name__ == "__main__":
       lppd_mf_5, lpd_mf_5 = log_predictive_mixture_density(f_star_5, post_means_mf_5, post_stds_mf_5, None)
       lppd_fr_5, lpd_fr_5 = log_predictive_mixture_density(f_star_5, post_means_fr_5, post_stds_fr_5, None)
 
-      title_mf_5 = 'RMSE: ' + str(rmse_mf_5) + '\n' + '-LPD: ' + str(-lpd_mf_5)
-      title_fr_5 = 'RMSE: ' + str(rmse_fr_5) + '\n' + '-LPD: ' + str(-lpd_fr_5)
+      title_mf_5 = 'MF  ' + 'RMSE: ' + str(rmse_mf_5) + '  ' + 'NLPD: ' + str(-lpd_mf_5)
+      title_fr_5 = 'FR  ' + 'RMSE: ' + str(rmse_fr_5) + '  ' + 'NLPD: ' + str(-lpd_fr_5)
       
 
-        plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)  
-        plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)  
-        plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)
-      plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40)
+      plot_vi_mf_fr_ml_joint(X_5, y_5, X_star_5, f_star_5, pp_mean_ml_5, pp_std_ml_nf_5, pp_mean_mf_5, pp_mean_fr_5, lower_mf_5, upper_mf_5, lower_fr_5, upper_fr_5, title_5[70:], title_mf_5, title_fr_5)  
+      plot_vi_mf_fr_ml_joint(X_10, y_10, X_star_10, f_star_10, pp_mean_ml_10, pp_std_ml_nf_10, pp_mean_mf_10, pp_mean_fr_10, lower_mf_10, upper_mf_10, lower_fr_10, upper_fr_10, title_10[70:], title_mf_10, title_fr_10)  
+      plot_vi_mf_fr_ml_joint(X_20, y_20, X_star_20, f_star_20, pp_mean_ml_20, pp_std_ml_nf_20, pp_mean_mf_20, pp_mean_fr_20, lower_mf_20, upper_mf_20, lower_fr_20, upper_fr_20, title_20[70:], title_mf_20, title_fr_20)
+      plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40, title_40[70:], title_mf_40, title_fr_40)
       
       
       #---------------------Full deterministic prediction------------------------------------------------------
@@ -827,15 +854,15 @@ if __name__ == "__main__":
       
       # Computing deterministic mean and var
       
-      pred_mean_mf_5, pred_var_mf_5 = deterministic_vi_pred_mean_var(mu_theta_mf, cov_theta_mf, X_5, X_star_5, y_5)
-      pred_mean_mf_10, pred_var_mf_10 = deterministic_vi_pred_mean_var(mu_theta_mf, cov_theta_mf, X_10, X_star_10, y_10)
-      pred_mean_mf_20, pred_var_mf_20 = deterministic_vi_pred_mean_var(mu_theta_mf, cov_theta_mf, X_20, X_star_20, y_20)
-      pred_mean_mf_40, pred_var_mf_40 = deterministic_vi_pred_mean_var(mu_theta_mf, cov_theta_mf, X_40, X_star_40, y_40)
+      pred_mean_mf_5, pred_var_mf_5 = deterministic_vi_pred_mean_var(mu_theta_mf_5, cov_theta_mf_5, X_5, X_star_5, y_5)
+      pred_mean_mf_10, pred_var_mf_10 = deterministic_vi_pred_mean_var(mu_theta_mf_10, cov_theta_mf_10, X_10, X_star_10, y_10)
+      pred_mean_mf_20, pred_var_mf_20 = deterministic_vi_pred_mean_var(mu_theta_mf_20, cov_theta_mf_20, X_20, X_star_20, y_20)
+      pred_mean_mf_40, pred_var_mf_40 = deterministic_vi_pred_mean_var(mu_theta_mf_40, cov_theta_mf_40, X_40, X_star_40, y_40)
       
-      pred_mean_fr_5, pred_var_fr_5 = deterministic_vi_pred_mean_var(mu_theta_fr, cov_theta_fr, X_5, X_star_5, y_5)
-      pred_mean_fr_10, pred_var_fr_10 = deterministic_vi_pred_mean_var(mu_theta_fr, cov_theta_fr, X_10, X_star_10, y_10)
-      pred_mean_fr_20, pred_var_fr_20 = deterministic_vi_pred_mean_var(mu_theta_fr, cov_theta_fr, X_20, X_star_20, y_20)
-      pred_mean_fr_40, pred_var_fr_40 = deterministic_vi_pred_mean_var(mu_theta_fr, cov_theta_fr, X_40, X_star_40, y_40)
+      pred_mean_fr_5, pred_var_fr_5 = deterministic_vi_pred_mean_var(mu_theta_fr_5, cov_theta_fr, X_5, X_star_5, y_5)
+      pred_mean_fr_10, pred_var_fr_10 = deterministic_vi_pred_mean_var(mu_theta_fr_10, cov_theta_fr, X_10, X_star_10, y_10)
+      pred_mean_fr_20, pred_var_fr_20 = deterministic_vi_pred_mean_var(mu_theta_fr_20, cov_theta_fr, X_20, X_star_20, y_20)
+      pred_mean_fr_40, pred_var_fr_40 = deterministic_vi_pred_mean_var(mu_theta_fr_40, cov_theta_fr, X_40, X_star_40, y_40)
       
     
         # MF - VI MCMC vs VI DET
