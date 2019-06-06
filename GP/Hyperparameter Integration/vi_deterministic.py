@@ -57,6 +57,8 @@ def curvature_K(X):
       
       # Rank 4 tensor  -> 3 x 3 x n x n 
       
+      n_train = len(X) 
+      
       d2K_d2sf_m = np.zeros(shape=(n_train, n_train))
       d2K_d2ls_m = np.zeros(shape=(n_train, n_train))
       d2K_d2sn_m = np.zeros(shape=(n_train, n_train))
@@ -89,12 +91,13 @@ def curvature_K(X):
 
 def gradient_K_star(X, x_star):
       
-      n = len(X)
-      row1 = np.zeros(shape=(n))
-      row2 = np.zeros(shape=(n))
-      row3 = np.zeros(shape=(n))
+      n_train = len(X)
       
-      for i in np.arange(n):
+      row1 = np.zeros(shape=(n_train))
+      row2 = np.zeros(shape=(n_train))
+      row3 = np.zeros(shape=(n_train))
+      
+      for i in np.arange(n_train):
             row1[i] = dk_dsf.subs({x1: X[i], x2: x_star})
             row2[i] = dk_dls.subs({x1: X[i], x2: x_star})
             row3[i] = 0
@@ -104,6 +107,8 @@ def gradient_K_star(X, x_star):
 def curvature_K_star(X, x_star):
       
       # Rank 3 tensor  -> 3 x 3 x n 
+      
+     n_train = len(X)
       
      row_d2sf = np.zeros(shape=(n_train))
      row_d2ls = np.zeros(shape=(n_train))
@@ -157,7 +162,7 @@ def curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv):
       
       d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
       
-      return  np.matmul(np.matmul(d2K_starT, K_inv), y) + 2*np.matmul(np.matmul(dK_starT, dK_inv), y) + np.matmul(np.matmul(K_s.T, d2K_inv),y).reshape(3,3).T
+      return  np.matmul(np.matmul(d2K_starT, K_inv), y) + 2*np.matmul(np.matmul(dK_starT, dK_inv), y) + np.matmul(np.matmul(K_s.T, d2K_inv),y).reshape(3,3)
 
 def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
       
@@ -168,7 +173,7 @@ def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
       
       d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
       
-      return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3).T - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
+      return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
 
 
 #d2K_star_star - np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT,dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_starT.T) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(K_s.T, dK_inv), dK_starT.T).reshape(3,3) - np.matmul(np.matmul(K_s.T,K_inv), d2K_starTT).reshape(3,3)
@@ -557,13 +562,13 @@ def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
             i, j = np.meshgrid(np.arange(3), np.arange(3))
             index = np.vstack([j.ravel(), i.ravel()]).T
             
-            tensor_mult1 = np.zeros(shape=(3,3,20,20))
+            tensor_mult1 = np.zeros(shape=(3,3,n_train,n_train))
             
             for i in index:
                   print(i)
                   tensor_mult1[i[0]][i[1]] = np.matmul(dK_inv[i[0]], dK[i[1]])
                   
-            tensor_mult2 = np.zeros(shape=(3,3,20,20))
+            tensor_mult2 = np.zeros(shape=(3,3,n_train,n_train))
             
             prel = np.matmul(K_inv, dK)
             
@@ -733,8 +738,8 @@ if __name__ == "__main__":
       # N = 40
       
       thin_factor=100
-      write_posterior_predictive_samples(trace_mf, thin_factor, X_40, y_40, X_star_40, results_path, 'mf')
-      write_posterior_predictive_samples(trace_fr, thin_factor, X_40, y_40, X_star_40, results_path, 'fr')
+      write_posterior_predictive_samples(trace_mf_40, thin_factor, X_40, y_40, X_star_40, results_path, 'mf')
+      write_posterior_predictive_samples(trace_fr_40, thin_factor, X_40, y_40, X_star_40, results_path, 'fr')
 
       post_means_mf_40, post_stds_mf_40 = load_post_samples(results_path + 'means_mf_40.csv', results_path + 'std_mf_40.csv')
       post_means_fr_40, post_stds_fr_40 = load_post_samples(results_path + 'means_fr_40.csv', results_path + 'std_fr_40.csv')
@@ -753,14 +758,14 @@ if __name__ == "__main__":
       lppd_mf_40, lpd_mf_40 = log_predictive_mixture_density(f_star_40, post_means_mf_40, post_stds_mf_40, None)
       lppd_fr_40, lpd_fr_40 = log_predictive_mixture_density(f_star_40, post_means_fr_40, post_stds_fr_40, None)
 
-      title_mf_40 = 'RMSE: ' + str(rmse_mf_40) + '\n' + '-LPD: ' + str(-lpd_mf_40)
-      title_fr_40 = 'RMSE: ' + str(rmse_fr_40) + '\n' + '-LPD: ' + str(-lpd_fr_40)
+      title_mf_40 = 'MF  ' +  'RMSE: ' + str(rmse_mf_40) + ' ' + 'NLPD: ' + str(-lpd_mf_40)
+      title_fr_40 = 'FR  ' +  'RMSE: ' + str(rmse_fr_40) + ' ' + 'NLPD: ' + str(-lpd_fr_40)
       
        # N = 20
       
       thin_factor=100
-      write_posterior_predictive_samples(trace_mf, thin_factor, X_20, y_20, X_star_20, results_path, 'mf')
-      write_posterior_predictive_samples(trace_fr, thin_factor, X_20, y_20, X_star_20, results_path, 'fr')
+      write_posterior_predictive_samples(trace_mf_20, thin_factor, X_20, y_20, X_star_20, results_path, 'mf')
+      write_posterior_predictive_samples(trace_fr_20, thin_factor, X_20, y_20, X_star_20, results_path, 'fr')
 
       post_means_mf_20, post_stds_mf_20 = load_post_samples(results_path + 'means_mf_20.csv', results_path + 'std_mf_20.csv')
       post_means_fr_20, post_stds_fr_20 = load_post_samples(results_path + 'means_fr_20.csv', results_path + 'std_fr_20.csv')
@@ -785,8 +790,8 @@ if __name__ == "__main__":
        # N = 10
       
       thin_factor=100
-      write_posterior_predictive_samples(trace_mf, thin_factor, X_10, y_10, X_star_10, results_path, 'mf')
-      write_posterior_predictive_samples(trace_fr, thin_factor, X_10, y_10, X_star_10, results_path, 'fr')
+      write_posterior_predictive_samples(trace_mf_10, thin_factor, X_10, y_10, X_star_10, results_path, 'mf')
+      write_posterior_predictive_samples(trace_fr_10, thin_factor, X_10, y_10, X_star_10, results_path, 'fr')
 
       post_means_mf_10, post_stds_mf_10 = load_post_samples(results_path + 'means_mf_10.csv', results_path + 'std_mf_10.csv')
       post_means_fr_10, post_stds_fr_10 = load_post_samples(results_path + 'means_fr_10.csv', results_path + 'std_fr_10.csv')
@@ -839,18 +844,36 @@ if __name__ == "__main__":
       plot_vi_mf_fr_ml_joint(X_5, y_5, X_star_5, f_star_5, pp_mean_ml_5, pp_std_ml_nf_5, pp_mean_mf_5, pp_mean_fr_5, lower_mf_5, upper_mf_5, lower_fr_5, upper_fr_5, title_5[70:], title_mf_5, title_fr_5)  
       plot_vi_mf_fr_ml_joint(X_10, y_10, X_star_10, f_star_10, pp_mean_ml_10, pp_std_ml_nf_10, pp_mean_mf_10, pp_mean_fr_10, lower_mf_10, upper_mf_10, lower_fr_10, upper_fr_10, title_10[70:], title_mf_10, title_fr_10)  
       plot_vi_mf_fr_ml_joint(X_20, y_20, X_star_20, f_star_20, pp_mean_ml_20, pp_std_ml_nf_20, pp_mean_mf_20, pp_mean_fr_20, lower_mf_20, upper_mf_20, lower_fr_20, upper_fr_20, title_20[70:], title_mf_20, title_fr_20)
-      plot_vi_mf_fr_ml_joint(pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40, title_40[70:], title_mf_40, title_fr_40)
+      plot_vi_mf_fr_ml_joint(X_40, y_40, X_star_40, f_star_40, pp_mean_ml_40, pp_std_ml_nf_40, pp_mean_mf_40, pp_mean_fr_40, lower_mf_40, upper_mf_40, lower_fr_40, upper_fr_40, title_40[67:], title_mf_40, title_fr_40)
       
       
       #---------------------Full deterministic prediction------------------------------------------------------
       
       # Extracting mu_theta and cov_theta
       
-      cov_theta_mf =  np.cov(trace_mf_df[varnames], rowvar=False)
-      cov_theta_fr = np.cov(trace_fr_df[varnames], rowvar=False)
+      cov_theta_mf_5 =  np.cov(trace_mf_df_5[varnames], rowvar=False)
+      cov_theta_fr_5 = np.cov(trace_fr_df_5[varnames], rowvar=False)
       
-      mu_theta_mf = mf_param['mu_implicit']
-      mu_theta_fr = fr_param['mu_implicit']
+      mu_theta_mf_5 = mf_param_5['mu_implicit']
+      mu_theta_fr_5 = fr_param_5['mu_implicit']
+      
+      cov_theta_mf_10 =  np.cov(trace_mf_df_10[varnames], rowvar=False)
+      cov_theta_fr_10 = np.cov(trace_fr_df_10[varnames], rowvar=False)
+      
+      mu_theta_mf_10 = mf_param_10['mu_implicit']
+      mu_theta_fr_10 = fr_param_10['mu_implicit']
+      
+      cov_theta_mf_20 =  np.cov(trace_mf_df_20[varnames], rowvar=False)
+      cov_theta_fr_20 = np.cov(trace_fr_df_20[varnames], rowvar=False)
+      
+      mu_theta_mf_20 = mf_param_20['mu_implicit']
+      mu_theta_fr_20 = fr_param_20['mu_implicit']
+      
+      cov_theta_mf_40 =  np.cov(trace_mf_df_40[varnames], rowvar=False)
+      cov_theta_fr_40 = np.cov(trace_fr_df_40[varnames], rowvar=False)
+      
+      mu_theta_mf_40 = mf_param_40['mu_implicit']
+      mu_theta_fr_40 = fr_param_40['mu_implicit']
       
       # Computing deterministic mean and var
       
@@ -859,20 +882,20 @@ if __name__ == "__main__":
       pred_mean_mf_20, pred_var_mf_20 = deterministic_vi_pred_mean_var(mu_theta_mf_20, cov_theta_mf_20, X_20, X_star_20, y_20)
       pred_mean_mf_40, pred_var_mf_40 = deterministic_vi_pred_mean_var(mu_theta_mf_40, cov_theta_mf_40, X_40, X_star_40, y_40)
       
-      pred_mean_fr_5, pred_var_fr_5 = deterministic_vi_pred_mean_var(mu_theta_fr_5, cov_theta_fr, X_5, X_star_5, y_5)
-      pred_mean_fr_10, pred_var_fr_10 = deterministic_vi_pred_mean_var(mu_theta_fr_10, cov_theta_fr, X_10, X_star_10, y_10)
-      pred_mean_fr_20, pred_var_fr_20 = deterministic_vi_pred_mean_var(mu_theta_fr_20, cov_theta_fr, X_20, X_star_20, y_20)
-      pred_mean_fr_40, pred_var_fr_40 = deterministic_vi_pred_mean_var(mu_theta_fr_40, cov_theta_fr, X_40, X_star_40, y_40)
+      pred_mean_fr_5, pred_var_fr_5 = deterministic_vi_pred_mean_var(mu_theta_fr_5, cov_theta_fr_5, X_5, X_star_5, y_5)
+      pred_mean_fr_10, pred_var_fr_10 = deterministic_vi_pred_mean_var(mu_theta_fr_10, cov_theta_fr_10, X_10, X_star_10, y_10)
+      pred_mean_fr_20, pred_var_fr_20 = deterministic_vi_pred_mean_var(mu_theta_fr_20, cov_theta_fr_20, X_20, X_star_20, y_20)
+      pred_mean_fr_40, pred_var_fr_40 = deterministic_vi_pred_mean_var(mu_theta_fr_40, cov_theta_fr_40, X_40, X_star_40, y_40)
       
     
-        # MF - VI MCMC vs VI DET
+        # MF - MCVI vs DVI
      
        plot_mcmc_deter_joint(X_5, y_5, X_star_5, f_star_5, post_means_mf_5, pp_mean_mf_5, lower_mf_5, upper_mf_5, pred_mean_mf_5, pred_var_mf_5, 'coral')
        plot_mcmc_deter_joint(X_10, y_10, X_star_10, f_star_10, post_means_mf_10, pp_mean_mf_10, lower_mf_10, upper_mf_10, pred_mean_mf_10, pred_var_mf_10, 'coral')
        plot_mcmc_deter_joint(X_20, y_20, X_star_20, f_star_20, post_means_mf_20, pp_mean_mf_20, lower_mf_20, upper_mf_20, pred_mean_mf_20, pred_var_mf_20, 'coral')
         plot_mcmc_deter_joint(X_40, y_40, X_star_40, f_star_40, post_means_mf_40, pp_mean_mf_40, lower_mf_40, upper_mf_40, pred_mean_mf_40, pred_var_mf_40, 'coral')
       
-        # FR - MCMC vs deter
+        # FR - MCVI vs DVI
       
       plot_mcmc_deter_joint(X_5, y_5, X_star_5, f_star_5, post_means_fr_5, pp_mean_fr_5, lower_fr_5, upper_fr_5, pred_mean_fr_5, pred_var_fr_5, 'g')
       plot_mcmc_deter_joint(X_10, y_10, X_star_10, f_star_10, post_means_fr_10, pp_mean_fr_10, lower_fr_10, upper_fr_10, pred_mean_fr_10, pred_var_fr_10, 'g')
