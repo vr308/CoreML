@@ -159,7 +159,6 @@ def curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv):
       
       dK_starT = gradient_K_star(X, x_star).T
       d2K_star = curvature_K_star(X, x_star)
-      
       d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
       
       return  np.matmul(np.matmul(d2K_starT, K_inv), y) + 2*np.matmul(np.matmul(dK_starT, dK_inv), y) + np.matmul(np.matmul(K_s.T, d2K_inv),y).reshape(3,3)
@@ -170,7 +169,6 @@ def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
       dK_star = dK_starT.T
       d2K_star_star = curvature_K_star_star(x_star)
       d2K_star = curvature_K_star(X, x_star)
-      
       d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
       
       return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
@@ -181,24 +179,22 @@ def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
 #a1 = np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3)
 #a2 = np.matmul(np.matmul(K_s.T, dK_inv), dK_star).reshape(3,3)
 
-def deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta):
+def deterministic_gp_pred_mean(X, x_star, y, K_s, K_ss, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_mean):
       
-      K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
-      pred_vi_mean = np.matmul(np.matmul(K_s.T.eval(), K_inv), y).reshape(1,1)
+      #K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
       
-      d2_gp_mean = curvature_gp_pred_mean(X, x_star, y, K_s.eval(), K_inv, dK_inv, d2K_inv) # 3x3 matrix
+      d2_gp_mean = curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv) # 3x3 matrix
       
-      return pred_vi_mean.flatten() + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
+      return pred_vi_mean + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
 
-def deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta):
+def deterministic_gp_pred_covariance(X, x_star, y, K_s, K_ss, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_var):
       
-      K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
-      pred_vi_var =  K_ss.eval() - np.matmul(np.matmul(K_s.T.eval(), K_inv), K_s.eval())
+      #K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
       
-      d1_gp_mean = gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s.eval())
-      d2_gp_var = curvature_gp_pred_var(X, x_star, y, K_s.eval(), K_inv, dK_inv, d2K_inv)
+      d1_gp_mean = gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s)
+      d2_gp_var = curvature_gp_pred_var(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv)
       
-      return pred_vi_var.flatten() + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean.T), cov_theta))
+      return pred_vi_var + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean.T), cov_theta))
 
 def load_datasets(path, n_train):
       
@@ -235,7 +231,7 @@ def get_star_kernel_matrix_blocks(X, X_star, point):
           cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
           K_s = cov(X, X_star)
           K_ss = cov(X_star, X_star)
-          return K_s, K_ss
+          return K_s.eval(), K_ss.eval()
 
 def get_kernel_matrix_blocks(X, X_star, n_train, point):
     
@@ -565,7 +561,6 @@ def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
             tensor_mult1 = np.zeros(shape=(3,3,n_train,n_train))
             
             for i in index:
-                  print(i)
                   tensor_mult1[i[0]][i[1]] = np.matmul(dK_inv[i[0]], dK[i[1]])
                   
             tensor_mult2 = np.zeros(shape=(3,3,n_train,n_train))
@@ -573,11 +568,15 @@ def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
             prel = np.matmul(K_inv, dK)
             
             for i in index:
-                  print(i)
                   tensor_mult2[i[0]][i[1]] = np.matmul(prel[i[0]], dK_inv[i[1]])
             
             d2K_inv = -np.matmul(tensor_mult1, K_inv) - np.matmul(np.matmul(K_inv, d2K), K_inv) - tensor_mult2
-                  
+            
+            K_s, K_ss = get_star_kernel_matrix_blocks(X, X_star, mu_theta)
+            
+            pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+            pred_vi_var =  K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s)
+
             pred_mean = []
             pred_var = []
       
@@ -586,8 +585,8 @@ def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
                 print(i)
                 x_star = X_star[i].reshape(1,1)
       
-                pred_mean.append(deterministic_gp_pred_mean(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta))
-                pred_var_ = deterministic_gp_pred_covariance(X, x_star, y, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta)
+                pred_mean.append(deterministic_gp_pred_mean(X, x_star, y, K_s[i,i], K_ss[i,i], K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_mean[i]))
+                pred_var_ = deterministic_gp_pred_covariance(X, x_star, y, K_s[i,i], K_ss[i,i], K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_var[i,i])
                 print(pred_var_)
                 pred_var.append(pred_var_)
                 
@@ -900,6 +899,6 @@ if __name__ == "__main__":
       plot_mcmc_deter_joint(X_5, y_5, X_star_5, f_star_5, post_means_fr_5, pp_mean_fr_5, lower_fr_5, upper_fr_5, pred_mean_fr_5, pred_var_fr_5, 'g')
       plot_mcmc_deter_joint(X_10, y_10, X_star_10, f_star_10, post_means_fr_10, pp_mean_fr_10, lower_fr_10, upper_fr_10, pred_mean_fr_10, pred_var_fr_10, 'g')
      plot_mcmc_deter_joint(X_20, y_20, X_star_20, f_star_20, post_means_fr_20, pp_mean_fr_20, lower_fr_20, upper_fr_20, pred_mean_fr_20, pred_var_fr_20, 'g')
-      plot_mcmc_deter_joint(X_40, y_40, X_star_40, f_star_40, post_means_mf_40, pp_mean_mf_40, lower_mf_40, upper_mf_40, pred_mean_mf_40, pred_var_mf_40, 'g')
+      plot_mcmc_deter_joint(X_40, y_40, X_star_40, f_star_40, post_means_fr_40, pp_mean_fr_40, lower_fr_40, upper_fr_40, pred_mean_fr_40, pred_var_fr_40, 'g')
       
 
