@@ -482,6 +482,69 @@ def trace_report(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, tru
             traces[i][j].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
             traces[i][j].legend(fontsize='x-small')
             
+def plot_lml_surface_3way(gpr, sig_sd, lengthscale, noise_sd):
+    
+    plt.figure(figsize=(15,6))
+    plt.subplot(131)
+    l_log = np.logspace(-5, 5, 100)
+    noise_log  = np.logspace(-6, 6, 100)
+    l_log_mesh, noise_log_mesh = np.meshgrid(l_log, noise_log)
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(sig_sd), l_log_mesh[i, j], np.square(noise_log_mesh[i, j])]))
+            for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+    LML = np.array(LML).T
+    
+    vmin, vmax = (-LML).min(), (-LML).max()
+    #vmax = 50
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=1)
+    plt.contourf(l_log_mesh, noise_log_mesh, -LML,
+                levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+    plt.plot(lengthscale, noise_sd, 'rx')
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Length-scale")
+    plt.ylabel("Noise sd")
+    
+    plt.subplot(132)
+    l_log = np.logspace(-5, 4, 100)
+    signal_log  = np.logspace(-5, 4, 100)
+    l_log_mesh, signal_log_mesh = np.meshgrid(l_log, signal_log)
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(signal_log_mesh[i,j]), l_log_mesh[i, j], np.square(noise_sd)]))
+            for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+    LML = np.array(LML).T
+    
+    vmin, vmax = (-LML).min(), (-LML).max()
+    #vmax = 50
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
+    plt.contourf(l_log_mesh, signal_log_mesh, -LML,
+                levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+    plt.plot(lengthscale, sig_sd, 'rx')
+    #plt.colorbar()
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Length-scale")
+    plt.ylabel("Signal sd")
+    
+    plt.subplot(133)
+    noise_log = np.logspace(-5, 2, 100)
+    signal_log  = np.logspace(-5, 2, 100)
+    noise_log_mesh, signal_log_mesh = np.meshgrid(noise_log, signal_log)
+    LML = [[gpr.log_marginal_likelihood(np.log([np.square(signal_log_mesh[i,j]), lengthscale, np.square(noise_log_mesh[i,j])]))
+            for i in range(l_log_mesh.shape[0])] for j in range(l_log_mesh.shape[1])]
+    LML = np.array(LML).T
+    
+    vmin, vmax = (-LML).min(), (-LML).max()
+    #vmax = 50
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
+    plt.contourf(noise_log_mesh, signal_log_mesh, -LML,
+                levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=cm.get_cmap('jet'))
+    plt.plot(noise_sd, sig_sd, 'rx')
+    #plt.colorbar()
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.xlabel("Noise sd")
+    plt.ylabel("Signal sd")    
+    plt.suptitle('LML Surface ' + '\n' + str(gpr.kernel_), fontsize='small')
+            
       
 if __name__ == "__main__":
 
@@ -489,18 +552,20 @@ if __name__ == "__main__":
       
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
       home_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/'
+      
+      path = uni_path
 
       # Edit here to change generative model
       
-      input_dist =  'NUnif'
-      snr = 2
+      input_dist =  'Unif'
+      snr = 10
       n_train = [5, 10, 20, 40]
       suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
-      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(50),3)]
+      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(10),3)]
       
       suffix_t = 'SNR = ' + str(snr) + ', ' + input_dist
 
-      data_path = uni_path + suffix
+      data_path = path + suffix
       results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
       
       true_hyp_dict = {'sig_sd': true_hyp[0], 'ls': true_hyp[1] , 'noise_sd': true_hyp[2], 'log_s': np.log(true_hyp[0]),  'log_ls':np.log(true_hyp[1]) , 'log_n':np.log(true_hyp[2])}
@@ -535,7 +600,7 @@ if __name__ == "__main__":
       plot_lml_surface_3way(gpr_5, ml_deltas_dict_5['sig_sd'], ml_deltas_dict_5['ls'], ml_deltas_dict_5['noise_sd'])
       plot_lml_surface_3way(gpr_10, ml_deltas_dict_10['sig_sd'], ml_deltas_dict_10['ls'], ml_deltas_dict_10['noise_sd'])
       plot_lml_surface_3way(gpr_20, ml_deltas_dict_20['sig_sd'], ml_deltas_dict_20['ls'], ml_deltas_dict_20['noise_sd'])
-      
+      plot_lml_surface_3way(gpr_40, ml_deltas_dict_40['sig_sd'], ml_deltas_dict_40['ls'], ml_deltas_dict_40['noise_sd'])
 
       # Collecting means and stds in a list for plotting
 
@@ -574,6 +639,13 @@ if __name__ == "__main__":
       with generative_model(X=X_10, y=y_10): trace_hmc_10 = pm.sample(draws=1000, tune=5000)
       with generative_model(X=X_20, y=y_20): trace_hmc_20 = pm.sample(draws=1000, tune=4000)
       with generative_model(X=X_40, y=y_40): trace_hmc_40 = pm.sample(draws=1000, tune=2000)
+      
+      # Persist traces
+       
+      with generative_model(X=X_5, y=y_5): pm.save_trace(trace_hmc_5, directory = results_path + 'traces_hmc/x_5/')
+      with generative_model(X=X_10, y=y_10): pm.save_trace(trace_hmc_10, directory = results_path + 'traces_hmc/x_10/')
+      with generative_model(X=X_20, y=y_20):  pm.save_trace(trace_hmc_20, directory = results_path + 'traces_hmc/x_20/')
+      with generative_model(X=X_40, y=y_40):  pm.save_trace(trace_hmc_40, directory = results_path + 'traces_hmc/x_40/')
       
       trace_hmc_5 = pm.load_trace(results_path + 'traces_hmc/x_5/', model=generative_model(X=X_5, y=y_5))
       trace_hmc_10 = pm.load_trace(results_path + 'traces_hmc/x_10/', model=generative_model(X=X_10, y=y_10))
@@ -629,13 +701,6 @@ if __name__ == "__main__":
        pair_grid_plot(trace_hmc_20_df, ml_deltas_dict_20, true_hyp_dict, 'b', title_b_20, log_varnames)
        pair_grid_plot(trace_hmc_40_df, ml_deltas_dict_40, true_hyp_dict, 'b', title_b_40, log_varnames)
 
-       # Persist traces
-       
-      with generative_model(X=X_5, y=y_5): pm.save_trace(trace_hmc_5, directory = results_path + 'traces_hmc/x_5/')
-      with generative_model(X=X_10, y=y_10): pm.save_trace(trace_hmc_10, directory = results_path + 'traces_hmc/x_10/')
-      with generative_model(X=X_20, y=y_20):  pm.save_trace(trace_hmc_20, directory = results_path + 'traces_hmc/x_20/')
-      with generative_model(X=X_40, y=y_40):  pm.save_trace(trace_hmc_40, directory = results_path + 'traces_hmc/x_40/')
-      
        # Predictive means and stds - generate them 
        
        write_posterior_predictive_samples(trace_hmc_5, 20, X_5, y_5, X_star_5, results_path, 'hmc')
@@ -658,104 +723,104 @@ if __name__ == "__main__":
 
        # N = 5 --------------------------------------------------------------------------------------------
        
-       w5 = np.exp(trace_hmc_5['lml'])
+       #w5 = np.exp(trace_hmc_5['lml'])
        u5 = np.ones(len(post_means_hmc_5))
        
        pp_mean_hmc_5 = get_posterior_predictive_mean(post_means_hmc_5, weights=None)
-       pp_mean_hmc_w_5 = get_posterior_predictive_mean(post_means_hmc_5, weights=w5)
+       #pp_mean_hmc_w_5 = get_posterior_predictive_mean(post_means_hmc_5, weights=w5)
        
        lower_hmc_5, upper_hmc_5 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_5, post_stds_hmc_5, u5)
-       lower_hmc_w_5, upper_hmc_w_5 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_5, post_stds_hmc_5, w5)
+       #lower_hmc_w_5, upper_hmc_w_5 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_5, post_stds_hmc_5, w5)
        rmse_hmc_5 = rmse(pp_mean_hmc_5, f_star_5)
-       rmse_hmc_w_5 = rmse(pp_mean_hmc_w_5, f_star_5)
+       #rmse_hmc_w_5 = rmse(pp_mean_hmc_w_5, f_star_5)
        
        lppd_hmc_5, lpd_hmc_5 = log_predictive_mixture_density(f_star_5, post_means_hmc_5, post_stds_hmc_5, None)
-       lppd_hmc_w_5, lpd_hmc_w_5 = log_predictive_mixture_density(f_star_5, post_means_hmc_5, post_stds_hmc_5, w5)
+       #lppd_hmc_w_5, lpd_hmc_w_5 = log_predictive_mixture_density(f_star_5, post_means_hmc_5, post_stds_hmc_5, w5)
 
        title_hmc_5 = 'RMSE: ' + str(rmse_hmc_5) + '\n' + '-LPD: ' + str(-lpd_hmc_5)
-       title_hmc_w_5 = 'RMSE: ' + str(rmse_hmc_w_5) + '\n' + '-LPD: ' + str(-lpd_hmc_w_5)
+       #title_hmc_w_5 = 'RMSE: ' + str(rmse_hmc_w_5) + '\n' + '-LPD: ' + str(-lpd_hmc_w_5)
        
        # N = 10 --------------------------------------------------------------------------------------------
        
-       w10 = np.exp(trace_hmc_10['lml'])
+       #w10 = np.exp(trace_hmc_10['lml'])
        u10 = np.ones(len(post_means_hmc_10))
 
        
        pp_mean_hmc_10 = get_posterior_predictive_mean(post_means_hmc_10, weights=None)
-       pp_mean_hmc_w_10 = get_posterior_predictive_mean(post_means_hmc_10, weights=w10)
+       #pp_mean_hmc_w_10 = get_posterior_predictive_mean(post_means_hmc_10, weights=w10)
        
        lower_hmc_10, upper_hmc_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, u10)                 
-       lower_hmc_w_10, upper_hmc_w_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, w10)
+       #lower_hmc_w_10, upper_hmc_w_10 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_10, post_stds_hmc_10, w10)
        
        rmse_hmc_10 = rmse(pp_mean_hmc_10, f_star_10)
-       rmse_hmc_w_10 = rmse(pp_mean_hmc_w_10, f_star_10)
+       #rmse_hmc_w_10 = rmse(pp_mean_hmc_w_10, f_star_10)
 
        lppd_hmc_10, lpd_hmc_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10, None)
-       lppd_hmc_w_10, lpd_hmc_w_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10, w10)
+       #lppd_hmc_w_10, lpd_hmc_w_10 = log_predictive_mixture_density(f_star_10, post_means_hmc_10, post_stds_hmc_10, w10)
 
        title_hmc_10 = 'RMSE: ' + str(rmse_hmc_10) + '\n' + '-LPD: ' + str(-lpd_hmc_10)
-       title_hmc_w_10 = 'RMSE: ' + str(rmse_hmc_w_10) + '\n' + '-LPD: ' + str(-lpd_hmc_w_10)
+       #title_hmc_w_10 = 'RMSE: ' + str(rmse_hmc_w_10) + '\n' + '-LPD: ' + str(-lpd_hmc_w_10)
       
        # N = 20 ----------------------------------------------------------------------------------------------
        
-       w20 = np.exp(trace_hmc_20['lml'])
+       #w20 = np.exp(trace_hmc_20['lml'])
        u20 = np.ones(len(post_means_hmc_20))
 
        
        pp_mean_hmc_20 = get_posterior_predictive_mean(post_means_hmc_20, weights=None)
-       pp_mean_hmc_w_20 = get_posterior_predictive_mean(post_means_hmc_20, weights=w20)
+       #pp_mean_hmc_w_20 = get_posterior_predictive_mean(post_means_hmc_20, weights=w20)
        
        lower_hmc_20, upper_hmc_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, u20)         
-       lower_hmc_w_20, upper_hmc_w_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, w20)
+       #lower_hmc_w_20, upper_hmc_w_20 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_20, post_stds_hmc_20, w20)
        
        rmse_hmc_20 = rmse(pp_mean_hmc_20, f_star_20)
-       rmse_hmc_w_20 = rmse(pp_mean_hmc_w_20, f_star_20)
+       #rmse_hmc_w_20 = rmse(pp_mean_hmc_w_20, f_star_20)
 
        lppd_hmc_20, lpd_hmc_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20, None)
-       lppd_hmc_w_20, lpd_hmc_w_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20, w20)
+       #lppd_hmc_w_20, lpd_hmc_w_20 = log_predictive_mixture_density(f_star_20, post_means_hmc_20, post_stds_hmc_20, w20)
 
        title_hmc_20 = 'RMSE: ' + str(rmse_hmc_20) + '\n' + '-LPD: ' + str(-lpd_hmc_20)
-       title_hmc_w_20 = 'RMSE: ' + str(rmse_hmc_w_20) + '\n' + '-LPD: ' + str(-lpd_hmc_w_20)
+       #title_hmc_w_20 = 'RMSE: ' + str(rmse_hmc_w_20) + '\n' + '-LPD: ' + str(-lpd_hmc_w_20)
        
       # N = 40 --------------------------------------------------------------------------------------------------
       
-       w40 = np.exp(trace_hmc_40['lml'])
+       #w40 = np.exp(trace_hmc_40['lml'])
        u40 = np.ones(len(post_means_hmc_40))
 
        pp_mean_hmc_40 = get_posterior_predictive_mean(post_means_hmc_40, weights=None)
-       pp_mean_hmc_w_40 = get_posterior_predictive_mean(post_means_hmc_40, weights=w40)
+       #pp_mean_hmc_w_40 = get_posterior_predictive_mean(post_means_hmc_40, weights=w40)
        
        lower_hmc_40, upper_hmc_40 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_40, post_stds_hmc_40, u40)
-       lower_hmc_w_40, upper_hmc_w_40 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_40, post_stds_hmc_40, w40)
+       #lower_hmc_w_40, upper_hmc_w_40 = get_posterior_predictive_uncertainty_intervals(post_means_hmc_40, post_stds_hmc_40, w40)
        
        rmse_hmc_40 = rmse(pp_mean_hmc_40, f_star_40)
-       rmse_hmc_w_40 = rmse(pp_mean_hmc_w_40, f_star_40)
+       #rmse_hmc_w_40 = rmse(pp_mean_hmc_w_40, f_star_40)
 
        lppd_hmc_40, lpd_hmc_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40, None)
-       lppd_hmc_w_40, lpd_hmc_w_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40, w40)
+       #lppd_hmc_w_40, lpd_hmc_w_40 = log_predictive_mixture_density(f_star_40, post_means_hmc_40, post_stds_hmc_40, w40)
 
        title_hmc_40 = 'RMSE: ' + str(rmse_hmc_40) + '\n' + '-LPD: ' + str(-lpd_hmc_40)
-       title_hmc_w_40 = 'RMSE: ' + str(rmse_hmc_w_40) + '\n' + '-LPD: ' + str(-lpd_hmc_w_40)
+       #title_hmc_w_40 = 'RMSE: ' + str(rmse_hmc_w_40) + '\n' + '-LPD: ' + str(-lpd_hmc_w_40)
        
       # Collecting means and stds in a list for plotting
 
       pred_mean_hmc = [pp_mean_hmc_5, pp_mean_hmc_10, pp_mean_hmc_20, pp_mean_hmc_40] 
-      pred_mean_w_hmc = [pp_mean_hmc_w_5, pp_mean_hmc_w_10, pp_mean_hmc_w_20, pp_mean_hmc_w_40] 
+      #pred_mean_w_hmc = [pp_mean_hmc_w_5, pp_mean_hmc_w_10, pp_mean_hmc_w_20, pp_mean_hmc_w_40] 
       
       lower_hmc = [lower_hmc_5,lower_hmc_10, lower_hmc_20, lower_hmc_40]
       upper_hmc = [upper_hmc_5, upper_hmc_10, upper_hmc_20, upper_hmc_40]
       
-      lower_w_hmc = [lower_hmc_w_5,lower_hmc_w_10, lower_hmc_w_20, lower_hmc_w_40]
-      upper_w_hmc = [upper_hmc_w_5, upper_hmc_w_10, upper_hmc_w_20, upper_hmc_w_40]
+      #lower_w_hmc = [lower_hmc_w_5,lower_hmc_w_10, lower_hmc_w_20, lower_hmc_w_40]
+      #upper_w_hmc = [upper_hmc_w_5, upper_hmc_w_10, upper_hmc_w_20, upper_hmc_w_40]
       
       rmse_track_hmc = [rmse_hmc_5, rmse_hmc_10, rmse_hmc_20, rmse_hmc_40]
-      rmse_track_w_hmc = [rmse_hmc_w_5, rmse_hmc_w_10, rmse_hmc_w_20, rmse_hmc_w_40]
+      #rmse_track_w_hmc = [rmse_hmc_w_5, rmse_hmc_w_10, rmse_hmc_w_20, rmse_hmc_w_40]
       
       lpd_track_hmc = [-lpd_hmc_5, -lpd_hmc_10, -lpd_hmc_20, -lpd_hmc_40]
-      lpd_track_w_hmc = [-lpd_hmc_w_5, -lpd_hmc_w_10, -lpd_hmc_w_20, -lpd_hmc_w_40]
+      #lpd_track_w_hmc = [-lpd_hmc_w_5, -lpd_hmc_w_10, -lpd_hmc_w_20, -lpd_hmc_w_40]
       
       titles_hmc = [title_hmc_5, title_hmc_10, title_hmc_20, title_hmc_40]
-      titles_w_hmc = [title_hmc_w_5, title_hmc_w_10, title_hmc_w_20, title_hmc_w_40]
+      #titles_w_hmc = [title_hmc_w_5, title_hmc_w_10, title_hmc_w_20, title_hmc_w_40]
 
       mean_spans_hmc = [post_means_hmc_5, post_means_hmc_10, post_means_hmc_20, post_means_hmc_40]
       std_spans_hmc = [post_stds_hmc_5, post_stds_hmc_10, post_stds_hmc_20, post_stds_hmc_40]
@@ -763,7 +828,7 @@ if __name__ == "__main__":
       # HMC Report  
 
       plot_gp_hmc_joint(X, y, X_star, pred_mean_hmc, lower_hmc, upper_hmc, titles_hmc, suffix_t)
-      plot_gp_hmc_joint(X, y, X_star, pred_mean_w_hmc, lower_w_hmc, upper_w_hmc, titles_w_hmc, suffix_t)
+      #plot_gp_hmc_joint(X, y, X_star, pred_mean_w_hmc, lower_w_hmc, upper_w_hmc, titles_w_hmc, suffix_t)
 
       # Plot Spans
       
@@ -771,12 +836,12 @@ if __name__ == "__main__":
             
       # Plot HMC weighted and unweighted predictions
       
-      plot_hmc_weighted_unweighted(X, y, X_star, pred_mean_hmc, pred_mean_w_hmc, lower_hmc, lower_w_hmc, upper_hmc, upper_w_hmc, suffix_t)
+      #plot_hmc_weighted_unweighted(X, y, X_star, pred_mean_hmc, pred_mean_w_hmc, lower_hmc, lower_w_hmc, upper_hmc, upper_w_hmc, suffix_t)
       
       # Plot HMC weighted w ML-II
       
       plot_hmc_ml_joint(X, y, X_star, pred_mean_hmc, pred_mean_ml, lower_hmc, upper_hmc, pred_std_ml_nf)
-      plot_hmc_ml_joint(X, y, X_star, pred_mean_w_hmc, pred_mean_ml, lower_w_hmc, upper_w_hmc, pred_std_ml_nf)
+      #plot_hmc_ml_joint(X, y, X_star, pred_mean_w_hmc, pred_mean_ml, lower_w_hmc, upper_w_hmc, pred_std_ml_nf)
 
       # Metrics 
       plt.figure(figsize=(10,5))
