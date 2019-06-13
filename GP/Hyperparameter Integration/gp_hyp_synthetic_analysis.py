@@ -67,16 +67,18 @@ def get_ml_report(X, y, X_star, f_star):
 def generative_model(X, y):
       
        # prior on lengthscale 
-       log_ls = pm.Uniform('log_ls', lower=-5, upper=5)
+       log_ls = pm.Uniform('log_ls', lower=-1, upper=5)
        ls = pm.Deterministic('ls', tt.exp(log_ls))
        
         #prior on noise variance
-       log_n = pm.Uniform('log_n', lower=-5, upper=5)
+       log_n = pm.Uniform('log_n', lower=-10, upper=10)
        noise_sd = pm.Deterministic('noise_sd', tt.exp(log_n))
          
        #prior on signal variance
-       log_s = pm.Uniform('log_s', lower=-5, upper=5)
+       log_s = pm.Uniform('log_s', lower=-1, upper=5)
+       #log_s = pm.Normal('log_s', mu=0, sd=10)
        sig_sd = pm.Deterministic('sig_sd', tt.exp(log_s))
+       #sig_sd = pm.InverseGamma('sig_sd', 4, 4)
        
        # Specify the covariance function.
        cov_func = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
@@ -558,10 +560,10 @@ if __name__ == "__main__":
       # Edit here to change generative model
       
       input_dist =  'Unif'
-      snr = 10
+      snr = 4
       n_train = [5, 10, 20, 40]
       suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
-      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(10),3)]
+      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(25),3)]
       
       suffix_t = 'SNR = ' + str(snr) + ', ' + input_dist
 
@@ -703,12 +705,12 @@ if __name__ == "__main__":
 
        # Predictive means and stds - generate them 
        
-       write_posterior_predictive_samples(trace_hmc_5, 20, X_5, y_5, X_star_5, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_5, 50, X_5, y_5, X_star_5, results_path, 'hmc_lu')
        write_posterior_predictive_samples(trace_hmc_10, 40, X_10, y_10,  X_star_10, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_20, 20, X_20, y_20,  X_star_20, results_path, 'hmc')
        write_posterior_predictive_samples(trace_hmc_40, 20, X_40, y_40, X_star_40, results_path, 'hmc') 
        
-       post_means_hmc_5, post_stds_hmc_5 = load_post_samples(results_path + 'means_hmc_5.csv', results_path + 'std_hmc_5.csv')
+       post_means_hmc_lu_5, post_stds_hmc_lu_5 = load_post_samples(results_path + 'means_hmc_lu_5.csv', results_path + 'std_hmc_lu_5.csv')
        post_means_hmc_10, post_stds_hmc_10 = load_post_samples(results_path + 'means_hmc_10.csv', results_path + 'std_hmc_10.csv')
        post_means_hmc_20, post_stds_hmc_20 = load_post_samples(results_path + 'means_hmc_20.csv', results_path + 'std_hmc_20.csv')
        post_means_hmc_40, post_stds_hmc_40 = load_post_samples(results_path + 'means_hmc_40.csv', results_path + 'std_hmc_40.csv')

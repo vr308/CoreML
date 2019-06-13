@@ -241,21 +241,21 @@ def get_kernel_matrix_blocks(X, X_star, n_train, point):
           K_ss = cov(X_star, X_star)
           K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
           K_inv = matrix_inverse(K_noise)
-          return K, K_s, K_ss, K_noise, K_inv
+          return K.eval(), K_s.eval(), K_ss.eval(), K_noise.eval(), K_inv.eval()
 
 def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
     
-          L = np.linalg.cholesky(K_noise.eval())
+          L = np.linalg.cholesky(K_noise)
           alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
-          v = np.linalg.solve(L, K_s.eval())
-          post_mean = np.dot(K_s.eval().T, alpha)
-          post_cov = K_ss.eval() - v.T.dot(v)
+          v = np.linalg.solve(L, K_s)
+          post_mean = np.dot(K_s.T, alpha)
+          post_cov = K_ss - v.T.dot(v)
           post_std = np.sqrt(np.diag(post_cov))
           return post_mean,  post_std
     
 def compute_log_marginal_likelihood(K_noise, y):
       
-      return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
+      return np.log(st.multivariate_normal.pdf(y, cov=K_noise))
 
 def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds, weights):
       
@@ -367,21 +367,7 @@ def generative_model(X, y):
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
        
-
-raw_mapping = {'log_ls_interval__':  generative_model(X=X_20, y=y_20).log_ls_interval__, 
-              'log_s_interval__': generative_model(X=X_20, y=y_20).log_s_interval__, 
-              'log_n_interval__':  generative_model(X=X_20, y=y_20).log_n_interval__}
-
-name_mapping = {'log_ls_interval__':  'ls', 
-              'log_s_interval__': 'sig_sd', 
-              'log_n_interval__':  'noise_sd'}
-
-rev_name_mapping = {'ls' : 'log_ls_interval__', 
-              'sig_sd' : 'log_s_interval__', 
-               'noise_sd': 'log_n_interval__'}
-
-
-def update_param_dict(model, param_dict, summary_trace):
+def update_param_dict(model, param_dict, summary_trace, name_mapping):
       
       keys = list(param_dict['mu'].keys())
       
@@ -401,7 +387,7 @@ def update_param_dict(model, param_dict, summary_trace):
       param_dict.update({'rho_implicit' : rho_implicit})
       return param_dict
              
-def transform_tracker_values(tracker, param_dict):
+def transform_tracker_values(tracker, param_dict, raw_mapping, name_mapping):
 
       mean_df = pd.DataFrame(np.array(tracker['mean']), columns=list(param_dict['mu'].keys()))
       sd_df = pd.DataFrame(np.array(tracker['std']), columns=list(param_dict['mu'].keys()))
@@ -411,12 +397,12 @@ def transform_tracker_values(tracker, param_dict):
                  mean_df[name_mapping[i]] = np.exp(raw_mapping.get(i).distribution.transform_used.backward(mean_df[i]).eval()) 
       return mean_df, sd_df
 
-def convergence_report(tracker_mf, tracker_fr, true_hyp, varnames):
+def convergence_report(tracker_mf, tracker_fr, mf_param, fr_param, true_hyp, varnames, rev_name_mapping, raw_mapping, name_mapping):
       
       # Plot Negative ElBO track with params in true space
       
-      mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
+      mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param, raw_mapping, name_mapping)
+      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param, raw_mapping, name_mapping)
 
       fig = plt.figure(figsize=(16, 9))
       for i in np.arange(3):
@@ -434,7 +420,6 @@ def convergence_report(tracker_mf, tracker_fr, true_hyp, varnames):
             plt.title(varnames[i-4], fontsize='small')
       plt.suptitle('Convergence Mean-Field vs. Full-Rank', fontsize='x-small')
 
-
 def plot_elbo_convergence(mf, fr):
       
       fig = plt.figure(figsize=(16, 9))
@@ -445,8 +430,7 @@ def plot_elbo_convergence(mf, fr):
       mf_ax.set_title('Mean-Field')
       fr_ax.set_title('Full Rank')
       fig.suptitle('Negative ELBO Track')
-      
-      
+        
 def get_implicit_variational_posterior(var, means, std, x):
       
       sigmoid = lambda x : 1 / (1 + np.exp(-x))
@@ -456,7 +440,6 @@ def get_implicit_variational_posterior(var, means, std, x):
       total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
       pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
       return pdf(x)
-      
       
 def trace_report(mf, fr, means_mf, std_mf, means_fr, std_fr, true_hyp, trace_mf, trace_fr, ml_deltas_dict):
       
@@ -528,20 +511,7 @@ def plot_mcmc_deter_joint(X, y, X_star, f_star, post_samples, pp_mean, lower, up
              
 def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
             
-            sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
-
-            dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            
-            d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            
-            d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-            
+       
             n_train = len(X)
                   
             cov = pm.gp.cov.Constant(mu_theta['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=mu_theta['ls'])
@@ -585,8 +555,8 @@ def deterministic_vi_pred_mean_var(mu_theta, cov_theta, X, X_star, y):
                 print(i)
                 x_star = X_star[i].reshape(1,1)
       
-                pred_mean.append(deterministic_gp_pred_mean(X, x_star, y, K_s[i,i], K_ss[i,i], K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_mean[i]))
-                pred_var_ = deterministic_gp_pred_covariance(X, x_star, y, K_s[i,i], K_ss[i,i], K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_var[i,i])
+                pred_mean.append(deterministic_gp_pred_mean(X, x_star, y, K_s[:,i].reshape(n_train,1), K_ss[i,i].reshape(1,1), K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_mean[i]))
+                pred_var_ = deterministic_gp_pred_covariance(X, x_star, y, K_s[:,i].reshape(n_train,1), K_ss[i,i], K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_var[i,i])
                 print(pred_var_)
                 pred_var.append(pred_var_)
                 
@@ -623,9 +593,22 @@ if __name__ == "__main__":
       X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20)
       X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40)
       
+
+     rev_name_mapping = {'ls' : 'log_ls_interval__', 
+        'sig_sd' : 'log_s_interval__', 
+         'noise_sd': 'log_n_interval__'}
+     
+     raw_mapping = {'log_ls_interval__':  generative_model(X=X_20, y=y_20).log_ls_interval__, 
+              'log_s_interval__': generative_model(X=X_20, y=y_20).log_s_interval__, 
+              'log_n_interval__':  generative_model(X=X_20, y=y_20).log_n_interval__}
+     
+     name_mapping = {'log_ls_interval__':  'ls', 
+              'log_s_interval__': 'sig_sd', 
+              'log_n_interval__':  'noise_sd'}
+          
       # ML 
       
-        gpr_5, pp_mean_ml_5, pp_std_ml_5, pp_std_ml_nf_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
+      gpr_5, pp_mean_ml_5, pp_std_ml_5, pp_std_ml_nf_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
       gpr_10, pp_mean_ml_10, pp_std_ml_10, pp_std_ml_nf_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
       gpr_20, pp_mean_ml_20, pp_std_ml_20, pp_std_ml_nf_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
       gpr_40, pp_mean_ml_40, pp_std_ml_40, pp_std_ml_nf_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)     
@@ -655,9 +638,8 @@ if __name__ == "__main__":
             
             return  mf, fr, trace_mf, trace_fr, tracker_mf, tracker_fr
       
-      
-      def variational_post_processing(mf, fr, trace_mf, trace_fr):
-          
+      def variational_post_processing(mf, fr, trace_mf, trace_fr, name_mapping):
+            
             # Post-processing 
       
             trace_mf_df = pm.trace_to_dataframe(trace_mf)
@@ -677,33 +659,37 @@ if __name__ == "__main__":
             fr_param = {param.name: bij_fr.rmap(param.eval())
             	 for param in fr.approx.params}
             
-            update_param_dict(mf, mf_param, pm.summary(trace_mf))
-            update_param_dict(fr, fr_param, pm.summary(trace_fr))
+            update_param_dict(mf, mf_param, pm.summary(trace_mf), name_mapping)
+            update_param_dict(fr, fr_param, pm.summary(trace_fr), name_mapping)
             
             return trace_mf_df, trace_fr_df, mf_param, fr_param, means_mf, std_mf, means_fr, std_fr
       
       # Variational fitting
 
       mf_5, fr_5, trace_mf_5, trace_fr_5, tracker_mf_5, tracker_fr_5 = variational_fitting(X_5, y_5, 60000)
-      mf_10, fr_10, trace_mf_10, trace_fr_10, tracker_mf_10, tracker_fr_10 = variational_fitting(X_10, y_10, 40000)
-      mf_20, fr_20, trace_mf_20, trace_fr_20, tracker_mf_20, tracker_fr_20 = variational_fitting(X_20, y_20, 25000)
+      mf_10, fr_10, trace_mf_10, trace_fr_10, tracker_mf_10, tracker_fr_10 = variational_fitting(X_10, y_10, 80000)
+      mf_20, fr_20, trace_mf_20, trace_fr_20, tracker_mf_20, tracker_fr_20 = variational_fitting(X_20, y_20, 45000)
       mf_40, fr_40, trace_mf_40, trace_fr_40, tracker_mf_40, tracker_fr_40 = variational_fitting(X_40, y_40, 25000)
       
       # Variational post-processing
       
-      trace_mf_df_5, trace_fr_df_5, mf_param_5, fr_param_5, means_mf_5, std_mf_5, means_fr_5, std_fr_5 = variational_post_processing(mf_5, fr_5, trace_mf_5, trace_fr_5)
-      trace_mf_df_10, trace_fr_df_10, mf_param_10, fr_param_10, means_mf_10, std_mf_10, means_fr_10, std_fr_10 = variational_post_processing(mf_10, fr_10, trace_mf_10, trace_fr_10)
-      trace_mf_df_20, trace_fr_df_20, mf_param_20, fr_param_20, means_mf_20, std_mf_20, means_fr_20, std_fr_20 = variational_post_processing(mf_20, fr_20, trace_mf_20, trace_fr_20)
-      trace_mf_df_40, trace_fr_df_40, mf_param_40, fr_param_40, means_mf_40, std_mf_40, means_fr_40, std_fr_40 = variational_post_processing(mf_40, fr_40, trace_mf_40, trace_fr_40)
+      trace_mf_df_5, trace_fr_df_5, mf_param_5, fr_param_5, means_mf_5, std_mf_5, means_fr_5, std_fr_5 = variational_post_processing(mf_5, fr_5, trace_mf_5, trace_fr_5, name_mapping)
+      trace_mf_df_10, trace_fr_df_10, mf_param_10, fr_param_10, means_mf_10, std_mf_10, means_fr_10, std_fr_10 = variational_post_processing(mf_10, fr_10, trace_mf_10, trace_fr_10, name_mapping)
+      trace_mf_df_20, trace_fr_df_20, mf_param_20, fr_param_20, means_mf_20, std_mf_20, means_fr_20, std_fr_20 = variational_post_processing(mf_20, fr_20, trace_mf_20, trace_fr_20, name_mapping)
+      trace_mf_df_40, trace_fr_df_40, mf_param_40, fr_param_40, means_mf_40, std_mf_40, means_fr_40, std_fr_40 = variational_post_processing(mf_40, fr_40, trace_mf_40, trace_fr_40, name_mapping)
 
+      trace_mf_df_20.to_csv(results_path + 'trace_mf_df_n20.csv', sep=',')
+      trace_fr_df_20.to_csv(results_path + 'trace_fr_df_n20.csv', sep=',')
       
-
+      trace_mf_df_40.to_csv(results_path + 'trace_mf_df_n40.csv', sep=',')
+      trace_fr_df_40.to_csv(results_path + 'trace_fr_df_n40.csv', sep=',')
+      
       # Variational parameters track  
       
-      convergence_report(tracker_mf_5, tracker_fr_5, true_hyp, varnames)
-      convergence_report(tracker_mf_10, tracker_fr_10, true_hyp, varnames)
-      convergence_report(tracker_mf_20, tracker_fr_20, true_hyp, varnames)
-      convergence_report(tracker_mf_40, tracker_fr_40, true_hyp, varnames)
+      convergence_report(tracker_mf_5, tracker_fr_5, mf_param_5, fr_param_5, true_hyp, varnames, rev_name_mapping, raw_mapping, name_mapping)
+      convergence_report(tracker_mf_10, tracker_fr_10, mf_param_10, fr_param_10, true_hyp, varnames, rev_name_mapping,  raw_mapping, name_mapping)
+      convergence_report(tracker_mf_20, tracker_fr_20, mf_param_20, fr_param_20, true_hyp, varnames, rev_name_mapping,  raw_mapping, name_mapping)
+      convergence_report(tracker_mf_40, tracker_fr_40, mf_param_40, fr_param_40, true_hyp, varnames, rev_name_mapping,  raw_mapping, name_mapping)
 
       # ELBO Convergence
       
@@ -873,6 +859,39 @@ if __name__ == "__main__":
       
       mu_theta_mf_40 = mf_param_40['mu_implicit']
       mu_theta_fr_40 = fr_param_40['mu_implicit']
+      
+      # Persist mu and cov from VI 
+      
+      np.savetxt(results_path + 'mu_theta_fr_20.csv', pd.Series(mu_theta_fr_20), delimiter=',')
+      np.savetxt(results_path + 'cov_theta_fr_20.csv', cov_theta_fr_20, delimiter=',')
+      
+      np.savetxt(results_path + 'mu_theta_mf_20.csv', pd.Series(mu_theta_mf_20), delimiter=',')
+      np.savetxt(results_path + 'cov_theta_mf_20.csv', cov_theta_mf_20, delimiter=',')
+      
+      np.savetxt(results_path + 'mu_theta_fr_40.csv', pd.Series(mu_theta_fr_20), delimiter=',')
+      np.savetxt(results_path + 'cov_theta_fr_40.csv', cov_theta_fr_20, delimiter=',')
+      
+      np.savetxt(results_path + 'mu_theta_mf_40.csv', pd.Series(mu_theta_mf_40), delimiter=',')
+      np.savetxt(results_path + 'cov_theta_mf_40.csv', cov_theta_mf_40, delimiter=',')
+      
+      
+      
+      mu_theta = mu_theta_fr_20
+      cov_theta = cov_theta_fr_20
+      
+      sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
+
+      dk_dsf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      
+      d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      
+      d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
       
       # Computing deterministic mean and var
       
