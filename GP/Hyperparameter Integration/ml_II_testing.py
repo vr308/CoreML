@@ -57,7 +57,7 @@ def generate_fixed_domain_data(X_all, f_all, knots, sds, noise_sd, uniform, seq_
        seq_n_train_r = np.flip(seq_n_train)
        data_sets = {}
        
-       for i,j in zip(seq_n_train_r, [0,1,2,3]):
+       for i,j in zip(seq_n_train_r, np.arange(len(seq_n_train))):
              
             if j == 0:
                   X, y, f, train_index = generate_gp_training(X_all, f_all, np.max(seq_n_train), knots, sds, noise_sd, uniform)
@@ -83,7 +83,7 @@ def get_ml_report(X, y, X_star, f_star):
       
           kernel = Ck(100, (1e-10, 1e6)) * RBF(1, length_scale_bounds=(1e-10, 1e6)) + WhiteKernel(0.0001, noise_level_bounds=(1e-10,1e6))
           
-          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
+          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=1)
               
           # Fit to data 
           gpr.fit(X, y)        
@@ -207,7 +207,7 @@ if __name__ == "__main__":
     # Kernel Hyperparameters 
     
     sig_sd_true = 10.0
-    lengthscale_true = 100
+    lengthscale_true = 1
     
     hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     
@@ -217,29 +217,38 @@ if __name__ == "__main__":
 
     # This will change the shape of the function
     
-    #f_all = generate_gp_latent(X_all, mean, cov_per)
-    f_all = 20* np.sin(3*X_all[:, 0])
+    f_all = generate_gp_latent(X_all, mean, cov_se)
+    #f_all = 20* np.sin(3*X_all[:, 0])
     
     # Data attributes
     
-    noise_sd_true = np.sqrt(50)
+    noise_sd_true = np.sqrt(10)
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
     
-    uniform = False
+    uniform = True
     
-    seq_n_train = [5, 10, 20, 40]  
+    seq_n_train = [5, 10, 20, 40, 80, 100, 120]  
     
     data_sets = generate_fixed_domain_data(X_all, f_all, knots, sds, noise_sd_true, uniform, seq_n_train)
-    plot_datasets(data_sets, snr, 'NUnif')
+    plot_datasets(data_sets, snr, 'Unif')
     
-    X = data_sets['X_40']
-    X_star = data_sets['X_star_40']
-    y = data_sets['y_40']
-    f_star = data_sets['f_star_40']
+    X = data_sets['X_120']
+    X_star = data_sets['X_star_120']
+    y = data_sets['y_120']
+    f_star = data_sets['f_star_120']
     
     gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title = get_ml_report(X, y, X_star, f_star)
     plot_lml_surface_3way(gpr, ml_deltas_dict['sig_sd'], ml_deltas_dict['ls'], ml_deltas_dict['noise_sd'])
     plot_gp(X_star, f_star, X, y, post_mean, post_std, [], title)
+    
+    
+    means = []
+    for i in np.arange(30):
+            gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title = get_ml_report(X, y, X_star, f_star)
+            means.append(post_mean)
+            
+   plt.figure()
+   plt.plot(X_star, np.array(means).T)
     
     
