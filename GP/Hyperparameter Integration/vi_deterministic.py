@@ -875,7 +875,6 @@ if __name__ == "__main__":
       np.savetxt(results_path + 'cov_theta_mf_40.csv', cov_theta_mf_40, delimiter=',')
       
       
-      
       mu_theta = mu_theta_fr_20
       cov_theta = cov_theta_fr_20
       
