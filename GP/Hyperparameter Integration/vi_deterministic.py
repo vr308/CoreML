@@ -23,7 +23,7 @@ import warnings
 warnings.filterwarnings("ignore")
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
-from sympy import symbols, diff, exp, log, power
+from sympy import symbols, diff, exp, log, power, sin
 
 
 def se_kernel(sig_sd, ls, noise_sd, x1, x2):

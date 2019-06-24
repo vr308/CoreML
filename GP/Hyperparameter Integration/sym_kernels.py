@@ -34,12 +34,16 @@ def se_kernel(sig_sd, ls, noise_sd, x1, x2):
 
 def rq_kernel(sig_sd, ls, noise_sd, x1, x2):
       
-      return sig_sd**2*(1 + ((x1 - x2)**2)/(2*alpha*(ls**2)))**(-alpha)
+      return sig_sd**2*(1 + ((x1 - x2)**2)/(2*alpha*(ls**2)))**(-alpha) + noise_sd**2
 
-def periodic_kernel(sig_sd, ls, noise_sd, x1, x2):
+def periodic_kernel(sig_sd, p, ls, noise_sd, x1, x2):
       
-      return exp(-2*sin**2(pi*np.abs(x1- x2)/p))
+      return sig_sd**2*exp(-2*sin((pi*np.abs(x1- x2)*p)/(ls**2))**2)
 
-def polynomial_kernel(sig_sd, ls, noise_sd, x1, x2):
+def matern_kernel_32(sig_sd, ls, noise_sd, x1, x2):
       
-      return 
+      return sig_sd**2*(1 + np.sqrt(3)(x1 - x2)/ls)*exp(-np.sqrt(3)(x1 - x2)/ls)
+
+def matern_kernel_52(sig_sd, ls, noise_sd, x1, x2):
+      
+      return sig_sd**2*(1 + np.sqrt(5)(x1 - x2)/ls + 5*(x1 - x2)**2/(3*ls**2))*exp(-np.sqrt(5)(x1 - x2)/ls)

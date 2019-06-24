@@ -146,15 +146,15 @@ def analytical_variational_opt(model, param_dict, summary_trace):
                   name = name_mapping[i]
                   mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
                   sd_value = summary_trace['sd'][name]
-                  mu_implicit.update({name : mean_value})
-                  rho_implicit.update({name : sd_value})
+                  mu_implicit.update({name : np.array(mean_value)})
+                  rho_implicit.update({name : np.array(sd_value)})
             else:
                   name = name_mapping[i]
                   mean_value = np.exp(param_dict['mu'][i])
                   sd_value = summary_trace['sd'][name]
                   name = name_mapping[i]
-                  mu_implicit.update({name : mean_value})
-                  rho_implicit.update({name : sd_value})
+                  mu_implicit.update({name : np.array(mean_value)})
+                  rho_implicit.update({name : np.array(sd_value)})
       param_dict.update({'mu_implicit' : mu_implicit})
       param_dict.update({'rho_implicit' : rho_implicit})
 
@@ -293,16 +293,15 @@ if __name__ == "__main__":
 
       varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
       
-
       home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
       
       results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/Co2/'
 
       
-      path = home_path
+      path = uni_path
       
-      df = pd.read_table(home_path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
+      df = pd.read_table(path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
       
       # creat a date index for the data - convert properly from the decimal year 
       
@@ -503,7 +502,7 @@ with co2_model:
       mean = fr.approx.mean.eval,    
       std = fr.approx.std.eval)
       
-      fr.fit(n=40000, callbacks=[tracker_fr])
+      fr.fit(n=60000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
 
@@ -523,6 +522,11 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 
 check_mf.approx.params[0].set_value(bij_mf.map(mf_param['mu']))
 check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
+
+# Updating with implicit values
+
+mf_param = analytical_variational_opt(co2_model, mf_param, pm.summary(trace_mf))
+fr_param = analytical_variational_opt(co2_model, fr_param, pm.summary(trace_fr))
 
 # Saving raw ADVI results
 
@@ -786,134 +790,5 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
         plt.tight_layout()
       
        
-
-#with pm.Model() as co2_model:
-#      
-#    # yearly periodic component x long term trend
-#    sig_var_3 = pm.HalfCauchy("sig_var_3", beta=2, testval=1.0)
-#    ls_4 = pm.Gamma("ls_4", alpha=10, beta=0.1)
-#    ls_5 = pm.Gamma("ls_5", alpha=4, beta=1)
-#    cov_seasonal = sig_var_3*pm.gp.cov.Periodic(1, period=1, ls=ls_5) \
-#                            * pm.gp.cov.ExpQuad(1, ls_4)
-#    gp_seasonal = pm.gp.Marginal(cov_func=cov_seasonal)
-#
-#    # small/medium term irregularities
-#    sig_var_6 = pm.HalfCauchy("sig_var_6", beta=3, testval=0.1)
-#    ls_7 = pm.Gamma("ls_7", alpha=5, beta=0.75)
-#    alpha_8 = pm.Gamma("alpha_8", alpha=3, beta=2)
-#    cov_medium = sig_var_6*pm.gp.cov.RatQuad(1,ls_7, alpha_8)
-#    gp_medium = pm.gp.Marginal(cov_func=cov_medium)
-#
-#    # long term trend
-#    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=4, testval=2.0)
-#    ls_2 = pm.Gamma("ls_2", alpha=4, beta=0.1)
-#    cov_trend = sig_var_1*pm.gp.cov.ExpQuad(1, ls_2)
-#    gp_trend = pm.gp.Marginal(cov_func=cov_trend)
-#
-#    # noise model
-#    sig_var_9 = pm.HalfNormal("sig_var_9", sd=0.5, testval=0.05)
-#    ls_10 = pm.Gamma("ls_10", alpha=2, beta=4)
-#    noise_11  = pm.HalfNormal("noise_11",  sd=0.25, testval=0.05)
-#    cov_noise = sig_var_9*pm.gp.cov.ExpQuad(1, ls_10) + pm.gp.cov.WhiteNoise(noise_11)
-#
-#    # The Gaussian process is a sum of these three components
-#    gp = gp_seasonal + gp_medium + gp_trend
-#
-#    # Since the normal noise model and the GP are conjugates, we use `Marginal` with the `.marginal_likelihood` method
-#    y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=cov_noise)
-#
-#with hyp_learning:
-#    # this line calls an optimizer to find the MAP
-#    #mp = pm.find_MAP(include_transformed=True, progressbar=True)
-#    trace_hmc = pm.sample(tune=200, draws=400, chains=1)
-#    
-#with hyp_learning:
-#    
-#    pm.save_trace(trace_hmc, directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/u_prior/')
-#    
-#with co2_model:
-#      
-#    trace_hmc_load = pm.load_trace(directory='/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Traces_pickle/i_prior/')
-#        
-#names = [name for name in mp.keys() if not name.endswith('_')] 
-#mp = {}
-#for i in np.arange(len(names)):
-#      mp.update({names[i] : mp[names[i]]})
-#      
-##-------------------------------------------------------------------------------
-#
-## The prior model
-#
-##-------------------------------------------------------------------------------
-#
-#with pm.Model() as priors:
-#      
-#    sig_var_3 = pm.HalfCauchy("sig_var_3", beta=2, testval=1.0)
-#    ls_4 = pm.Gamma("ls_4", alpha=10, beta=0.1)
-#    ls_5 = pm.Gamma("ls_5", alpha=4, beta=1)
-#    
-#    sig_var_6 = pm.HalfCauchy("sig_var_6", beta=3, testval=0.1)
-#    ls_7 = pm.Gamma("ls_7", alpha=5, beta=0.75)
-#    alpha_8 = pm.Gamma("alpha_8", alpha=3, beta=2)
-#      
-#    sig_var_1 = pm.HalfCauchy("sig_var_1", beta=30, testval=2.0)
-#    ls_2 = pm.Gamma("ls_2", alpha=4, beta=0.1)
-#    
-#    sig_var_9 = pm.HalfNormal("sig_var_9", sd=0.5, testval=0.05)
-#    ls_10 = pm.Gamma("ls_10", alpha=2, beta=4)
-#    noise_11  = pm.HalfNormal("noise_11",  sd=0.25, testval=0.05)
-#    
-#
-#def plot_priors_ml(model, ml_deltas):
-#      
-#      plt.figure(figsize=(10,10))
-#      
-#      x_sv = np.linspace(0,10,100)
-#      x_nv = np.linspace(0,10,100)
-#      x_ls = np.linspace(0,100,1000)
-#      x_a = np.linspace(0,5,100)
-#      
-#      plt.subplot(341)
-#      plt.plot(x_sv, np.exp(model.sig_var_1.distribution.logp(x_sv).eval()))
-#      plt.axvline(x=ml_deltas['sig_var_1'], color='r')
-#      
-#      plt.subplot(342)
-#      plt.plot(x_ls, np.exp(model.ls_2.distribution.logp(x_ls).eval()))
-#      plt.axvline(x=ml_deltas['ls_2'], color='r')
-#      
-#      plt.subplot(343)
-#      plt.plot(x_sv, np.exp(model.sig_var_3.distribution.logp(x_sv).eval()))
-#      plt.axvline(x=ml_deltas['sig_var_3'], color='r')
-#      
-#      plt.subplot(344)
-#      x_ls_2 = np.linspace(0,400,1000)
-#      plt.plot(x_ls_2, np.exp(model.ls_4.distribution.logp(x_ls_2).eval()))
-#      plt.axvline(x=ml_deltas['ls_4'], color='r')
-#      
-#      plt.subplot(345)
-#      plt.plot(x_ls, np.exp(model.ls_5.distribution.logp(x_ls).eval()))
-#      plt.axvline(x=ml_deltas['ls_5'], color='r')
-#      
-#      plt.subplot(346)
-#      plt.plot(x_sv, np.exp(model.sig_var_6.distribution.logp(x_sv).eval()))
-#      plt.axvline(x=ml_deltas['sig_var_6'], color='r')
-#      
-#      plt.subplot(347)
-#      plt.plot(x_ls, np.exp(model.ls_7.distribution.logp(x_ls).eval()))
-#      plt.axvline(x=ml_deltas['ls_7'], color='r')
-#      
-#      plt.subplot(348)
-#      plt.plot(x_a, np.exp(model.alpha_8.distribution.logp(x_a).eval()))
-#      plt.axvline(x=ml_deltas['alpha_8'], color='r')
-#      
-#      plt.subplot(349)
-#      plt.plot(x_sv, np.exp(model.sig_var_9.distribution.logp(x_sv).eval()))
-#      plt.axvline(x=ml_deltas['sig_var_9'], color='r')
-#      
-#      plt.subplot(3,4,10)
-#      plt.plot(x_ls[0:20], np.exp(model.ls_10.distribution.logp(x_ls[0:20]).eval()))
-#      plt.axvline(x=ml_deltas['ls_10'], color='r')
-#      
-#      plt.subplot(3,4,11)
-#      plt.plot(x_nv, np.exp(model.noise_11.distribution.logp(x_nv).eval()))
-#      plt.axvline(x=ml_deltas['noise_11'], color='r')
+        
+        
