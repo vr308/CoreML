@@ -45,14 +45,16 @@ def kernel(s_1, ls_2, s_3, ls_4, ls_5, s_6, ls_7, alpha_8, s_9, ls_10, n_11, x1,
       return sk1 + sk2 + sk3 + sk4
 
 mu_theta_sub = {s_1: mu_theta['s_1'],
-                ls_2:  , 
-                s_3: , 
-                ls_4:  ,
-                ls_5: ,
-                s_6: ,
-                ls_7:  , 
-                alpha_8: , 
-                ls_9: , 
+                ls_2:  mu_theta['ls_2'], 
+                s_3: mu_theta['s_3'], 
+                ls_4:  mu_theta['ls_4'],
+                ls_5: mu_theta['ls_5'],
+                s_6: mu_theta['s_6'],
+                ls_7:  mu_theta['ls_7'], 
+                alpha_8: mu_theta['alpha_8'], 
+                s_9: mu_theta['s_9'], 
+                ls_10: mu_theta['ls_10'], 
+                n_11: mu_theta['n_11']
                 }
 
 
