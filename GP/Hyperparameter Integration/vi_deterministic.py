@@ -25,7 +25,6 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from sympy import symbols, diff, exp, log, power, sin
 
-
 def se_kernel(sig_sd, ls, noise_sd, x1, x2):
       
       return sig_sd**2*exp(-0.5*(1/ls**2)*(x1 - x2)**2) + noise_sd**2
@@ -87,7 +86,6 @@ def curvature_K(X):
       T3 = [d2K_dsn_dsf_m, d2K_dls_dsn_m, d2K_d2sn_m]
       
       return np.array([T1, T2, T3])
-
 
 def gradient_K_star(X, x_star):
       
