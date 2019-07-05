@@ -13,13 +13,16 @@ import pymc3 as pm
 from theano.tensor.nlinalg import matrix_inverse
 import pandas as pd
 from sampled import sampled
-from scipy.misc import derivative
 import csv
 import scipy.stats as st
 from matplotlib.backends.backend_pdf import PdfPages
 from itertools import combinations
 import seaborn as sns
 import warnings
+from autograd import grad, elementwise_grad, jacobian, hessian
+import autograd.numpy as np
+
+
 warnings.filterwarnings("ignore")
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
@@ -570,7 +573,7 @@ if __name__ == "__main__":
       mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       
-      path = uni_path
+      path = mac_path
 
 
       # Edit here to change generative model
@@ -872,9 +875,59 @@ if __name__ == "__main__":
       np.savetxt(results_path + 'mu_theta_mf_40.csv', pd.Series(mu_theta_mf_40), delimiter=',')
       np.savetxt(results_path + 'cov_theta_mf_40.csv', cov_theta_mf_40, delimiter=',')
       
+      # Loading VI variational parameters
+      
+      mu_theta_fr_20 = pd.read_csv(results_path + 'mu_theta_fr_20.csv', header=None)
+      mu_theta_fr_20 = dict(zip(list(varnames), list(mu_theta_fr_20[0])))
+      cov_theta_fr_20 = np.array(pd.read_csv(results_path + 'cov_theta_fr_20.csv', header=None))
       
       mu_theta = mu_theta_fr_20
       cov_theta = cov_theta_fr_20
+      
+      # Automatic differentiation
+      
+      theta = np.array([mu_theta['sig_sd'], mu_theta['ls'], mu_theta['noise_sd']])
+
+      def kernel(theta, X1, X2):
+            ''' Isotropic squared exponential kernel. 
+            Computes a covariance matrix from points in X1 and X2. 
+            Args: X1: Array    of m points (m x d). X2: Array of n points (n x d). 
+            Returns: Covariance matrix (m x n). '''
+            
+            sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
+            return theta[0]**2 * np.exp(-0.5 / theta[1]**2 * sqdist)
+        
+      def gp_mean(theta, X, y, x_star):
+              
+              K = kernel(theta, X, X)
+              K_noise = K + theta[2]**2 * np.eye(len(X))
+              K_s = kernel(theta, X, x_star)
+              return np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), y)
+        
+      dh = elementwise_grad(gp_mean)
+      d2h = jacobian(dh)
+        #d2hh = hessian(gp_mean)
+        
+      def get_vi_analytical_mean(X, y, X_star, d2h, theta, mu_theta, cov_theta):
+                  
+          K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), mu_theta)            
+          pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+            #pred_vi_var =  K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s)
+
+          pred_mean = []
+          pred_var = []
+      
+          for i in np.arange(len(X_star)):
+                
+                x_star = X_star[i].reshape(1,1)
+      
+                pred_mean.append(pred_vi_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), cov_theta)))
+
+          return pred_mean
+      
+        pred_mean_ng_20 = get_vi_analytical_mean(X_20, y_20, X_star_20, d2h, theta, mu_theta, cov_theta)
+      
+      # Symbolic Differentiation 
       
       sig_sd, ls, noise_sd, x1, x2 = symbols('sig_sd ls noise_sd x1 x2', real=True)
 

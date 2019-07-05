@@ -9,8 +9,7 @@ forward mode and reverse mode differentiation for covariance matrix
 
 """
 
-import torch
-import gpytorch
+
 from autograd import grad, elementwise_grad, jacobian, hessian
 import autograd.numpy as np
 from sympy import symbols, diff, exp, log, power, sin, cos
@@ -90,10 +89,12 @@ noise_sd = 1.0
     
 mean = pm.gp.mean.Zero()
 cov = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
+
+X = np.linspace(1,5, 100).reshape(100,1)
+
 f = np.random.multivariate_normal(mean(X).eval(), cov=cov(X, X).eval())
 
 y = f + np.random.normal(0,1, 100)
-X = np.linspace(1,5, 100).reshape(100,1)
 X_star = np.linspace(1,5,25).reshape(25,1)
 
 x_star = np.array([4]).reshape(1,1)
