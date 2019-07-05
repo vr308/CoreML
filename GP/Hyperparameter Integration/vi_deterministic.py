@@ -6,7 +6,6 @@ Created on Mon May 20 14:36:52 2019
 @author: vidhi
 """
 
-import numpy as np 
 import matplotlib.pylab as plt
 import theano.tensor as tt
 import pymc3 as pm
@@ -573,7 +572,7 @@ if __name__ == "__main__":
       mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       
-      path = mac_path
+      path = uni_path
 
 
       # Edit here to change generative model
@@ -877,12 +876,12 @@ if __name__ == "__main__":
       
       # Loading VI variational parameters
       
-      mu_theta_fr_20 = pd.read_csv(results_path + 'mu_theta_fr_20.csv', header=None)
+      mu_theta_fr_20 = pd.read_csv(results_path + 'mu_theta_fr_40.csv', header=None)
       mu_theta_fr_20 = dict(zip(list(varnames), list(mu_theta_fr_20[0])))
       cov_theta_fr_20 = np.array(pd.read_csv(results_path + 'cov_theta_fr_20.csv', header=None))
       
-      mu_theta = mu_theta_fr_20
-      cov_theta = cov_theta_fr_20
+      mu_theta = mu_theta_fr_40
+      cov_theta = cov_theta_fr_40
       
       # Automatic differentiation
       
@@ -925,7 +924,7 @@ if __name__ == "__main__":
 
           return pred_mean
       
-        pred_mean_ng_20 = get_vi_analytical_mean(X_20, y_20, X_star_20, d2h, theta, mu_theta, cov_theta)
+      pred_mean_ng_40 = get_vi_analytical_mean(X_40, y_40, X_star_40, d2h, theta, mu_theta, cov_theta)
       
       # Symbolic Differentiation 
       

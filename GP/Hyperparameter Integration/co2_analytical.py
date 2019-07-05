@@ -20,29 +20,32 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
 import csv
-from sympy import symbols, diff, exp, log, power, sin
 
 varnames = ['s_1', 'ls_2','s_3', 'ls_4','ls_5','s_6','ls_7','alpha_8','s_9','ls_10','n_11'] 
 
-# Read in fr_param 
-
-fr_df_raw = pd.read_csv(results_path + 'VI/fr_df_raw.csv', sep=',', index_col=0)
-mu_theta = fr_df_raw['mu_implicit'][varnames]
-
 # Analytical variational inference for CO_2 data
 
-s_1, ls_2, s_3, ls_4, ls_5, s_6, ls_7, alpha_8, s_9, ls_10, n_11, x1, x2 = symbols('s_1 ls_2 s_3 ls_4 ls_5 s_6 ls_7 alpha_8 s_9 ls_10 n_11 x1 x2', real=True)
-
-def kernel(s_1, ls_2, s_3, ls_4, ls_5, s_6, ls_7, alpha_8, s_9, ls_10, n_11, x1, x2):
+def kernel(theta, X1, X2):
         
-     # se +  sexper + rq + se + noise
-      
-      sk1 = s_1**2*exp(-0.5*(1/ls_2**2)*(x1 - x2)**2)
-      sk2 = s_3**2*exp(-0.5*(1/ls_4**2)*(x1 - x2)**2)*exp((-2*sin(pi*(x1 - x2))**2)*(1/ls_5**2))
-      sk3 = s_6**2*exp(1 + (1/(2*alpha_8*ls_7**2))*(x1 - x2)**2)**(-alpha_8)
-      sk4 = s_9**2*exp(-0.5*(1/ls_10**2)*(x1 - x2)**2) + n_11**2
-      
-      return sk1 + sk2 + sk3 + sk4
+     # se +  sexper + rq + se 
+     
+     s_1 = theta[0]
+     ls_2 = theta[1]
+     s_3 = theta[2]
+     ls_4 = theta[3]
+     ls_5 = theta[4]
+     s_6 = theta[5]
+     ls_7 = theta[6]
+     alpha_8 = theta[7]
+    
+     sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
+     dist = np.sum(X1,1).reshape(-1,1) - np.sum(X2,1)
+          
+     sk1 = s_1**2 * np.exp(-0.5 / ls_2**2 * sqdist)
+     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp((-2*np.sin(np.pi*dist)**2)*(1/ls_5**2))
+     sk3 = s_6**2 * (1 + (1 / 2 * alpha_8 * ls_7**2) * sqdist)**(-alpha_8)
+    
+     return sk1 + sk2 + sk3
 
 mu_theta_sub = {s_1: mu_theta['s_1'],
                 ls_2:  mu_theta['ls_2'], 
@@ -57,190 +60,174 @@ mu_theta_sub = {s_1: mu_theta['s_1'],
                 n_11: mu_theta['n_11']
                 }
 
+def get_kernel_matrix_blocks(X, X_star, n_train, theta):
+      
+      s_1 = theta[0]
+      ls_2 = theta[1]
+      s_3 = theta[2]
+      ls_4 = theta[3]
+      ls_5 = theta[4]
+      s_6 = theta[5]
+      ls_7 = theta[6]
+      alpha_8 = theta[7]
+      s_9 = theta[8]
+      ls_10 = theta[9]
+      n_11 = theta[10]
+  
+      k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
+      k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+      k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
+      k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
+      
+      cov_sig =  k1 + k2 + k3 
+      cov_noise = k4
+ 
+      K = cov_sig(X)
+      K_s = cov_sig(X, X_star)
+      K_ss = cov_sig(X_star, X_star)
+      K_noise = K + cov_noise(X)*tt.eye(n_train)
+      K_inv = np.linalg.inv(K_noise.eval())
+      return K.eval(), K_s.eval(), K_ss.eval(), K_noise.eval(), K_inv
 
-def get_symbolic_diff(order, var, kernel, mu_theta_sub):
+def get_empirical_covariance(trace, varnames):
       
-      if len(var) == 1:
-            return diff(kernel(s_1, ls_2, s_3, ls_4, ls_5, s_6, ls_7, alpha_8, s_9, ls_10, n_11, x1, x2), var, order).subs(mu_theta_sub)
-      else:
-            return diff(kernel(s_1, ls_2, s_3, ls_4, ls_5, s_6, ls_7, alpha_8, s_9, ls_10, n_11, x1, x2), var[0], var[1]).subs(mu_theta_sub)
-      
-   dk_dsf = diff(kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      dk_dls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      dk_dsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      
-      d2k_d2sf = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      d2k_d2ls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      d2k_d2sn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), noise_sd, 2).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      
-      d2k_dsfdls = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, ls).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      d2k_dsfdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), sig_sd, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
-      d2k_dlsdsn = diff(se_kernel(sig_sd, ls, noise_sd, x1, x2), ls, noise_sd).subs({sig_sd:mu_theta['sig_sd'], ls: mu_theta['ls'], noise_sd: mu_theta['noise_sd']})
+      df = pm.trace_to_dataframe(trace)
+      return pd.DataFrame(np.cov(df[varnames], rowvar=False), index=varnames, columns=varnames)
 
-def gradient_K(X):
+def gp_mean(theta, X, y, X_star):
       
-      # Rank 3 tensor -> 3 x n x n 
+     s_9 = theta[8]
+     ls_10 = theta[9]
+     n_11 = theta[10]
+  
+     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(x_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist) + n_11**2
       
-      n_train = len(X) 
-      
-      dK_dsf_m = np.zeros(shape=(n_train, n_train))
-      dK_dls_m = np.zeros(shape=(n_train, n_train))
-      dK_dsn_m = np.zeros(shape=(n_train, n_train))
-      
-      i, j = np.meshgrid(np.arange(n_train), np.arange(n_train))
-      index = np.vstack([j.ravel(), i.ravel()]).T
-      
-      for h in index:
-            dK_dsf_m[h[0]][h[1]] = dk_dsf.subs({x1: X[h[0]], x2: X[h[1]]})
-            dK_dls_m[h[0]][h[1]] = dk_dls.subs({x1: X[h[0]], x2: X[h[1]]})
-            if h[0] == h[1]:
-                  dK_dsn_m[h[0]][h[1]] = dk_dsn.subs({x1: X[h[0]], x2: X[h[1]]})
-            else:
-                  dK_dsn_m[h[0]][h[1]] = 0 
-      
-      return np.array([dK_dsf_m, dK_dls_m, dK_dsn_m]) 
+     K = kernel(theta, X, X)
+     K_noise = K + sk4*np.eye(len(X))
+     K_s = kernel(theta, X, X_star)
+     return np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), y)
 
-def curvature_K(X):
+def gp_cov(theta, X, y, X_star):
       
-      # Rank 4 tensor  -> 3 x 3 x n x n 
+     s_9 = theta[8]
+     ls_10 = theta[9]
+     n_11 = theta[10]
+  
+     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(x_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist) + n_11**2
       
-      n_train = len(X) 
-      
-      d2K_d2sf_m = np.zeros(shape=(n_train, n_train))
-      d2K_d2ls_m = np.zeros(shape=(n_train, n_train))
-      d2K_d2sn_m = np.zeros(shape=(n_train, n_train))
-      d2K_dls_dsf_m = np.zeros(shape=(n_train, n_train))
-      d2K_dls_dsn_m = np.zeros(shape=(n_train, n_train))
-      d2K_dsn_dsf_m = np.zeros(shape=(n_train, n_train))
-      
-      i, j = np.meshgrid(np.arange(n_train), np.arange(n_train))
-      index = np.vstack([j.ravel(), i.ravel()]).T
-      
-      for h in index:
+     K = kernel(theta, X, X)
+     K_noise = K + sk4*np.eye(len(X))
+     K_s = kernel(theta, X, X_star)
+     K_ss = kernel(theta, X_star, X_star)
+     return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
+             
+dh = grad(gp_mean)
+d2h = jacobian(dh)
+dg = grad(gp_cov)
+d2g = jacobian(dg) 
+
+def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
+                  
+    K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)     
+    #K = kernel(theta, X1, X2)
+    #K_noise = K + theta[8]**2 * np.exp(-0.5 / theta[9]**2 * sqdist) + theta[10]**2
+    #K_inv = np.linalg.inv(K_noise)
+    #K_s = kernel(theta, X1, X_star)
+    #K_ss =        
+    pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+    pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+
+    pred_ng_mean = []
+    pred_ng_var = []
+    
+    pred_ng_mean = pred_vi_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta)))
+    pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
+
+    for i in np.arange(len(X_star)): # To vectorize this loop
           
-            d2K_d2sf_m[h[0]][h[1]] = d2k_d2sf.subs({x1: X[h[0]], x2: X[h[1]]})
-            d2K_d2ls_m[h[0]][h[1]] = d2k_d2ls.subs({x1: X[h[0]], x2: X[h[1]]})
-            if h[0] == h[1]:
-                  d2K_d2sn_m[h[0]][h[1]] = d2k_d2sn.subs({x1: X[h[0]], x2: X[h[1]]})
-            else:
-                  d2K_d2sn_m[h[0]][h[1]] = 0
-            
-            d2K_dls_dsf_m[h[0]][h[1]] = d2k_dsfdls.subs({x1: X[h[0]], x2: X[h[1]]})
-            d2K_dls_dsn_m[h[0]][h[1]] = d2k_dlsdsn.subs({x1: X[h[0]], x2: X[h[1]]})
-            d2K_dsn_dsf_m[h[0]][h[1]] = d2k_dsfdsn.subs({x1: X[h[0]], x2: X[h[1]]})
+          x_star = X_star[i].reshape(1,1)
 
-      T1 = [d2K_d2sf_m, d2K_dls_dsf_m, d2K_dsn_dsf_m]  
-      T2 = [d2K_dls_dsf_m, d2K_d2ls_m, d2K_dls_dsn_m]
-      T3 = [d2K_dsn_dsf_m, d2K_dls_dsn_m, d2K_d2sn_m]
-      
-      return np.array([T1, T2, T3])
+          pred_ng_mean.append(pred_vi_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
+          print(pred_ng_mean[i])
+          pred_ng_var.append(pred_vi_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
+
+    return pred_ng_mean, pred_ng_var
 
 
-def gradient_K_star(X, x_star):
-      
-      n_train = len(X)
-      
-      row1 = np.zeros(shape=(n_train))
-      row2 = np.zeros(shape=(n_train))
-      row3 = np.zeros(shape=(n_train))
-      
-      for i in np.arange(n_train):
-            row1[i] = dk_dsf.subs({x1: X[i], x2: x_star})
-            row2[i] = dk_dls.subs({x1: X[i], x2: x_star})
-            row3[i] = 0
-            
-      return np.array([row1, row2, row3]).T
+if __name__ == "__main__":
 
-def curvature_K_star(X, x_star):
+      # Loading data
       
-      # Rank 3 tensor  -> 3 x 3 x n 
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
       
-     n_train = len(X)
+      path = uni_path
+
+      data_path = path + 'Data/Co2/' 
+      results_path = path + 'Results/Co2/' 
       
-     row_d2sf = np.zeros(shape=(n_train))
-     row_d2ls = np.zeros(shape=(n_train))
-     row_d2sn = np.zeros(shape=(n_train))
+      # Load Co2 data
+      
+      df = pd.read_table(data_path + 'mauna.txt', names=['year', 'co2'], infer_datetime_format=True, na_values=-99.99, delim_whitespace=True, keep_default_na=False)
+      
+      # creat a date index for the data - convert properly from the decimal year 
+      
+      #df.index = pd.date_range(start='1958-01-15', periods=len(df), freq='M')
+      
+      df.dropna(inplace=True)
+      
+      mean_co2 = df['co2'][0]
+      std_co2 = np.std(df['co2'])   
+      
+      # normalize co2 levels
+         
+      #y = normalize(df['co2'])
+      y = df['co2']
+      t = df['year'] - df['year'][0]
+      
+      sep_idx = 545
+      
+      y_train = y[0:sep_idx].values
+      y_test = y[sep_idx:].values
+      
+      t_train = t[0:sep_idx].values[:,None]
+      t_test = t[sep_idx:].values[:,None]
+      
+      # Read in trace_fr
+      
+      
+      
+      # Read in fr_param 
+
+      fr_df_raw = pd.read_csv(results_path + 'VI/fr_df_raw.csv', sep=',', index_col=0)
+      
+      mu_theta = fr_df_raw['mu_implicit'][varnames] #maybe update
+      cov_theta = get_empirical_covariance(trace_fr, varnames)
+      
+      # Analytical mean and var
+      varnames = ['s_1', 'ls_2','s_3', 'ls_4','ls_5','s_6','ls_7','alpha_8','s_9','ls_10','n_11'] 
+
+      theta = np.array([mu_theta['s_1'], mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
+      
+      pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
+      
+      sample_mcvi_means = pd.read_csv(results_path + 'pred_dist/means_fr.csv', sep=',')
+      sample_mcvi_stds = pd.read_csv(results_path + 'pred_dist/std_fr.csv', sep=',')
+      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_mcvi_means, sample_mcvi_stds)
      
-     row_dsfdls = np.zeros(shape=(n_train))
-     row_dlsdsn = np.zeros(shape=(n_train))
-     row_dsfdsn = np.zeros(shape=(n_train))
-     
-     for h in np.arange(len(X)):
-           
-           row_d2sf[h] = d2k_d2sf.subs({x1: X[h], x2: x_star})
-           row_d2ls[h] = d2k_d2ls.subs({x1: X[h], x2: x_star})
-           #row_d2sn[h] = d2k_d2sn.subs({x1: X[h], x2: x_star})
-           row_d2sn[h] = 0
-           
-           row_dsfdls[h] = d2k_dsfdls.subs({x1: X[h], x2: x_star})
-           row_dlsdsn[h] = d2k_dlsdsn.subs({x1: X[h], x2: x_star})
-           row_dsfdsn[h] = d2k_dsfdsn.subs({x1: X[h], x2: x_star})
-           
-     M1 = np.array([row_d2sf, row_dsfdls, row_dsfdsn])
-     M2 = np.array([row_dsfdls, row_d2ls, row_dlsdsn])
-     M3 = np.array([row_dsfdsn, row_dlsdsn, row_d2sn])
+      # Plotting 
       
-     return np.array([M1.T, M2.T, M3.T])
-
-def gradient_K_star_star(x_star):
-      
-      return np.array([dk_dsf.subs({x1: x_star, x2: x_star}), dk_dls.subs({x1: x_star, x2: x_star}), 0])
-
-def curvature_K_star_star(x_star):
-            
-       # 3 X 3 matrix
-      row1 = [d2k_d2sf.subs({x1: x_star, x2: x_star}), d2k_dsfdls.subs({x1: x_star, x2: x_star}),                 d2k_dsfdsn.subs({x1: x_star, x2: x_star})]
-      row2 = [d2k_dsfdls.subs({x1: x_star, x2: x_star}), d2k_d2ls.subs({x1: x_star, x2: x_star}), d2k_dlsdsn.subs({x1: x_star, x2: x_star})]
-      #row3 = [d2k_dsfdsn.subs({x1: x_star, x2: x_star}), d2k_dlsdsn.subs({x1: x_star, x2: x_star}), d2k_d2sn.subs({x1: x_star, x2: x_star})]
-      row3 = [0, 0, 0]
-      
-      return np.array([row1, row2, row3], dtype=np.float)
-
-def gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s):
-      
-      dK_starT = gradient_K_star(X, x_star).T
-      
-      return np.matmul(np.matmul(dK_starT, K_inv), y)[:, np.newaxis] + np.matmul(np.matmul(K_s.T, dK_inv), y)
-
-def curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv):
-      
-      dK_starT = gradient_K_star(X, x_star).T
-      d2K_star = curvature_K_star(X, x_star)
-      d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
-      
-      return  np.matmul(np.matmul(d2K_starT, K_inv), y) + 2*np.matmul(np.matmul(dK_starT, dK_inv), y) + np.matmul(np.matmul(K_s.T, d2K_inv),y).reshape(3,3)
-
-def curvature_gp_pred_var(X, x_star, y, K_s,  K_inv, dK_inv, d2K_inv):
-      
-      dK_starT = gradient_K_star(X, x_star).T
-      dK_star = dK_starT.T
-      d2K_star_star = curvature_K_star_star(x_star)
-      d2K_star = curvature_K_star(X, x_star)
-      d2K_starT = np.array([d2K_star[0].T, d2K_star[1].T, d2K_star[2].T])
-      
-      return  d2K_star_star - 2*np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 4*np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_star) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) 
-
-
-#d2K_star_star - np.matmul(np.matmul(d2K_starT, K_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT,dK_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(dK_starT, K_inv), dK_starT.T) -  np.matmul(np.matmul(K_s.T, d2K_inv), K_s).reshape(3,3) - 2*np.matmul(np.matmul(K_s.T, dK_inv), dK_starT.T).reshape(3,3) - np.matmul(np.matmul(K_s.T,K_inv), d2K_starTT).reshape(3,3)
-      
-#a1 = np.matmul(np.matmul(dK_starT, dK_inv), K_s).reshape(3,3)
-#a2 = np.matmul(np.matmul(K_s.T, dK_inv), dK_star).reshape(3,3)
-
-def deterministic_gp_pred_mean(X, x_star, y, K_s, K_ss, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_mean):
-      
-      #K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
-      
-      d2_gp_mean = curvature_gp_pred_mean(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv) # 3x3 matrix
-      
-      return pred_vi_mean + 0.5*np.trace(np.matmul(d2_gp_mean, cov_theta))
-
-def deterministic_gp_pred_covariance(X, x_star, y, K_s, K_ss, K, K_inv, K_noise, dK_inv, d2K_inv, mu_theta, cov_theta, pred_vi_var):
-      
-      #K_s, K_ss = get_star_kernel_matrix_blocks(X, x_star, mu_theta)
-      
-      d1_gp_mean = gradient_gp_pred_mean(X, x_star, y, K_inv, dK_inv, K_s)
-      d2_gp_var = curvature_gp_pred_var(X, x_star, y, K_s, K_inv, dK_inv, d2K_inv)
-      
-      return pred_vi_var + 0.5*np.trace(np.matmul(d2_gp_var, cov_theta)) + np.trace(np.matmul(np.matmul(d1_gp_mean, d1_gp_mean.T), cov_theta))
+      plt.figure()
+      plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
+      plt.plot(df['year'][sep_idx:], np.mean(sample_mcvi_means), alpha=1, label='MCVI', color='g')
+      plt.plot(df['year'][sep_idx:], pred_ng_mean, alpha=1, label='Det. VI', color='b')
+      plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.5)
+      plt.fill_between(df['year'][sep_idx:], (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), color='b', alpha=0.3)
+      plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='Type II ML', color='r')
+      plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.3)
+plt.legend(fontsize='x-small')
 
 

@@ -356,7 +356,6 @@ if __name__ == "__main__":
       print("Log-marginal-likelihood: %.3f"
       % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
-      
       print("Predicting with trained gp on training data")
       
       mu_fit, std_fit = gpr.predict(t_train, return_std=True)
