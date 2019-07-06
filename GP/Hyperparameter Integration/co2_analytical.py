@@ -225,7 +225,7 @@ if __name__ == "__main__":
       plt.plot(df['year'][sep_idx:], np.mean(sample_mcvi_means), alpha=1, label='MCVI', color='g')
       plt.plot(df['year'][sep_idx:], pred_ng_mean, alpha=1, label='Det. VI', color='b')
       plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.5)
-      plt.fill_between(df['year'][sep_idx:], (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), color='b', alpha=0.3)
+      plt.fill_between(df['year'][sep_idx:], (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), (pred_ng_mean + 1.96*np.sqrt(pred_ng_var)), color='b', alpha=0.3)
       plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='Type II ML', color='r')
       plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.3)
 plt.legend(fontsize='x-small')

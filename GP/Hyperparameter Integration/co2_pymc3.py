@@ -211,7 +211,6 @@ def convergence_report(tracker, param_dict, elbo, title):
       hist_ax.set_title('Negative ELBO track');
       fig.suptitle(title)
 
-
 # Constructing posterior predictive distribution
 
 def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
@@ -501,7 +500,7 @@ with co2_model:
       mean = fr.approx.mean.eval,    
       std = fr.approx.std.eval)
       
-      fr.fit(n=60000, callbacks=[tracker_fr])
+      fr.fit(n=15000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
 
