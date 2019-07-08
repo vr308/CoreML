@@ -39,11 +39,11 @@ def kernel(theta, X1, X2):
      alpha_8 = theta[7]
     
      sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
-     dist = np.sum(X1,1).reshape(-1,1) - np.sum(X2,1)
-          
+     dist = np.abs(np.sum(X1,1).reshape(-1,1) - np.sum(X2,1))
+               
      sk1 = s_1**2 * np.exp(-0.5 / ls_2**2 * sqdist)
-     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp((-2*np.sin(np.pi*dist)**2)*(1/ls_5**2))
-     sk3 = s_6**2 * (1 + (1 / 2 * alpha_8 * ls_7**2) * sqdist)**(-alpha_8)
+     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp((-2*(np.sin(np.pi*dist)/ls_5)**2)
+     sk3 = s_6**2 * (1 + (1 / 2 * alpha_8 * ls_7**2) * sqdist)**(-1*alpha_8)
     
      return sk1 + sk2 + sk3
 
@@ -89,10 +89,10 @@ def get_kernel_matrix_blocks(X, X_star, n_train, theta):
       K_inv = np.linalg.inv(K_noise.eval())
       return K.eval(), K_s.eval(), K_ss.eval(), K_noise.eval(), K_inv
 
-def get_empirical_covariance(trace, varnames):
+def get_empirical_covariance(trace_df, varnames):
       
-      df = pm.trace_to_dataframe(trace)
-      return pd.DataFrame(np.cov(df[varnames], rowvar=False), index=varnames, columns=varnames)
+      #df = pm.trace_to_dataframe(trace)
+      return pd.DataFrame(np.cov(trace_df[varnames], rowvar=False), index=varnames, columns=varnames)
 
 def gp_mean(theta, X, y, X_star):
       
@@ -100,8 +100,9 @@ def gp_mean(theta, X, y, X_star):
      ls_10 = theta[9]
      n_11 = theta[10]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(x_star**2, 1) - 2 * np.dot(X, X_star.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist) + n_11**2
+     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2
       
      K = kernel(theta, X, X)
      K_noise = K + sk4*np.eye(len(X))
@@ -114,8 +115,9 @@ def gp_cov(theta, X, y, X_star):
      ls_10 = theta[9]
      n_11 = theta[10]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(x_star**2, 1) - 2 * np.dot(X, X_star.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist) + n_11**2
+     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2
       
      K = kernel(theta, X, X)
      K_noise = K + sk4*np.eye(len(X))
@@ -147,6 +149,7 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
 
     for i in np.arange(len(X_star)): # To vectorize this loop
           
+          print(i)
           x_star = X_star[i].reshape(1,1)
 
           pred_ng_mean.append(pred_vi_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
@@ -198,14 +201,14 @@ if __name__ == "__main__":
       
       # Read in trace_fr
       
-      
+      trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
       # Read in fr_param 
 
       fr_df_raw = pd.read_csv(results_path + 'VI/fr_df_raw.csv', sep=',', index_col=0)
       
       mu_theta = fr_df_raw['mu_implicit'][varnames] #maybe update
-      cov_theta = get_empirical_covariance(trace_fr, varnames)
+      cov_theta = get_empirical_covariance(trace_fr_df, varnames)
       
       # Analytical mean and var
       varnames = ['s_1', 'ls_2','s_3', 'ls_4','ls_5','s_6','ls_7','alpha_8','s_9','ls_10','n_11'] 

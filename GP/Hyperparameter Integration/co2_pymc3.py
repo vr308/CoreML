@@ -461,14 +461,14 @@ with pm.Model() as co2_model:
        k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
        k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
        k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
+       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11)
 
-       k =  k1 + k2 + k3 + k4
+       k =  k1 + k2 + k3
           
        gp = pm.gp.Marginal(cov_func=k)
             
        # Marginal Likelihood
-       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=n_11)
+       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
               
 with co2_model:
       
