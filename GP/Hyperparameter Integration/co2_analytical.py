@@ -42,23 +42,10 @@ def kernel(theta, X1, X2):
      dist = np.abs(np.sum(X1,1).reshape(-1,1) - np.sum(X2,1))
                
      sk1 = s_1**2 * np.exp(-0.5 / ls_2**2 * sqdist)
-     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp((-2*(np.sin(np.pi*dist)/ls_5)**2)
-     sk3 = s_6**2 * (1 + (1 / 2 * alpha_8 * ls_7**2) * sqdist)**(-1*alpha_8)
+     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp(-2*(np.sin(np.pi*dist)/ls_5)**2)
+     sk3 = s_6**2 * np.power(1.0 + 0.5*(sqdist / (alpha_8 * ls_7**2)), -1*alpha_8)
     
      return sk1 + sk2 + sk3
-
-mu_theta_sub = {s_1: mu_theta['s_1'],
-                ls_2:  mu_theta['ls_2'], 
-                s_3: mu_theta['s_3'], 
-                ls_4:  mu_theta['ls_4'],
-                ls_5: mu_theta['ls_5'],
-                s_6: mu_theta['s_6'],
-                ls_7:  mu_theta['ls_7'], 
-                alpha_8: mu_theta['alpha_8'], 
-                s_9: mu_theta['s_9'], 
-                ls_10: mu_theta['ls_10'], 
-                n_11: mu_theta['n_11']
-                }
 
 def get_kernel_matrix_blocks(X, X_star, n_train, theta):
       
@@ -77,7 +64,7 @@ def get_kernel_matrix_blocks(X, X_star, n_train, theta):
       k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
       k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
       k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-      k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
+      k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11)
       
       cov_sig =  k1 + k2 + k3 
       cov_noise = k4
@@ -102,7 +89,7 @@ def gp_mean(theta, X, y, X_star):
   
      sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
      K_noise = K + sk4*np.eye(len(X))
@@ -117,7 +104,7 @@ def gp_cov(theta, X, y, X_star):
   
      sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2
+     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
      K_noise = K + sk4*np.eye(len(X))
@@ -125,26 +112,26 @@ def gp_cov(theta, X, y, X_star):
      K_ss = kernel(theta, X_star, X_star)
      return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
              
-dh = grad(gp_mean)
+dh = elementwise_grad(gp_mean)
 d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
 def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
                   
-    K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)     
-    #K = kernel(theta, X1, X2)
-    #K_noise = K + theta[8]**2 * np.exp(-0.5 / theta[9]**2 * sqdist) + theta[10]**2
-    #K_inv = np.linalg.inv(K_noise)
-    #K_s = kernel(theta, X1, X_star)
-    #K_ss =        
-    pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
-    pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
+    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+    
+    pred_g_mean = gp_mean(theta, X, y, X_star)
+    pred_g_cov = np.diag(gp_cov(theta, X, y, X_star))
 
     pred_ng_mean = []
     pred_ng_var = []
     
-    pred_ng_mean = pred_vi_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta)))
+    # To fix this 
+    
+    pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
     pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
 
     for i in np.arange(len(X_star)): # To vectorize this loop
@@ -152,7 +139,7 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
           print(i)
           x_star = X_star[i].reshape(1,1)
 
-          pred_ng_mean.append(pred_vi_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
+          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
           print(pred_ng_mean[i])
           pred_ng_var.append(pred_vi_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
 
@@ -203,6 +190,8 @@ if __name__ == "__main__":
       
       trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
+      trace_fr_df = pd.read_csv(results_path + 'VI/trace_fr_df.csv', sep=',')
+      
       # Read in fr_param 
 
       fr_df_raw = pd.read_csv(results_path + 'VI/fr_df_raw.csv', sep=',', index_col=0)
@@ -211,9 +200,8 @@ if __name__ == "__main__":
       cov_theta = get_empirical_covariance(trace_fr_df, varnames)
       
       # Analytical mean and var
-      varnames = ['s_1', 'ls_2','s_3', 'ls_4','ls_5','s_6','ls_7','alpha_8','s_9','ls_10','n_11'] 
 
-      theta = np.array([mu_theta['s_1'], mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
+      theta = np.array([227.19, mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
       
       pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
       
