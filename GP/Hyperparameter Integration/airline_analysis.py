@@ -24,7 +24,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, Rational
 warnings.filterwarnings("ignore")
 import csv
 
-# Analytical variational inference for CO_2 data
+# Analytical variational inference for Airline data
 
 def kernel(theta, X1, X2):
         
@@ -116,6 +116,146 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
           pred_ng_var.append(pred_vi_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
 
     return pred_ng_mean, pred_ng_var
+
+
+def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
+      
+      means_file = path + 'means_' + method + '_' + str(len(X)) + '.csv'
+      std_file = path + 'std_' + method + '_' + str(len(X)) + '.csv'
+      #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+    
+      means_writer = csv.writer(open(means_file, 'w')) 
+      std_writer = csv.writer(open(std_file, 'w'))
+      #trace_writer = csv.writer(open(trace_file, 'w'))
+      
+      means_writer.writerow(X_star.flatten())
+      std_writer.writerow(X_star.flatten())
+      #trace_writer.writerow(varnames + ['lml'])
+      
+      for i in np.arange(len(trace))[::thin_factor]:
+            
+            print('Predicting ' + str(i))
+            post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=False, diag=True)
+            post_std = np.sqrt(post_var)
+            #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
+            #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            #marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
+            #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
+            #std = np.sqrt(var)
+            #list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
+            
+            print('Writing out ' + str(i) + ' predictions')
+            means_writer.writerow(np.round(post_mean, 3))
+            std_writer.writerow(np.round(post_std, 3))
+            #trace_writer.writerow(np.round(list_point, 3))
+            
+
+def get_kernel_matrix_blocks(X, X_star, n_train, point):
+    
+          cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
+          K = cov(X)
+          K_s = cov(X, X_star)
+          K_ss = cov(X_star, X_star)
+          K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
+          K_inv = matrix_inverse(K_noise)
+          return K, K_s, K_ss, K_noise, K_inv
+
+
+# Constructing posterior predictive distribution
+
+def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
+      
+      # Fixed at 95% CI
+      
+      n_test = sample_means.shape[-1]
+      components = sample_means.shape[0]
+      lower_ = []
+      upper_ = []
+      for i in np.arange(n_test):
+            print(i)
+            mix_idx = np.random.choice(np.arange(components), size=2000, replace=True)
+            mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
+            lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
+            lower_.append(lower)
+            upper_.append(upper)
+      return np.array(lower_), np.array(upper_)
+
+def get_posterior_predictive_mean(sample_means):
+      
+      return np.mean(sample_means)
+
+# Metrics 
+      
+def rmse(post_mean, y_test):
+    
+    return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),3)
+
+def log_predictive_density(y_test, list_means, list_stds):
+      
+      lppd_per_point = []
+      for i in np.arange(len(y_test)):
+            print(i)
+            lppd_per_point.append(st.norm.pdf(y_test[i], list_means[i], list_stds[i]))
+      return np.round(np.mean(np.log(lppd_per_point)),3)
+            
+def log_predictive_mixture_density(y_test, list_means, list_std):
+      
+      lppd_per_point = []
+      for i in np.arange(len(y_test)):
+            print(i)
+            components = []
+            for j in np.arange(len(list_means)):
+                  components.append(st.norm.pdf(y_test[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
+            lppd_per_point.append(np.mean(components))
+      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
+
+
+def transform_tracker_values(tracker, param_dict):
+
+      mean_df = pd.DataFrame(np.array(tracker['mean']), columns=list(param_dict['mu'].keys()))
+      sd_df = pd.DataFrame(np.array(tracker['std']), columns=list(param_dict['mu'].keys()))
+      for i in mean_df.columns:
+            print(i)
+            if (i[-2:] == '__'):
+                 mean_df[name_mapping[i]] = np.exp(raw_mapping.get(i).distribution.transform_used.backward(mean_df[i]).eval()) 
+            else:
+                mean_df[name_mapping[i]] = np.exp(mean_df[i]) 
+      return mean_df, sd_df
+
+
+def convergence_report(tracker, param_dict, elbo, title):
+      
+      # Plot Negative ElBO track with params in true space
+      
+      #mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
+      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
+
+      fig = plt.figure(figsize=(16, 9))
+      for i in np.arange(3):
+            print(i)
+#            if (np.mod(i,8) == 0):
+#                   fig = plt.figure(figsize=(16,9))
+#                   i = i + 8
+#                   print(i)
+            plt.subplot(2,4,np.mod(i, 8)+1)
+            plt.plot(mean_mf_df[varnames[i+8]], color='coral')
+            plt.plot(mean_fr_df[varnames[i+8]], color='green')
+            plt.title(varnames[i+8])
+            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
+      
+      
+      fig = plt.figure(figsize=(16, 9))
+      mu_ax = fig.add_subplot(221)
+      std_ax = fig.add_subplot(222)
+      hist_ax = fig.add_subplot(212)
+      mu_ax.plot(tracker['mean'])
+      mu_ax.set_title('Mean track')
+      std_ax.plot(tracker['std'])
+      std_ax.set_title('Std track')
+      hist_ax.plot(elbo)
+      hist_ax.set_title('Negative ELBO track');
+      fig.suptitle(title)
+
 
 
 if __name__ == "__main__":
@@ -233,11 +373,11 @@ with pm.Model() as airline_model:
   
       # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=-10, upper=10, testval=np.log(ml_deltas['ls_2']))
+       log_l2 = pm.Uniform('log_l2', lower=5, upper=12, testval=np.log(ml_deltas['ls_2']))
        log_l4 = pm.Uniform('log_l4', lower=-10, upper=10, testval=np.log(ml_deltas['ls_4']))
-       log_l5 = pm.Uniform('log_l5', lower=-10, upper=10, testval=np.log(ml_deltas['ls_5']))
-       log_l7 = pm.Uniform('log_l7', lower=-10, upper=10, testval=np.log(ml_deltas['ls_7']))
-       log_l10 = pm.Uniform('log_l10', lower=-10, upper=10, testval=np.log(ml_deltas['ls_10']))
+       log_l5 = pm.Uniform('log_l5', lower=-1, upper=3, testval=np.log(ml_deltas['ls_5']))
+       log_l7 = pm.Uniform('log_l7', lower=-7, upper=3, testval=np.log(ml_deltas['ls_7']))
+       log_l10 = pm.Uniform('log_l10', lower=-10, upper=5, testval=np.log(ml_deltas['ls_10']))
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
@@ -255,8 +395,8 @@ with pm.Model() as airline_model:
        log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
        #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
        log_s3 = pm.Uniform('log_s3', lower=-5, upper=10, testval=np.log(ml_deltas['s_3']))
-       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=1)
-       log_s9 = pm.Uniform('log_s9', lower=-5, upper=1, testval=np.log(ml_deltas['s_9']))
+       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
+       log_s9 = pm.Uniform('log_s9', lower=-1, upper=2, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
@@ -326,5 +466,13 @@ with airline_model:
       fr.fit(n=20000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
+      # Writing out posterior predictive means
+      
+      write_posterior_predictive_samples(trace_fr, 100, t_train, y_train, t_test, results_path, 'fr')
+
+sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+
+lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
       
       
