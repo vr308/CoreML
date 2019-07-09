@@ -201,7 +201,7 @@ if __name__ == "__main__":
       
       # Analytical mean and var
 
-      theta = np.array([227.19, mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
+      theta = np.array([mu_theta['s_1'], mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
       
       pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
       
