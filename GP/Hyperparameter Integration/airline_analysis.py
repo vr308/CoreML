@@ -117,11 +117,34 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
 
     return pred_ng_mean, pred_ng_var
 
+def traceplots(trace, varnames, deltas):
+
+      traces_part1 = pm.traceplot(trace, varnames[0:5], lines=deltas)
+      traces_part2 = pm.traceplot(trace, varnames[5:], lines=deltas)
+      
+      for i in np.arange(5):
+            
+            delta = deltas.get(str(varnames[i]))
+            xmax = max(max(trace[varnames[i]]), delta)
+            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
+            #traces_part1[i][0].axes.set_xlim(xmin, xmax)
+            traces_part1[i][0].legend(fontsize='x-small')
+      
+      for i in np.arange(6):
+            
+            delta = deltas.get(str(varnames[i+5]))
+            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+            traces_part2[i][0].hist(trace[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
+            #traces_part2[i][0].axes.set_xscale('log')
+            traces_part2[i][0].legend(fontsize='x-small')
 
 def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
       
-      means_file = path + 'means_' + method + '_' + str(len(X)) + '.csv'
-      std_file = path + 'std_' + method + '_' + str(len(X)) + '.csv'
+      means_file = path + 'means_' + method + '.csv'
+      std_file = path + 'std_' + method + '.csv'
       #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
     
       means_writer = csv.writer(open(means_file, 'w')) 
@@ -238,7 +261,7 @@ def convergence_report(tracker, param_dict, elbo, title):
 #                   i = i + 8
 #                   print(i)
             plt.subplot(2,4,np.mod(i, 8)+1)
-            plt.plot(mean_mf_df[varnames[i+8]], color='coral')
+            #plt.plot(mean_mf_df[varnames[i+8]], color='coral')
             plt.plot(mean_fr_df[varnames[i+8]], color='green')
             plt.title(varnames[i+8])
             plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
@@ -256,6 +279,96 @@ def convergence_report(tracker, param_dict, elbo, title):
       hist_ax.set_title('Negative ELBO track');
       fig.suptitle(title)
 
+
+# Implicit variational posterior density
+            
+def get_implicit_variational_posterior(var, means, std, x):
+      
+      sigmoid = lambda x : 1 / (1 + np.exp(-x))
+      
+      if (var.name[-2:] == '__'):
+            # Then it is an interval variable
+            
+            eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
+            backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+            width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
+            total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
+            pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
+            return pdf(x)
+      
+      else:
+            # Then it is just a log variable
+            
+            pdf = lambda x: st.norm.pdf(np.log(x), means[var.name], std[var.name])/x   
+            return pdf(x)
+            
+
+# Converting raw params back to param space
+
+def analytical_variational_opt(model, param_dict, summary_trace):
+      
+      keys = list(param_dict['mu'].keys())
+      
+      # First tackling transformed means
+      
+      mu_implicit = {}
+      rho_implicit = {}
+      for i in keys:
+            if (i[-2:] == '__'):
+                  name = name_mapping[i]
+                  mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
+                  sd_value = summary_trace['sd'][name]
+                  mu_implicit.update({name : np.array(mean_value)})
+                  rho_implicit.update({name : np.array(sd_value)})
+            else:
+                  name = name_mapping[i]
+                  mean_value = np.exp(param_dict['mu'][i])
+                  sd_value = summary_trace['sd'][name]
+                  name = name_mapping[i]
+                  mu_implicit.update({name : np.array(mean_value)})
+                  rho_implicit.update({name : np.array(sd_value)})
+      param_dict.update({'mu_implicit' : mu_implicit})
+      param_dict.update({'rho_implicit' : rho_implicit})
+
+      return param_dict
+
+rv_mapping = {'s_1':  airline_model.log_s1, 
+              'ls_2': airline_model.log_l2_interval__, 
+              's_3':  airline_model.log_s3_interval__,
+              'ls_4': airline_model.log_l4_interval__,
+              'ls_5': airline_model.log_l5_interval__,
+              's_6': airline_model.log_s6,
+              'ls_7': airline_model.log_l7_interval__,
+              'alpha_8': airline_model.log_alpha8,
+              's_9': airline_model.log_s9_interval__,
+              'ls_10': airline_model.log_l10_interval__,
+               'n_11': airline_model.log_n11_interval__
+                    }
+
+raw_mapping = {'log_s1':  airline_model.log_s1, 
+              'log_l2_interval__': airline_model.log_l2_interval__, 
+              'log_s3_interval__':  airline_model.log_s3_interval__,
+              'log_l4_interval__': airline_model.log_l4_interval__,
+              'log_l5_interval__': airline_model.log_l5_interval__,
+              'log_s6': airline_model.log_s6,
+              'log_l7_interval__': airline_model.log_l7_interval__,
+              'log_alpha8': airline_model.log_alpha8,
+              'log_s9_interval__': airline_model.log_s9_interval__,
+              'log_l10_interval__': airline_model.log_l10_interval__,
+               'log_n11_interval__': airline_model.log_n11_interval__ }
+
+
+name_mapping = {'log_s1':  's_1', 
+              'log_l2_interval__': 'ls_2', 
+              'log_s3_interval__':  's_3',
+              'log_l4_interval__': 'ls_4',
+              'log_l5_interval__': 'ls_5',
+              'log_s6': 's_6',
+              'log_l7_interval__': 'ls_7',
+              'log_alpha8': 'alpha_8',
+              'log_s9_interval__': 's_9',
+              'log_l10_interval__': 'ls_10',
+              'log_n11_interval__': 'n_11'}
 
 
 if __name__ == "__main__":
@@ -373,29 +486,31 @@ with pm.Model() as airline_model:
   
       # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=5, upper=12, testval=np.log(ml_deltas['ls_2']))
-       log_l4 = pm.Uniform('log_l4', lower=-10, upper=10, testval=np.log(ml_deltas['ls_4']))
-       log_l5 = pm.Uniform('log_l5', lower=-1, upper=3, testval=np.log(ml_deltas['ls_5']))
-       log_l7 = pm.Uniform('log_l7', lower=-7, upper=3, testval=np.log(ml_deltas['ls_7']))
-       log_l10 = pm.Uniform('log_l10', lower=-10, upper=5, testval=np.log(ml_deltas['ls_10']))
+       #log_l2 = pm.Uniform('log_l2', lower=8, upper=10, testval=np.log(ml_deltas['ls_2']))
+       #log_l4 = pm.Uniform('log_l4', lower=-10, upper=10, testval=np.log(ml_deltas['ls_4']))
+       log_l5 = pm.Uniform('log_l5', lower=-1, upper=2, testval=np.log(ml_deltas['ls_5']))
+       #log_l7 = pm.Uniform('log_l7', lower=-7, upper=3, testval=np.log(ml_deltas['ls_7']))
+       #log_l10 = pm.Uniform('log_l10', lower=-10, upper=5, testval=np.log(ml_deltas['ls_10']))
 
-       ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       log_p = pm.Uniform('log_p', lower=1, upper=10 )
+
+       #ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
+       #ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-       ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       #ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
+       #ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
        
-       #ls_2 = 70
-       #ls_4 = 85
-       #ls_7 = 1.88
-       #ls_10 = 0.1219
+       ls_2 = ml_deltas['ls_2']
+       ls_4 = ml_deltas['ls_4']
+       ls_7 = ml_deltas['ls_7']
+       ls_10 = ml_deltas['ls_10']
      
        # prior on amplitudes
 
-       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=1)
        #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
-       log_s3 = pm.Uniform('log_s3', lower=-5, upper=10, testval=np.log(ml_deltas['s_3']))
-       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=0.5)
+       log_s3 = pm.Normal('log_s3', mu=np.log(ml_deltas['s_3']), sd=1)
+       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=1)
        log_s9 = pm.Uniform('log_s9', lower=-1, upper=2, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
@@ -414,15 +529,15 @@ with pm.Model() as airline_model:
        
        # prior on noise variance term
       
-       log_n11 = pm.Uniform('log_n11', lower=-2, upper=5, testval=np.log(ml_deltas['n_11']))
-       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
+       #log_n11 = pm.Uniform('log_n11', lower=-5, upper=5, testval=np.log(ml_deltas['n_11']))
+       #n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
-       #n_11 = 0.195
+       n_11 = ml_deltas['alpha_8']
        
        # Specify the covariance function
        
        k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.Matern52(1, ls_2) 
-       k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+       k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=p, ls=ls_5)
        k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
        k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11)
 
@@ -435,7 +550,7 @@ with pm.Model() as airline_model:
               
 with co2_model:
       
-      # HMC Nuts auto-tuning implementation
+      # HMC NUTS auto-tuning implementation
 
       trace_hmc = pm.sample(draws=700, tune=500, chains=1)
             
@@ -463,16 +578,49 @@ with airline_model:
       mean = fr.approx.mean.eval,    
       std = fr.approx.std.eval)
       
-      fr.fit(n=20000, callbacks=[tracker_fr])
+      fr.fit(n=50000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
+      
+      bij_mf = mf.approx.groups[0].bij
+mf_param = {param.name: bij_mf.rmap(param.eval())
+	 for param in mf.approx.params}
+
+      bij_fr = fr.approx.groups[0].bij
+fr_param = {param.name: bij_fr.rmap(param.eval())
+	 for param in fr.approx.params}
+
+      check_mf.approx.params[0].set_value(bij_mf.map(mf_param['mu']))
+      check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
+
+      # Updating with implicit values
+      
+      mf_param = analytical_variational_opt(airline_model, mf_param, pm.summary(trace_mf))
+      fr_param = analytical_variational_opt(airline_model, fr_param, pm.summary(trace_fr))
+
+      # Saving raw ADVI results
+      
+      mf_df = pd.DataFrame(mf_param)
+      fr_df = pd.DataFrame(fr_param)
+      
+      # TRaceplots
+      
+      varnames = ['s_1', 'ls_5', 's_3', 's_6', 's_9', 'alpha_8']
+      traceplots(trace_fr, varnames, ml_deltas)
+      
+      # Testing convergence
+      
+      convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
       
       # Writing out posterior predictive means
       
       write_posterior_predictive_samples(trace_fr, 100, t_train, y_train, t_test, results_path, 'fr')
 
-sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
-sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
-
-lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      sample_means_fr = pd.read_csv(results_path + 'means_fr_100.csv')
+      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
       
+      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+            
+      #
       
+      plt.figure()
+      plt.plot(t_test, sample_means_fr.T)
