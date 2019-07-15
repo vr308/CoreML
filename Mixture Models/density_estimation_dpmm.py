@@ -65,7 +65,7 @@ for i in u:
 
 
 plt.figure()
-plt.hist(samples, bins=500, density=True, alpha=0.8, log=True)
+plt.hist(samples, bins=500, density=True, alpha=0.8)
 plt.title('Samples generated using inverse CDF', fontsize='small')
 plt.xscale('log')
 plt.xlim(0,100)
