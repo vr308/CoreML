@@ -28,17 +28,23 @@ K = 20
 N = old_faithful_df.shape[0]
 
 with pm.Model() as model:
-    alpha = pm.Gamma('alpha',1,1)
+    alpha = pm.Gamma('alpha',2,2)
     beta = pm.Beta('beta', 1, alpha, shape=K)
     w = pm.Deterministic('w', stick_breaking(beta))
     
     tau = pm.Gamma('tau', 1., 1., shape=K)
-    lambda_ = pm.Uniform('lambda', 0, 5, shape=K)
+    #lambda_ = pm.HalfNormal('lambda', 0, 5, shape=K)
     mu = pm.Normal('mu', 0, tau=tau, shape=K)
-    obs = pm.NormalMixture('obs', w, mu, tau=lambda_*tau,
+    obs = pm.NormalMixture('obs', w, mu, tau=tau,
                            observed=old_faithful_df.std_waiting.values)
 with model:
-    trace_nuts = pm.sample(1000, chains=2)
+    trace_nuts_85 = pm.sample(1000, chains=2, target_accept=0.85)
+    trace_nuts_95 = pm.sample(1000, chains=2, target_accept=0.90)
+    trace_nuts_99 = pm.sample(1000, chains=2, target_accept=0.99)
+
+
+with model:
+      y_ppc = pm.sample_ppc(trace_nuts_85)
     
 with model:
       fr = pm.FullRankADVI()
@@ -64,18 +70,22 @@ def plot_weights(trace):
       ax.set_xlabel('Component');
       ax.set_ylabel('Posterior expected mixture weight');
       
+      
 plot_weights(trace_nuts)
 plot_weights(trace_fr)
+
+x_plot = np.linspace(-3, 3, 200)
+
 
 post_pdf_contribs_nuts = sp.stats.norm.pdf(np.atleast_3d(x_plot),
                                             trace_nuts['mu'][:, np.newaxis, :],
                                             1. / np.sqrt(trace_nuts['tau']*trace_nuts['lambda'])[:, np.newaxis, :])
 post_pdf_contribs_vi = sp.stats.norm.pdf(np.atleast_3d(x_plot),
                                             trace_fr['mu'][:, np.newaxis, :],
-                                            1. / np.sqrt(trace_fr['tau']*trace_fr['lambda'])[:, np.newaxis, :])
+                                            1. / np.sqrt(trace_fr['tau'])[:, np.newaxis, :])
 post_pdf_contribs_nf = sp.stats.norm.pdf(np.atleast_3d(x_plot),
                                             trace_nf['mu'][:, np.newaxis, :],
-                                            1. / np.sqrt(trace_nf['tau']*trace_nf['lambda'])[:, np.newaxis, :])
+                                            1. / np.sqrt(trace_nf['tau'])[:, np.newaxis, :])
 
 xlabel = 'Standardized waiting time between eruptions'
     
@@ -167,3 +177,46 @@ ax.plot(x_plot, post_pmfs.mean(axis=0),
 ax.set_xlabel('Yearly sunspot count');
 ax.set_yticklabels([]);
 ax.legend(loc=1);
+
+# Known Gaussian mixture 
+
+y_gmix = 
+
+with pm.Model() as model:
+      
+      # Prior over the concentration parameter
+      alpha = pm.Gamma('alpha', 1, 1)
+      
+      # Stick breaking construction for weights 
+      beta = pm.Beta('beta', 1, alpha, shape=K)
+      w = pm.Deterministic('w', stick_breaking(beta))
+      
+      # Prior over component parameters 
+      mu = pm.Normal()
+      
+      #obs 
+      
+      
+# Known Poisson mixture 
+      
+y_pmix = 
+
+with pm.Model() as model:
+    alpha = pm.Gamma('alpha',1,1)
+    beta = pm.Beta('beta', 1, alpha, shape=K)
+    w = pm.Deterministic('w', stick_breaking(beta))
+    mu = pm.Normal('mu', 0., 300., shape=K)
+    obs = pm.Mixture('obs', w, pm.Poisson.dist(mu), observed=y_pmix)      
+      
+
+
+y_cmix = 
+
+# Known Cauchy Mixture 
+with pm.Model() as model:
+    alpha = pm.Gamma('alpha',1,1)
+    beta = pm.Beta('beta', 1, alpha, shape=K)
+    w = pm.Deterministic('w', stick_breaking(beta))
+    location = pm.Normal('mu', 0., 300., shape=K)
+    scale = pm.InverseGamma
+    obs = pm.Mixture('obs', w, pm.Cauchy.dist(mu), observed=y_pmix)      
