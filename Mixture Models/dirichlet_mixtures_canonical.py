@@ -13,7 +13,7 @@ import scipy as sp
 import numpy as np
 import matplotlib.pylab as plt
 
- def stick_breaking(beta):
+def stick_breaking(beta):
     portion_remaining = tt.concatenate([[1], tt.extra_ops.cumprod(1 - beta)[:-1]])
     return beta * portion_remaining
 
@@ -59,22 +59,23 @@ if__name__== '__main__':
       
 # Known Gaussian mixture 
 
-K = 10
+K = 20
 
 w = np.array([0.5,0.3,0.2])
 mu = np.array([-5,0,2])
 sd = np.array([3, 0.2, 1])
+tau = 1/sd**2 #[9, 0.04, 1]
 
 y_gmix =  pm.NormalMixture.dist(w=w, mu=mu, sd=sd)
 
 gmix_obs = []
 
-for i in np.arange(10000):
+for i in np.arange(1000):
       gmix_obs.append(y_gmix.random())
       
 plt.hist(gmix_obs, density=True, bins=100)
 
-varnames = ['alpha', 'mu', 'sd']
+varnames = ['alpha', 'mu', 'tau']
 
 with pm.Model() as g_model:
       
@@ -85,18 +86,24 @@ with pm.Model() as g_model:
       beta = pm.Beta('beta', 1, alpha, shape=K)
       w = pm.Deterministic('w', stick_breaking(beta))
       
-      # Prior over component parameters mu and sd
-      sd = pm.InverseGamma('sd', 1., 1., shape=K)
-      mu = pm.Normal('mu', 0, 10, shape=K)
+      # Prior over component parameters mu and tau
+      
+      log_tau = pm.Normal('log_tau', 0, 4, shape=K)
+      tau = pm.Deterministic('tau', np.exp(log_tau))
+      #mu = pm.Normal('mu', 0, 5, shape=K)
+      mu_raw = pm.Normal('mu_raw', 0, 1, shape=K)
+      mu = pm.Deterministic('mu', 0 + mu_raw*1/np.sqrt(tau))
       
       #obs 
-      obs = pm.NormalMixture('obs', w, mu, sd=sd,
+      obs = pm.NormalMixture('obs', w, mu, tau=tau,
                            observed=np.array(gmix_obs))
       
 with g_model:
       
-      trace_nuts = pm.sample(tune=1000,draws=1000, chains=4)
+      trace_nuts_g = pm.sample(tune=1000,draws=1000, chains=1, target_accept=0.95)
       
+
+
 with g_model:
       
       fr = pm.FullRankADVI()
@@ -107,7 +114,7 @@ with g_model:
       trace_fr = fr.approx.sample(4000)
     
 
-with model:
+with g_model:
       
       nf_planar = pm.NFVI('planar*10',  jitter=0.1)
       nf_planar.fit(25000)
@@ -144,7 +151,7 @@ with p_model:
 
 # Known Cauchy Mixture 
 
-y_cmix = 
+y_cmix = pm.Mixture.dist()
 
 with pm.Model() as c_model:
     alpha = pm.Gamma('alpha',1,1)
