@@ -12,6 +12,9 @@ from theano import tensor as tt
 import scipy as sp
 import numpy as np
 import matplotlib.pylab as plt
+from scipy.stats import norm
+from sklearn.neighbors import KernelDensity
+
 
 def stick_breaking(beta):
     portion_remaining = tt.concatenate([[1], tt.extra_ops.cumprod(1 - beta)[:-1]])
@@ -27,33 +30,53 @@ def plot_weights(trace):
       ax.set_ylabel('Posterior expected mixture weight');
       
       
-def plot_posterior_densities(trace, post_pdf_contribs, xlabel):
+def plot_posterior_densities(y, x_plot, trace, post_pdf_contribs, true_density):
       
       fig, ax = plt.subplots(figsize=(8, 6))
-      x_plot = np.linspace(-3, 3, 200)
-      n_bins = 20
      
-      post_pdfs = (trace['w'][:, np.newaxis, :] * post_pdf_contribs).sum(axis=-1)
-      post_pdf_low, post_pdf_high = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
+      post_pdfs = (trace['w'][:, np.newaxis, :][0:1000] * post_pdf_contribs).sum(axis=-1)
+      post_pdf_low_95, post_pdf_high_95 = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
+      post_pdf_low_99, post_pdf_high_99 = np.percentile(post_pdfs, [0.5, 99.5], axis=0)
       
       
-      ax.hist(old_faithful_df.std_waiting.values, bins=n_bins, normed=True,
-              color='b', lw=0, alpha=0.5);
-      ax.fill_between(x_plot, post_pdf_low, post_pdf_high,
-                      color='gray', alpha=0.45);
+      #ax.hist(y, bins=100, normed=True,
+      #        color='b', lw=0, alpha=0.2);
+      ax.fill(x_plot[:, 0], true_density, fc='black', alpha=0.2)
+      ax.plot(x_plot[:, 0], true_density, c='black', alpha=0.2, label='Ground truth')
       ax.plot(x_plot, post_pdfs[0],
-              c='gray', label='Posterior sample densities');
-      ax.plot(x_plot, post_pdfs[::2].T, c='gray');
+              c='r', label='Posterior sample densities');
+      ax.plot(x_plot, post_pdfs[::10].T, c='r', alpha=0.4);
       ax.plot(x_plot, post_pdfs.mean(axis=0),
               c='k', label='Posterior expected density');
-      ax.set_xlabel(xlabel);
+      ax.fill_between(x_plot[:,0], post_pdf_low_99, post_pdf_high_99,
+                      color='yellow');
+      ax.fill_between(x_plot[:,0], post_pdf_low_95, post_pdf_high_95,
+                      color='green');
+      ax.set_xlabel('y');
       ax.set_yticklabels([]);
-      ax.set_ylabel('Density');
+      ax.plot(y, np.full(y.shape[0], -0.01), '+k')
+      ax.set_ylabel('Posterior over densities');
       ax.legend(loc=2);
 
-def plot_uncertainty_intervals():
+
+def plot_uncertainty_intervals(x_plot, trace, post_pdf_contribs, true_density):
       
-      return;
+      fig, ax = plt.subplots(figsize=(8, 6))
+      post_pdfs = (trace['w'][:, np.newaxis, :] * post_pdf_contribs).sum(axis=-1)
+      post_pdf_low_95, post_pdf_high_95 = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
+      post_pdf_low_99, post_pdf_high_99 = np.percentile(post_pdfs, [0.5, 99.5], axis=0)
+      
+      ax.fill(x_plot[:, 0], true_density, fc='black', alpha=0.2,
+        label='Ground truth')
+      ax.fill_between(x_plot[:,0], post_pdf_low_99, post_pdf_high_99,
+                      color='yellow', label='95% Credible Interval');
+      ax.fill_between(x_plot[:,0], post_pdf_low_95, post_pdf_high_95,
+                      color='green', label='99% Credible Interval');
+      ax.set_xlabel('y');
+      ax.set_yticklabels([]);
+      ax.set_ylabel('Posterior over densities');
+      ax.legend(loc=2);
+
       
 if__name__== '__main__':
       
@@ -62,17 +85,34 @@ if__name__== '__main__':
 K = 20
 
 w = np.array([0.5,0.3,0.2])
-mu = np.array([-5,0,2])
-sd = np.array([3, 0.2, 1])
-tau = 1/sd**2 #[9, 0.04, 1]
+mu = np.array([-7,0,2])
+sd = np.array([3, 2, 1])
+tau = 1/sd**2 #[0.0123, 0.25, 1]
 
 y_gmix =  pm.NormalMixture.dist(w=w, mu=mu, sd=sd)
 
-gmix_obs = []
+gmix_obs_s05 = []
+gmix_obs_s1 = []
+gmix_obs_s2 = []
 
 for i in np.arange(1000):
-      gmix_obs.append(y_gmix.random())
+      gmix_obs_s05.append(y_gmix.random() + np.random.normal(scale=0.5))
+      gmix_obs_s1.append(y_gmix.random() + np.random.normal(scale=1))
+      gmix_obs_s2.append(y_gmix.random() + np.random.normal(scale=2))
+
       
+y_05 = np.array(gmix_obs_s05)
+y_m_05 = np.array(random.sample(gmix_obs_s05, 300))
+y_s_05 = np.array(random.sample(gmix_obs_s05, 100))
+
+y_1 = np.array(gmix_obs_s1)
+y_m_1 = np.array(random.sample(gmix_obs_s1, 300))
+y_s_1 = np.array(random.sample(gmix_obs_s1, 100))
+
+y_2 = np.array(gmix_obs_s2)
+y_m_2 = np.array(random.sample(gmix_obs_s2, 300))
+y_s_2 = np.array(random.sample(gmix_obs_s2, 100))
+  
 plt.hist(gmix_obs, density=True, bins=100)
 
 varnames = ['alpha', 'mu', 'tau']
@@ -88,39 +128,107 @@ with pm.Model() as g_model:
       
       # Prior over component parameters mu and tau
       
-      log_tau = pm.Normal('log_tau', 0, 4, shape=K)
+      log_tau = pm.Normal('log_tau', 0, 5, shape=K)
       tau = pm.Deterministic('tau', np.exp(log_tau))
-      #mu = pm.Normal('mu', 0, 5, shape=K)
-      mu_raw = pm.Normal('mu_raw', 0, 1, shape=K)
-      mu = pm.Deterministic('mu', 0 + mu_raw*1/np.sqrt(tau))
+      mu = pm.Normal('mu', 0, 8, shape=K)
+      #mu_raw = pm.Normal('mu_raw', 0, 1, shape=K)
+      #mu = pm.Deterministic('mu', 0 + mu_raw*1/np.sqrt(tau))
       
       #obs 
       obs = pm.NormalMixture('obs', w, mu, tau=tau,
-                           observed=np.array(gmix_obs))
+                           observed=y_1)
       
 with g_model:
       
-      trace_nuts_g = pm.sample(tune=1000,draws=1000, chains=1, target_accept=0.95)
+      trace_nuts_g_1 = pm.sample(tune=500,draws=1000, chains=2, target_accept=0.95)
       
+# Results 
+
+x_plot = np.linspace(-18, 10, 1000)[:, np.newaxis]
+true_density=np.exp(y_gmix.logp(x_plot)).eval()
+      
+# KDE
+
+def get_kernel_density_fit(y):
+      
+      return KernelDensity(kernel='gaussian').fit(y[:,np.newaxis])
+      
+kde_05 = get_kernel_density_fit(y_05)
+kde_m_05 = get_kernel_density_fit(y_m_05)
+kde_s_05 = get_kernel_density_fit(y_s_05)
+
+kde_1 = get_kernel_density_fit(y_1)
+kde_m_1 = get_kernel_density_fit(y_m_1)
+kde_s_1 = get_kernel_density_fit(y_s_1)
+
+kde_2 = get_kernel_density_fit(y_2)
+kde_m_2 = get_kernel_density_fit(y_m_2)
+kde_s_2 = get_kernel_density_fit(y_s_2)
 
 
-with g_model:
-      
-      fr = pm.FullRankADVI()
-      tracker_fr = pm.callbacks.Tracker(
-      mean = fr.approx.mean.eval,    
-      std = fr.approx.std.eval)
-      fr.fit(n=100000, callbacks=[tracker_fr])
-      trace_fr = fr.approx.sample(4000)
-    
+plt.figure(figsize=(10,10))
 
-with g_model:
+plt.subplot(331)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_05.score_samples(x_plot)))
+plt.plot(y_05, np.full(y_05.shape[0], -0.01), '+k')
+
+plt.subplot(334)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_m_05.score_samples(x_plot)))
+plt.plot(y_m_05, np.full(y_m_05.shape[0], -0.01), '+k')
+
+plt.subplot(337)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_s_05.score_samples(x_plot)))
+plt.plot(y_s_05, np.full(y_s_05.shape[0], -0.01), '+k')
+
+
+plt.subplot(332)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_1.score_samples(x_plot)))
+plt.plot(y_1, np.full(y_1.shape[0], -0.01), '+k')
+
+plt.subplot(335)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_m_1.score_samples(x_plot)))
+plt.plot(y_m_1, np.full(y_m_1.shape[0], -0.01), '+k')
+
+plt.subplot(338)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_s_1.score_samples(x_plot)))
+plt.plot(y_s_1, np.full(y_s_1.shape[0], -0.01), '+k')
+
+plt.subplot(333)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_2.score_samples(x_plot)))
+plt.plot(y_2, np.full(y_2.shape[0], -0.01), '+k')
+
+plt.subplot(336)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_m_2.score_samples(x_plot)))
+plt.plot(y_m_2, np.full(y_m_2.shape[0], -0.01), '+k')
+
+plt.subplot(339)
+plt.plot(x_plot, true_density, color='g')
+plt.plot(x_plot, np.exp(kde_s_2.score_samples(x_plot)))
+plt.plot(y_s_2, np.full(y_s_2.shape[0], -0.01), '+k')
+
+plt.suptitle('Non-parametric KDE')
+
+
+# DPM
+
+trace = trace_nuts_g_05
+         
+post_pdf_contribs_nuts = sp.stats.norm.pdf(x_plot,
+                                            trace['mu'][:, np.newaxis, :][0:1000],
+                                            1. / np.sqrt(trace['tau'])[:, np.newaxis, :][0:1000])
       
-      nf_planar = pm.NFVI('planar*10',  jitter=0.1)
-      nf_planar.fit(25000)
-      trace_nf = nf_planar.approx.sample(5000)
-      
-      
+plot_posterior_densities(y, x_plot, trace, post_pdf_contribs_nuts, true_density)
+plot_uncertainty_intervals(x_plot, trace, post_pdf_contribs_nuts, true_density)
+
+
 # Known Poisson mixture 
       
 w = [0.7,0.3]

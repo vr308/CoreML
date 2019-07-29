@@ -67,8 +67,8 @@ for i in u:
 plt.figure()
 plt.hist(samples, bins=500, density=True, alpha=0.8)
 plt.title('Samples generated using inverse CDF', fontsize='small')
-plt.xscale('log')
-plt.xlim(0,100)
+#plt.xscale('log')
+#plt.xlim(0,100)
 plt.ylim(0,16)
 
 # Given 2 points of a discrete distribution, form a continuous pdf connecting the two points
