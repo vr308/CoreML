@@ -390,7 +390,12 @@ if __name__ == "__main__":
       
      df['Time_int'] = dates - dates[0]
      df['Time_int'] = df['Time_int'].astype('timedelta64[D]')
+     
+     df['Year'] = pd.to_datetime(df['Month'])
       
+     ctime = lambda x: (float(x.strftime("%j"))-1) / 366 + float(x.strftime("%Y"))
+     df['Year'] = df['Year'].apply(ctime)
+     
       
       y = df['Passengers']
       t = df['Time_int']
@@ -409,7 +414,8 @@ if __name__ == "__main__":
       
       # se +  sexper + noise
       
-      sk1 = 50.0**2 * Matern(length_scale=1.0, nu = 2.5) # long term rising trend
+      #sk1 = 50.0**2 * RBF(length_scale=1.0) # long term rising trend
+      sk1 = 50**2*Matern(length_scale=1.0)
       sk2 = 2.0**2 * RBF(length_scale=1.0) \
           * PER(length_scale=1.0, periodicity=1.0)  # seasonal component
       sk3 = 5**2 * RQ(length_scale=1.0, alpha=1.0) 
@@ -423,15 +429,15 @@ if __name__ == "__main__":
       #---------------------------------------------------------------------
           
       sk_kernel = sk1 + sk2 + sk3 + sk4
-      gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True, n_restarts_optimizer=300)
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True, n_restarts_optimizer=500)
+      
       
       # Fit to data 
       
       gpr.fit(t_train, y_train)
            
       print("\nLearned kernel: %s" % gpr.kernel_)
-      print("Log-marginal-likelihood: %.3f"
-      % gpr.log_marginal_likelihood(gpr.kernel_.theta))
+      print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
       print("Predicting with trained gp on training data")
       
@@ -446,11 +452,10 @@ if __name__ == "__main__":
       lpd_ = log_predictive_density(y_test, mu_test, std_test)
       
       plt.figure()
-      plt.plot(df['Month'], df['Passengers'], 'ko', markersize=2)
-      plt.plot(df['Month'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
-      plt.plot(df['Month'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
-      #plt.fill_between(df['year'][0:sep_idx], mu_fit - 2*std_fit, mu_fit + 2*std_fit, color='grey', alpha=0.2)
-      plt.fill_between(df['Month'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=2)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
       plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
       
@@ -462,6 +467,7 @@ if __name__ == "__main__":
       p = gpr.kernel_.k1.k1.k2.k2.periodicity
         
       ls_2 = gpr.kernel_.k1.k1.k1.k2.length_scale
+      
       ls_4 = gpr.kernel_.k1.k1.k2.k1.k2.length_scale
       ls_5 =  gpr.kernel_.k1.k1.k2.k2.length_scale
       ls_7 = gpr.kernel_.k1.k2.k2.length_scale
@@ -472,7 +478,7 @@ if __name__ == "__main__":
       
       ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'p': p , 's_6': s_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 's_9' : s_9, 'ls_10' : ls_10, 'n_11': n_11}
       
-      ml_df = pd.DataFrame(data=ml_deltas, index=['ml'])
+      ml_df = pd.DataFrame(data=ml_deltas.values(), index=varnames, columns=['values'])
       
       ml_df.to_csv(results_path + 'airline_ml.csv', sep=',')
       
@@ -482,39 +488,50 @@ if __name__ == "__main__":
      #       Hybrid Monte Carlo + ADVI Inference 
     
      #-----------------------------------------------------
+     
+     varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5','p', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
 
 
 with pm.Model() as airline_model:
   
-      # prior on lengthscales
+       # prior on lengthscales
        
-       #log_l2 = pm.Uniform('log_l2', lower=8, upper=10, testval=np.log(ml_deltas['ls_2']))
-       #log_l4 = pm.Uniform('log_l4', lower=-10, upper=10, testval=np.log(ml_deltas['ls_4']))
-       log_l5 = pm.Uniform('log_l5', lower=-1, upper=2, testval=np.log(ml_deltas['ls_5']))
-       #log_l7 = pm.Uniform('log_l7', lower=-7, upper=3, testval=np.log(ml_deltas['ls_7']))
-       #log_l10 = pm.Uniform('log_l10', lower=-10, upper=5, testval=np.log(ml_deltas['ls_10']))
+       log_l2 = pm.Uniform('log_l2', lower=-8, upper=5)
+       log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
+       log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
+       log_l7 = pm.Uniform('log_l7', lower=-7, upper=10)
+       log_l10 = pm.Uniform('log_l10', lower=-10, upper=5)
+       
+       #log_l2 = pm.Normal('log_l2', mu=0, sd=2)
+       #log_l4 = pm.Normal('log_l4', mu=0, sd=2)
+       #log_l5 = pm.Normal('log_l5', mu=0, sd=2)
+       #log_l7 = pm.Normal('log_l7', mu=0, sd=2)
+       #log_l10 = pm.Normal('log_l10', mu=0, sd=2)
 
-       log_p = pm.Uniform('log_p', lower=1, upper=10, testval=np.log(ml_deltas['p']))
+      
+       log_p = pm.Uniform('log_p', lower=1, upper=7)
 
-       #ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
-       #ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
+       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
-       #ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       #ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
+       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
        p = pm.Deterministic('p', tt.exp(log_p))
        
-       ls_2 = ml_deltas['ls_2']
-       ls_4 = ml_deltas['ls_4']
-       ls_7 = ml_deltas['ls_7']
-       ls_10 = ml_deltas['ls_10']
+       #ls_2 = ml_deltas['ls_2']
+       #ls_4 = ml_deltas['ls_4']
+       #ls_7 = ml_deltas['ls_7']
+       #ls_10 = ml_deltas['ls_10']
      
        # prior on amplitudes
 
-       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=1)
+       log_s1 = pm.Uniform('log_s1', lower=-10, upper=10)
        #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
-       log_s3 = pm.Normal('log_s3', mu=np.log(ml_deltas['s_3']), sd=1)
-       log_s6 = pm.Normal('log_s6', mu=np.log(ml_deltas['s_6']), sd=1)
-       log_s9 = pm.Uniform('log_s9', lower=-1, upper=2, testval=np.log(ml_deltas['s_9']))
+       log_s3 = pm.Uniform('log_s3', mu=0, sd=5)
+       log_s6 = pm.Uniform('log_s6', mu=0, sd=7)
+       log_s9 = pm.Uniform('log_s9', mu=0, sd=5)
+
+       #log_s9 = pm.Uniform('log_s9', lower=-9, upper=2, testval=np.log(ml_deltas['s_9']))
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
@@ -526,23 +543,23 @@ with pm.Model() as airline_model:
       
        # prior on alpha
       
-       log_alpha8 = pm.Normal('log_alpha8', mu=np.log(ml_deltas['alpha_8']), sd=0.5)
+       log_alpha8 = pm.Uniform('log_alpha8', lower=-12, upper=-5)
        alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
        #alpha_8 = 0.121
        
        # prior on noise variance term
       
-       #log_n11 = pm.Uniform('log_n11', lower=-5, upper=5, testval=np.log(ml_deltas['n_11']))
-       #n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
+       log_n11 = pm.Normal('log_n11', mu=0, sd=10)
+       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
-       n_11 = ml_deltas['alpha_8']
+       #n_11 = ml_deltas['alpha_8']
        
        # Specify the covariance function
        
        k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.Matern52(1, ls_2) 
        k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=p, ls=ls_5)
        k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11)
+       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
        
        gp_trend = pm.gp.Marginal(cov_func=k1)
        gp_periodic = pm.gp.Marginal(cov_func=k2)
@@ -556,11 +573,15 @@ with pm.Model() as airline_model:
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
               
-with co2_model:
+with airline_model:
       
       # HMC NUTS auto-tuning implementation
 
       trace_hmc = pm.sample(draws=700, tune=500, chains=1)
+      
+with airline_model:
+      
+      prior_pred = pm.sample_prior_predictive(samples=500)
             
 with co2_model:
     
