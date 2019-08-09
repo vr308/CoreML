@@ -64,3 +64,4 @@ for j in params:
       plt.plot(x, st.lognorm.pdf(x, j[1],j[0], 1), label=str(j))
 plt.legend()
 plt.title('Log-Normal')
+

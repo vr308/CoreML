@@ -496,27 +496,29 @@ with pm.Model() as airline_model:
   
        # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=-8, upper=5)
+       log_l2 = pm.Uniform('log_l2', lower=1, upper=5)
        log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
        log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
        log_l7 = pm.Uniform('log_l7', lower=-7, upper=10)
        log_l10 = pm.Uniform('log_l10', lower=-10, upper=5)
        
-       #log_l2 = pm.Normal('log_l2', mu=0, sd=2)
-       #log_l4 = pm.Normal('log_l4', mu=0, sd=2)
-       #log_l5 = pm.Normal('log_l5', mu=0, sd=2)
-       #log_l7 = pm.Normal('log_l7', mu=0, sd=2)
-       #log_l10 = pm.Normal('log_l10', mu=0, sd=2)
-
+       #log_l2 = pm.Normal('log_l2', mu=0, sd=50)
+       #log_l4 = pm.Normal('log_l4', mu=0, sd=50)
+       #log_l5 = pm.Normal('log_l5', mu=0, sd=50)
+       #log_l7 = pm.Normal('log_l7', mu=0, sd=50)
+       #log_l10 = pm.Normal('log_l10', mu=0, sd=50)
       
-       log_p = pm.Uniform('log_p', lower=1, upper=7)
+       #log_p = pm.Uniform('log_p', lower=1, upper=7)
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
        ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
-       p = pm.Deterministic('p', tt.exp(log_p))
+       
+       #p = pm.Deterministic('p', tt.exp(log_p))
+       
+       p = 366
        
        #ls_2 = ml_deltas['ls_2']
        #ls_4 = ml_deltas['ls_4']
@@ -525,11 +527,11 @@ with pm.Model() as airline_model:
      
        # prior on amplitudes
 
-       log_s1 = pm.Uniform('log_s1', lower=-10, upper=10)
+       log_s1 = pm.Uniform('log_s1', lower=-10, upper=5)
        #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
-       log_s3 = pm.Uniform('log_s3', mu=0, sd=5)
-       log_s6 = pm.Uniform('log_s6', mu=0, sd=7)
-       log_s9 = pm.Uniform('log_s9', mu=0, sd=5)
+       log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
+       log_s6 = pm.Uniform('log_s6', lower=-10, upper=10)
+       log_s9 = pm.Uniform('log_s9', lower=-10, upper=5)
 
        #log_s9 = pm.Uniform('log_s9', lower=-9, upper=2, testval=np.log(ml_deltas['s_9']))
 
@@ -543,13 +545,14 @@ with pm.Model() as airline_model:
       
        # prior on alpha
       
-       log_alpha8 = pm.Uniform('log_alpha8', lower=-12, upper=-5)
+       log_alpha8 = pm.Uniform('log_alpha8', lower=-10, upper=-2)
        alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
        #alpha_8 = 0.121
        
        # prior on noise variance term
       
-       log_n11 = pm.Normal('log_n11', mu=0, sd=10)
+       #log_n11 = pm.Normal('log_n11', mu=0, sd=10)
+       log_n11 = pm.Uniform('log_n11', lower=-10, upper=10)
        n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
        #n_11 = ml_deltas['alpha_8']
@@ -657,4 +660,14 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       # 
       
+      # HMC
+
+      sample_means_hmc, sample_stds_hmc = write_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
       
+      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
+      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+      
+      mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
+      lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+            
+            

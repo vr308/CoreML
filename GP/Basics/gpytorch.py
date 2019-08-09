@@ -12,8 +12,8 @@ import gpytorch
 from matplotlib import pyplot as plt
 
 # Creating some data 
-
 train_x = torch.linspace(0, 1, 100)
+
 # True function is sin(2*pi*x) with Gaussian noise
 train_y = torch.sin(train_x * (2 * math.pi)) + torch.randn(train_x.size()) * 0.2
 
@@ -69,6 +69,17 @@ f_mean = f_preds.mean
 f_var = f_preds.variance
 f_covar = f_preds.covariance_matrix
 f_samples = f_preds.sample(sample_shape=torch.Size(1000,))
+
+# Get into evaluation (predictive posterior) mode
+model.eval()
+likelihood.eval()
+
+# Test points are regularly spaced along [0,1]
+# Make predictions by feeding model through likelihood
+with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    test_x = torch.linspace(0, 1, 51)
+    observed_pred = likelihood(model(test_x))
+
 
 with torch.no_grad():
     # Initialize plot
