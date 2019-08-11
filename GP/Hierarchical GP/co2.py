@@ -23,83 +23,8 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
 import csv
+import posterior_analysis as pa
 
-def normalize(y):
-            
-      return (y - np.mean(y))/np.std(y)
-
-def traceplots(trace, varnames, deltas):
-
-      traces_part1 = pm.traceplot(trace, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace, varnames[5:], lines=deltas)
-      
-      for i in np.arange(5):
-            
-            delta = deltas.get(str(varnames[i]))
-            xmax = max(max(trace[varnames[i]]), delta)
-            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            #traces_part1[i][0].axes.set_xlim(xmin, xmax)
-            traces_part1[i][0].legend(fontsize='x-small')
-      
-      for i in np.arange(6):
-            
-            delta = deltas.get(str(varnames[i+5]))
-            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-            #traces_part2[i][0].axes.set_xscale('log')
-            traces_part2[i][0].legend(fontsize='x-small')
-            
-def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas):
-
-      traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=deltas)
-      
-      means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
-      std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
-      
-      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
-      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
-      
-      for i in np.arange(5):
-            
-            delta = deltas.get(str(varnames[i]))
-            xmax = max(max(trace_hmc[varnames[i]]), delta)
-            xmin = 0
-            range_i = np.linspace(xmin, xmax, 1000)  
-            mf_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_mf, std_mf, range_i)
-            fr_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i)
-            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part1[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
-            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
-            #traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3)
-            traces_part1[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
-            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
-            #races_part1[i][0].axes.set_ylim(0, max(mf_pdf))
-            traces_part1[i][0].legend(fontsize='x-small')
-      
-      for i in np.arange(6):
-            
-            delta = deltas.get(str(varnames[i+5]))
-            xmax = max(max(trace_hmc[varnames[i+5]]), delta)
-            xmin = 0
-            range_i = np.linspace(xmin, xmax, 1000) 
-            mf_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_mf, std_mf, range_i)
-            fr_pdf = get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_fr, std_fr, range_i)
-            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace_hmc[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-            traces_part2[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
-            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
-            traces_part2[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
-            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
-            #traces_part2[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
-            traces_part2[i][0].legend(fontsize='x-small')
-            
 
 def get_subset_trace(trace, varnames):
       
@@ -261,41 +186,15 @@ def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
       
       return sample_means, sample_stds
 
-# Metrics 
-      
-def rmse(post_mean, y_test):
-    
-    return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),3)
-
-def log_predictive_density(y_test, list_means, list_stds):
-      
-      lppd_per_point = []
-      for i in np.arange(len(y_test)):
-            print(i)
-            lppd_per_point.append(st.norm.pdf(y_test[i], list_means[i], list_stds[i]))
-      return np.round(np.mean(np.log(lppd_per_point)),3)
-            
-def log_predictive_mixture_density(y_test, list_means, list_std):
-      
-      lppd_per_point = []
-      for i in np.arange(len(y_test)):
-            print(i)
-            components = []
-            for j in np.arange(len(list_means)):
-                  components.append(st.norm.pdf(y_test[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
-            lppd_per_point.append(np.mean(components))
-      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
-
-                  
 if __name__ == "__main__":
 
 
       varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
       
-      home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Co2/'
+      home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Co2/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Co2/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/Co2/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Co2/'
 
       
       path = uni_path
@@ -362,16 +261,17 @@ if __name__ == "__main__":
       print("Predicting with trained gp on test data")
       
       mu_test, std_test = gpr.predict(t_test, return_std=True)
+      mu_test, cov_test = gpr.predict(t_test, return_cov=True)
       
-      rmse_ = np.round(np.sqrt(np.mean(np.square(mu_test - y_test))), 2)
+      rmse_ = pa.rmse(mu_test, y_test)
       
-      lpd_ = log_predictive_density(y_test, mu_test, std_test)
+      lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
       
       plt.figure()
       plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-      #plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
+      plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
       plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
-      #plt.fill_between(df['year'][0:sep_idx], mu_fit - 2*std_fit, mu_fit + 2*std_fit, color='grey', alpha=0.2)
+      plt.fill_between(df['year'][0:sep_idx], mu_fit - 2*std_fit, mu_fit + 2*std_fit, color='grey', alpha=0.2)
       plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
       plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
@@ -392,11 +292,18 @@ if __name__ == "__main__":
       
       ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 's_6': s_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 's_9' : s_9, 'ls_10' : ls_10, 'n_11': n_11}
       
-      ml_df = pd.DataFrame(data=ml_deltas, index=['ml'])
+      ml_values = [ml_deltas[v] for v in varnames]
       
-      ml_df.to_csv(path + 'co2_ml.csv', sep=',')
+      ml_df = pd.DataFrame(data=np.column_stack((varnames, ml_values)), columns=['hyp','values'])
       
-      ml_df = pd.read_csv(path + 'co2_ml.csv', index_col=None)
+      ml_df.to_csv(results_path + 'co2_ml.csv', sep=',')
+      
+      # Reading pre-stored values
+      
+      ml_df = pd.read_csv(path + 'co2_ml.csv')
+      
+      ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
+
 
 
      #-----------------------------------------------------

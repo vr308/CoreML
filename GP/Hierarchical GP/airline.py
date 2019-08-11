@@ -11,10 +11,6 @@ import pandas as pd
 import numpy as np
 import theano.tensor as tt
 import matplotlib.pylab as plt
-from bokeh.plotting import figure, show
-from bokeh.models import BoxAnnotation, Span, Label, Legend
-from bokeh.io import output_notebook
-from bokeh.palettes import brewer
 import  scipy.stats as st 
 import seaborn as sns
 import warnings
@@ -23,6 +19,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
 import csv
+import posterior_analysis as pa
 
 # Analytical variational inference for Airline data
 
@@ -89,249 +86,6 @@ d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
-def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
-                  
-    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
-    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
-    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
-    
-    pred_g_mean = gp_mean(theta, X, y, X_star)
-    pred_g_cov = np.diag(gp_cov(theta, X, y, X_star))
-
-    pred_ng_mean = []
-    pred_ng_var = []
-    
-    # To fix this 
-    
-    pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
-    pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
-
-    for i in np.arange(len(X_star)): # To vectorize this loop
-          
-          print(i)
-          x_star = X_star[i].reshape(1,1)
-
-          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
-          print(pred_ng_mean[i])
-          pred_ng_var.append(pred_vi_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
-
-    return pred_ng_mean, pred_ng_var
-
-def traceplots(trace, varnames, deltas):
-
-      traces_part1 = pm.traceplot(trace, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace, varnames[5:], lines=deltas)
-      
-      for i in np.arange(5):
-            
-            delta = deltas.get(str(varnames[i]))
-            xmax = max(max(trace[varnames[i]]), delta)
-            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-            #traces_part1[i][0].axes.set_xlim(xmin, xmax)
-            traces_part1[i][0].legend(fontsize='x-small')
-      
-      for i in np.arange(6):
-            
-            delta = deltas.get(str(varnames[i+5]))
-            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
-            traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-            #traces_part2[i][0].axes.set_xscale('log')
-            traces_part2[i][0].legend(fontsize='x-small')
-
-def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
-      
-      means_file = path + 'means_' + method + '.csv'
-      std_file = path + 'std_' + method + '.csv'
-      #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
-    
-      means_writer = csv.writer(open(means_file, 'w')) 
-      std_writer = csv.writer(open(std_file, 'w'))
-      #trace_writer = csv.writer(open(trace_file, 'w'))
-      
-      means_writer.writerow(X_star.flatten())
-      std_writer.writerow(X_star.flatten())
-      #trace_writer.writerow(varnames + ['lml'])
-      
-      for i in np.arange(len(trace))[::thin_factor]:
-            
-            print('Predicting ' + str(i))
-            post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=False, diag=True)
-            post_std = np.sqrt(post_var)
-            #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
-            #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
-            #marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
-            #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
-            #std = np.sqrt(var)
-            #list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
-            
-            print('Writing out ' + str(i) + ' predictions')
-            means_writer.writerow(np.round(post_mean, 3))
-            std_writer.writerow(np.round(post_std, 3))
-            #trace_writer.writerow(np.round(list_point, 3))
-            
-
-def get_kernel_matrix_blocks(X, X_star, n_train, point):
-    
-          cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
-          K = cov(X)
-          K_s = cov(X, X_star)
-          K_ss = cov(X_star, X_star)
-          K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
-          K_inv = matrix_inverse(K_noise)
-          return K, K_s, K_ss, K_noise, K_inv
-
-
-# Constructing posterior predictive distribution
-
-def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
-      
-      # Fixed at 95% CI
-      
-      n_test = sample_means.shape[-1]
-      components = sample_means.shape[0]
-      lower_ = []
-      upper_ = []
-      for i in np.arange(n_test):
-            print(i)
-            mix_idx = np.random.choice(np.arange(components), size=2000, replace=True)
-            mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
-            lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
-            lower_.append(lower)
-            upper_.append(upper)
-      return np.array(lower_), np.array(upper_)
-
-def get_posterior_predictive_mean(sample_means):
-      
-      return np.mean(sample_means)
-
-# Metrics 
-      
-def rmse(post_mean, y_test):
-    
-    return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),3)
-
-def log_predictive_density(y_test, list_means, list_stds):
-      
-      lppd_per_point = []
-      for i in np.arange(len(y_test)):
-            print(i)
-            lppd_per_point.append(st.norm.pdf(y_test[i], list_means[i], list_stds[i]))
-      return np.round(np.mean(np.log(lppd_per_point)),3)
-            
-def log_predictive_mixture_density(y_test, list_means, list_std):
-      
-      lppd_per_point = []
-      for i in np.arange(len(y_test)):
-            print(i)
-            components = []
-            for j in np.arange(len(list_means)):
-                  components.append(st.norm.pdf(y_test[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
-            lppd_per_point.append(np.mean(components))
-      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
-
-
-def transform_tracker_values(tracker, param_dict):
-
-      mean_df = pd.DataFrame(np.array(tracker['mean']), columns=list(param_dict['mu'].keys()))
-      sd_df = pd.DataFrame(np.array(tracker['std']), columns=list(param_dict['mu'].keys()))
-      for i in mean_df.columns:
-            print(i)
-            if (i[-2:] == '__'):
-                 mean_df[name_mapping[i]] = np.exp(raw_mapping.get(i).distribution.transform_used.backward(mean_df[i]).eval()) 
-            else:
-                mean_df[name_mapping[i]] = np.exp(mean_df[i]) 
-      return mean_df, sd_df
-
-
-def convergence_report(tracker, param_dict, elbo, title):
-      
-      # Plot Negative ElBO track with params in true space
-      
-      #mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
-
-      fig = plt.figure(figsize=(16, 9))
-      for i in np.arange(3):
-            print(i)
-#            if (np.mod(i,8) == 0):
-#                   fig = plt.figure(figsize=(16,9))
-#                   i = i + 8
-#                   print(i)
-            plt.subplot(2,4,np.mod(i, 8)+1)
-            #plt.plot(mean_mf_df[varnames[i+8]], color='coral')
-            plt.plot(mean_fr_df[varnames[i+8]], color='green')
-            plt.title(varnames[i+8])
-            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
-      
-      
-      fig = plt.figure(figsize=(16, 9))
-      mu_ax = fig.add_subplot(221)
-      std_ax = fig.add_subplot(222)
-      hist_ax = fig.add_subplot(212)
-      mu_ax.plot(tracker['mean'])
-      mu_ax.set_title('Mean track')
-      std_ax.plot(tracker['std'])
-      std_ax.set_title('Std track')
-      hist_ax.plot(elbo)
-      hist_ax.set_title('Negative ELBO track');
-      fig.suptitle(title)
-
-
-# Implicit variational posterior density
-            
-def get_implicit_variational_posterior(var, means, std, x):
-      
-      sigmoid = lambda x : 1 / (1 + np.exp(-x))
-      
-      if (var.name[-2:] == '__'):
-            # Then it is an interval variable
-            
-            eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
-            backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
-            width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
-            total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
-            pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
-            return pdf(x)
-      
-      else:
-            # Then it is just a log variable
-            
-            pdf = lambda x: st.norm.pdf(np.log(x), means[var.name], std[var.name])/x   
-            return pdf(x)
-            
-
-# Converting raw params back to param space
-
-def analytical_variational_opt(model, param_dict, summary_trace):
-      
-      keys = list(param_dict['mu'].keys())
-      
-      # First tackling transformed means
-      
-      mu_implicit = {}
-      rho_implicit = {}
-      for i in keys:
-            if (i[-2:] == '__'):
-                  name = name_mapping[i]
-                  mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
-                  sd_value = summary_trace['sd'][name]
-                  mu_implicit.update({name : np.array(mean_value)})
-                  rho_implicit.update({name : np.array(sd_value)})
-            else:
-                  name = name_mapping[i]
-                  mean_value = np.exp(param_dict['mu'][i])
-                  sd_value = summary_trace['sd'][name]
-                  name = name_mapping[i]
-                  mu_implicit.update({name : np.array(mean_value)})
-                  rho_implicit.update({name : np.array(sd_value)})
-      param_dict.update({'mu_implicit' : mu_implicit})
-      param_dict.update({'rho_implicit' : rho_implicit})
-
-      return param_dict
-
 rv_mapping = {'s_1':  airline_model.log_s1, 
               'ls_2': airline_model.log_l2_interval__, 
               's_3':  airline_model.log_s3_interval__,
@@ -370,15 +124,17 @@ name_mapping = {'log_s1':  's_1',
               'log_l10_interval__': 'ls_10',
               'log_n11_interval__': 'n_11'}
 
+prior_mapping = {}
+
 
 if __name__ == "__main__":
       
       # Load data 
       
-      home_path = '~/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Airline/'
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/Airline/'
+      home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/Airline/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
       path = uni_path
       
@@ -388,13 +144,13 @@ if __name__ == "__main__":
       for x in df['Month']:
             dates.append(np.datetime64(x))
       
-     df['Time_int'] = dates - dates[0]
-     df['Time_int'] = df['Time_int'].astype('timedelta64[D]')
+      df['Time_int'] = dates - dates[0]
+      df['Time_int'] = df['Time_int'].astype('timedelta64[D]')
      
-     df['Year'] = pd.to_datetime(df['Month'])
+      df['Year'] = pd.to_datetime(df['Month'])
       
-     ctime = lambda x: (float(x.strftime("%j"))-1) / 366 + float(x.strftime("%Y"))
-     df['Year'] = df['Year'].apply(ctime)
+      ctime = lambda x: (float(x.strftime("%j"))-1) / 366 + float(x.strftime("%Y"))
+      df['Year'] = df['Year'].apply(ctime)
      
       
       y = df['Passengers']
@@ -414,10 +170,9 @@ if __name__ == "__main__":
       
       # se +  sexper + noise
       
-      #sk1 = 50.0**2 * RBF(length_scale=1.0) # long term rising trend
       sk1 = 50**2*Matern(length_scale=1.0)
       sk2 = 2.0**2 * RBF(length_scale=1.0) \
-          * PER(length_scale=1.0, periodicity=1.0)  # seasonal component
+          * PER(length_scale=1.0, periodicity=365.0, periodicity_bounds='fixed')  # seasonal component
       sk3 = 5**2 * RQ(length_scale=1.0, alpha=1.0) 
       sk4 = 0.1**2 * RBF(length_scale=0.1) + WhiteKernel(noise_level=0.1**2,
                         noise_level_bounds=(1e-3, 100))  # noise terms
@@ -447,9 +202,9 @@ if __name__ == "__main__":
       
       mu_test, std_test = gpr.predict(t_test, return_std=True)
       
-      rmse_ = np.round(np.sqrt(np.mean(np.square(mu_test - y_test))), 2)
+      rmse_ = pa.rmse(mu_test, y_test)
       
-      lpd_ = log_predictive_density(y_test, mu_test, std_test)
+      lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
       
       plt.figure()
       plt.plot(df['Year'], df['Passengers'], 'ko', markersize=2)
@@ -478,9 +233,15 @@ if __name__ == "__main__":
       
       ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'p': p , 's_6': s_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 's_9' : s_9, 'ls_10' : ls_10, 'n_11': n_11}
       
-      ml_df = pd.DataFrame(data=ml_deltas.values(), index=varnames, columns=['values'])
+      ml_values = [ml_deltas[v] for v in varnames]
+      
+      ml_df = pd.DataFrame(data=np.column_stack((varnames, ml_values)), columns=['hyp','values'])
       
       ml_df.to_csv(results_path + 'airline_ml.csv', sep=',')
+      
+      ml_df = pd.read_csv(results_path + 'airline_ml.csv')
+      
+      ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
       
       
      #-----------------------------------------------------
@@ -489,7 +250,7 @@ if __name__ == "__main__":
     
      #-----------------------------------------------------
      
-     varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5','p', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
+      varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
 
 
 with pm.Model() as airline_model:
@@ -500,7 +261,7 @@ with pm.Model() as airline_model:
        log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
        log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
        log_l7 = pm.Uniform('log_l7', lower=-7, upper=10)
-       log_l10 = pm.Uniform('log_l10', lower=-10, upper=5)
+       log_l10 = pm.Uniform('log_l10', lower=-15, upper=5)
        
        #log_l2 = pm.Normal('log_l2', mu=0, sd=50)
        #log_l4 = pm.Normal('log_l4', mu=0, sd=50)
@@ -528,10 +289,9 @@ with pm.Model() as airline_model:
        # prior on amplitudes
 
        log_s1 = pm.Uniform('log_s1', lower=-10, upper=5)
-       #log_s1 = pm.Uniform('log_s1', lower=-5, upper=7)
        log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
        log_s6 = pm.Uniform('log_s6', lower=-10, upper=10)
-       log_s9 = pm.Uniform('log_s9', lower=-10, upper=5)
+       log_s9 = pm.Uniform('log_s9', lower=0.5, upper=5)
 
        #log_s9 = pm.Uniform('log_s9', lower=-9, upper=2, testval=np.log(ml_deltas['s_9']))
 
@@ -552,7 +312,7 @@ with pm.Model() as airline_model:
        # prior on noise variance term
       
        #log_n11 = pm.Normal('log_n11', mu=0, sd=10)
-       log_n11 = pm.Uniform('log_n11', lower=-10, upper=10)
+       log_n11 = pm.Uniform('log_n11', lower=-15, upper=10)
        n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
        #n_11 = ml_deltas['alpha_8']
@@ -575,12 +335,13 @@ with pm.Model() as airline_model:
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
+       
               
 with airline_model:
       
       # HMC NUTS auto-tuning implementation
 
-      trace_hmc = pm.sample(draws=700, tune=500, chains=1)
+      trace_hmc = pm.sample(draws=700, tune=500, chains=2)
       
 with airline_model:
       

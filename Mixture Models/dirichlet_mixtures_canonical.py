@@ -113,7 +113,7 @@ y_2 = np.array(gmix_obs_s2)
 y_m_2 = np.array(random.sample(gmix_obs_s2, 300))
 y_s_2 = np.array(random.sample(gmix_obs_s2, 100))
   
-plt.hist(gmix_obs, density=True, bins=100)
+plt.hist(gmix_obs_s05, density=True, bins=100)
 
 varnames = ['alpha', 'mu', 'tau']
 
@@ -136,10 +136,12 @@ with pm.Model() as g_model:
       
       #obs 
       obs = pm.NormalMixture('obs', w, mu, tau=tau,
-                           observed=y_1)
+                           observed=y_05)
       
 with g_model:
       
+      gibbs_step=pm.step_methods.gibbs
+      trace_gibbs = pm.sample(step=gibbs_step)
       trace_nuts_g_1 = pm.sample(tune=500,draws=1000, chains=2, target_accept=0.95)
       
 # Results 
