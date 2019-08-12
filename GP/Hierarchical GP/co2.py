@@ -11,16 +11,12 @@ import pandas as pd
 import numpy as np
 import theano.tensor as tt
 import matplotlib.pylab as plt
-from bokeh.plotting import figure, show
-from bokeh.models import BoxAnnotation, Span, Label, Legend
-from bokeh.io import output_notebook
-from bokeh.palettes import brewer
 import  scipy.stats as st 
 import seaborn as sns
 import warnings
 import time
 from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
+from sklearn.gaussian_process.kernels import RBF, RationalQuadratic as RQ, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
 import csv
 import posterior_analysis as pa
@@ -300,7 +296,7 @@ if __name__ == "__main__":
       
       # Reading pre-stored values
       
-      ml_df = pd.read_csv(path + 'co2_ml.csv')
+      ml_df = pd.read_csv(results_path + 'co2_ml.csv')
       
       ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
 
@@ -488,9 +484,9 @@ trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/u_prior2/', mod
 
 # Traceplots with deltas
 
-traceplots(trace_hmc, varnames, ml_deltas)
-traceplots(trace_mf, varnames, ml_deltas)
-traceplots(trace_fr, varnames, ml_deltas)
+pa.traceplots(trace_hmc, varnames, ml_deltas)
+pa.traceplots(trace_mf, varnames, ml_deltas)
+pa.traceplots(trace_fr, varnames, ml_deltas)
 
 
 # Covariance matrix
@@ -572,13 +568,13 @@ for i in range(0,30):
 
 # Metrics
 
-rmse_hmc = rmse(mu_hmc, y_test)
-rmse_mf = rmse(mu_mf, y_test)
-rmse_fr = rmse(mu_fr, y_test)
+rmse_hmc = pa.rmse(mu_hmc, y_test)
+rmse_mf = pa.rmse(mu_mf, y_test)
+rmse_fr = pa.rmse(mu_fr, y_test)
 
-lppd_hmc, lpd_hmc = log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
-lppd_mf, lpd_mf = log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
-lppd_fr, lpd_fr = log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
+lppd_fr, lpd_fr = pa.log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
 
 # Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
 
@@ -659,7 +655,6 @@ pair_grid_plot(trace_k4, ml_deltas, k4_names, color='coral')
 
 # Pair grid catalog
 
-from matplotlib.backends.backend_pdf import PdfPages
 from itertools import combinations
 
 bi_list = []

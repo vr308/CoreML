@@ -9,9 +9,14 @@ Analysis for ADVI (MF and FR) runs of hierarchical GP
 
 """
 
+import numpy as np
+import pandas as pd
+import matplotlib.pylab as plt
+import scipy.stats as st
+
 # Constructing posterior predictive distribution
 
-def transform_tracker_values(tracker, param_dict):
+def transform_tracker_values(tracker, param_dict, name_mapping, raw_mapping):
 
       mean_df = pd.DataFrame(np.array(tracker['mean']), columns=list(param_dict['mu'].keys()))
       sd_df = pd.DataFrame(np.array(tracker['std']), columns=list(param_dict['mu'].keys()))
@@ -24,12 +29,12 @@ def transform_tracker_values(tracker, param_dict):
       return mean_df, sd_df
 
 
-def convergence_report(tracker, param_dict, elbo, title):
+def convergence_report(tracker, param_dict, varnames, elbo, title):
       
       # Plot Negative ElBO track with params in true space
       
       #mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
+      mean_fr_df, sd_fr_df = transform_tracker_values(tracker, fr_param)
 
       fig = plt.figure(figsize=(16, 9))
       for i in np.arange(3):

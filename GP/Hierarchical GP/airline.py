@@ -86,6 +86,13 @@ d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
+def get_prior_density():
+      
+      if dtype == 'uniform':
+            
+      else if dtype == 'normal':
+            
+
 rv_mapping = {'s_1':  airline_model.log_s1, 
               'ls_2': airline_model.log_l2_interval__, 
               's_3':  airline_model.log_s3_interval__,
@@ -124,7 +131,7 @@ name_mapping = {'log_s1':  's_1',
               'log_l10_interval__': 'ls_10',
               'log_n11_interval__': 'n_11'}
 
-prior_mapping = {}
+prior_mapping = {'s_1':airline_model.s_1}
 
 
 if __name__ == "__main__":
@@ -239,6 +246,8 @@ if __name__ == "__main__":
       
       ml_df.to_csv(results_path + 'airline_ml.csv', sep=',')
       
+      # Reading what is already stored
+      
       ml_df = pd.read_csv(results_path + 'airline_ml.csv')
       
       ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
@@ -257,17 +266,17 @@ with pm.Model() as airline_model:
   
        # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=1, upper=5)
+       log_l2 = pm.Uniform('log_l2', lower=1, upper=10)
        log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
        log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
        log_l7 = pm.Uniform('log_l7', lower=-7, upper=10)
-       log_l10 = pm.Uniform('log_l10', lower=-15, upper=5)
+       log_l10 = pm.Uniform('log_l10', lower=-10, upper=-5)
        
        #log_l2 = pm.Normal('log_l2', mu=0, sd=50)
        #log_l4 = pm.Normal('log_l4', mu=0, sd=50)
        #log_l5 = pm.Normal('log_l5', mu=0, sd=50)
        #log_l7 = pm.Normal('log_l7', mu=0, sd=50)
-       #log_l10 = pm.Normal('log_l10', mu=0, sd=50)
+       #log_l10 = pm.Normal('log_l10', mu=ml_deltas['ls_10'], sd=5)
       
        #log_p = pm.Uniform('log_p', lower=1, upper=7)
 
@@ -288,7 +297,7 @@ with pm.Model() as airline_model:
      
        # prior on amplitudes
 
-       log_s1 = pm.Uniform('log_s1', lower=-10, upper=5)
+       log_s1 = pm.Uniform('log_s1', lower=1, upper=10)
        log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
        log_s6 = pm.Uniform('log_s6', lower=-10, upper=10)
        log_s9 = pm.Uniform('log_s9', lower=0.5, upper=5)
@@ -312,7 +321,7 @@ with pm.Model() as airline_model:
        # prior on noise variance term
       
        #log_n11 = pm.Normal('log_n11', mu=0, sd=10)
-       log_n11 = pm.Uniform('log_n11', lower=-15, upper=10)
+       log_n11 = pm.Uniform('log_n11', lower=-10, upper=10)
        n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
        
        #n_11 = ml_deltas['alpha_8']
@@ -341,17 +350,17 @@ with airline_model:
       
       # HMC NUTS auto-tuning implementation
 
-      trace_hmc = pm.sample(draws=700, tune=500, chains=2)
+      trace_hmc = pm.sample(draws=1000, tune=700, chains=2)
       
 with airline_model:
       
       prior_pred = pm.sample_prior_predictive(samples=500)
             
-with co2_model:
+with airline_model:
     
-      pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/u_prior3/', overwrite=True)
+      pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
         
-with co2_model:
+with airline_model:
       
       mf = pm.ADVI()
 
@@ -395,12 +404,28 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       mf_df = pd.DataFrame(mf_param)
       fr_df = pd.DataFrame(fr_param)
       
-      # TRaceplots
       
-      varnames = ['s_1', 'ls_5', 's_3', 's_6', 's_9', 'alpha_8']
-      traceplots(trace_fr, varnames, ml_deltas)
+      # Loading persisted trace
+   
+      trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=airline_model)
       
-      # Testing convergence
+      # Traceplots
+      
+      pa.traceplots(trace_hmc, varnames, ml_deltas, priors)
+      pa.traceplots(trace_mf, varnames, ml_deltas, priors)
+      pa.traceplots(trace_fr, varnames, ml_deltas, priors)
+
+      # Autocorrelations
+      
+      pm.autocorr()
+      
+      # Saving summary stats 
+      
+      hmc_summary_df = pm.summary(trace_hmc)
+      hmc_summary_df.to_csv()
+
+      
+      # Testing convergence of ADVI 
       
       convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
       
@@ -413,22 +438,43 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
             
-      #
+    
+      #######
       
-      plt.figure()
-      plt.plot(t_test, sample_means_fr.T)
-      
-      
-      # 
-      
-      # HMC
 
-      sample_means_hmc, sample_stds_hmc = write_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
+      
+      # Predictions
+
+      # HMC
+      
+      sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
       
       sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
       sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
       
       mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
       lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
-            
-            
+      
+      
+      # MF
+      
+      sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 200, t_test, results_path, method='mf') 
+      
+      sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
+      sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
+      
+      mu_mf = get_posterior_predictive_mean(sample_means_mf)
+      lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+      
+      
+      # FR
+      
+      sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
+      mu_fr = get_posterior_predictive_mean(sample_means_fr)
+      
+      sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+      
+      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+                  
+                  

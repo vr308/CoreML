@@ -21,7 +21,7 @@ warnings.filterwarnings("ignore")
 
 # Helper functions for Trace analysis
 
-def traceplots(trace, varnames, deltas, sep_idx):
+def traceplots(trace, varnames, deltas, sep_idx, priors):
 
       
             traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas)
@@ -30,19 +30,22 @@ def traceplots(trace, varnames, deltas, sep_idx):
             for i in np.arange(sep_idx):
                   
                   delta = deltas.get(str(varnames[i]))
-                  #xmax = max(max(trace[varnames[i]]), delta)
+                  xmax = max(max(trace[varnames[i]]), delta)
+                  x_t = np.linspace(0,xmax,1000) 
                   traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
                   traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
                   traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
+                  traces_part1[i][0].plot(x_t, priors[i], color='gray',alpha=0.2)
                   #traces_part1[i][0].axes.set_xlim(xmin, xmax)
                   traces_part1[i][0].legend(fontsize='x-small')
             
-            for i in np.arange(sep_idx+1):
+            for i in np.arange(sep_idx,len(varnames),1):
                   
-                  delta = deltas.get(str(varnames[i+sep_idx]))
+                  delta = deltas.get(str(varnames[i]))
                   traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-                  traces_part2[i][0].hist(trace[varnames[i+sep_idx]], bins=100, normed=True, color='b', alpha=0.3)
+                  traces_part2[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
                   traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
+                  traces_part2[i][0].plot(x_t, priors[i], color='gray',alpha=0.2)
                   #traces_part2[i][0].axes.set_xscale('log')
                   traces_part2[i][0].legend(fontsize='x-small')
 
