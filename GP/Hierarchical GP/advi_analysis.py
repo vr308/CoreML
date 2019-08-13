@@ -34,7 +34,7 @@ def convergence_report(tracker, param_dict, varnames, elbo, title):
       # Plot Negative ElBO track with params in true space
       
       #mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker, fr_param)
+      mean_fr_df, sd_fr_df = transform_tracker_values(tracker, param_dict)
 
       fig = plt.figure(figsize=(16, 9))
       for i in np.arange(3):
@@ -73,7 +73,7 @@ def get_implicit_variational_posterior(var, means, std, x):
             # Then it is an interval variable
             
             eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
-            backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+            #backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
             width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
             total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
             pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
@@ -99,13 +99,15 @@ def analytical_variational_opt(model, param_dict, summary_trace, raw_mapping, na
       for i in keys:
             if (i[-2:] == '__'):
                   name = name_mapping[i]
-                  mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
+                  #mean_value = np.exp(raw_mapping.get(i).distribution.transform_used.backward(param_dict['mu'][i]).eval())
+                  mean_value = summary_trace['mean'][name]
                   sd_value = summary_trace['sd'][name]
                   mu_implicit.update({name : np.array(mean_value)})
                   rho_implicit.update({name : np.array(sd_value)})
             else:
                   name = name_mapping[i]
-                  mean_value = np.exp(param_dict['mu'][i])
+                  #mean_value = np.exp(param_dict['mu'][i])
+                  mean_value = summary_trace['mean'][name]
                   sd_value = summary_trace['sd'][name]
                   name = name_mapping[i]
                   mu_implicit.update({name : np.array(mean_value)})

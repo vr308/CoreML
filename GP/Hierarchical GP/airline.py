@@ -20,6 +20,7 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, Rational
 warnings.filterwarnings("ignore")
 import csv
 import posterior_analysis as pa
+import advi_analysis as ad
 
 # Analytical variational inference for Airline data
 
@@ -93,40 +94,39 @@ def get_prior_density():
       else if dtype == 'normal':
             
 
-rv_mapping = {'s_1':  airline_model.log_s1, 
+rv_mapping = {'s_1':  airline_model.log_s1_interval__, 
               'ls_2': airline_model.log_l2_interval__, 
               's_3':  airline_model.log_s3_interval__,
               'ls_4': airline_model.log_l4_interval__,
               'ls_5': airline_model.log_l5_interval__,
-              's_6': airline_model.log_s6,
+              's_6': airline_model.log_s6_interval__,
               'ls_7': airline_model.log_l7_interval__,
-              'alpha_8': airline_model.log_alpha8,
+              'alpha_8': airline_model.log_alpha8_interval__,
               's_9': airline_model.log_s9_interval__,
               'ls_10': airline_model.log_l10_interval__,
-               'n_11': airline_model.log_n11_interval__
-                    }
+               'n_11': airline_model.log_n11_interval__}
 
-raw_mapping = {'log_s1':  airline_model.log_s1, 
+raw_mapping = {'log_s1_interval__':  airline_model.log_s1_interval__, 
               'log_l2_interval__': airline_model.log_l2_interval__, 
               'log_s3_interval__':  airline_model.log_s3_interval__,
               'log_l4_interval__': airline_model.log_l4_interval__,
               'log_l5_interval__': airline_model.log_l5_interval__,
-              'log_s6': airline_model.log_s6,
+              'log_s6_interval__': airline_model.log_s6_interval__,
               'log_l7_interval__': airline_model.log_l7_interval__,
-              'log_alpha8': airline_model.log_alpha8,
+              'log_alpha8_interval__': airline_model.log_alpha8_interval__,
               'log_s9_interval__': airline_model.log_s9_interval__,
               'log_l10_interval__': airline_model.log_l10_interval__,
-               'log_n11_interval__': airline_model.log_n11_interval__ }
+               'log_n11_interval__': airline_model.log_n11_interval__}
 
 
-name_mapping = {'log_s1':  's_1', 
+name_mapping = {'log_s1_interval__':  's_1', 
               'log_l2_interval__': 'ls_2', 
               'log_s3_interval__':  's_3',
               'log_l4_interval__': 'ls_4',
               'log_l5_interval__': 'ls_5',
-              'log_s6': 's_6',
+              'log_s6_interval__': 's_6',
               'log_l7_interval__': 'ls_7',
-              'log_alpha8': 'alpha_8',
+              'log_alpha8_interval__': 'alpha_8',
               'log_s9_interval__': 's_9',
               'log_l10_interval__': 'ls_10',
               'log_n11_interval__': 'n_11'}
@@ -177,11 +177,11 @@ if __name__ == "__main__":
       
       # se +  sexper + noise
       
-      sk1 = 50**2*Matern(length_scale=1.0)
-      sk2 = 2.0**2 * RBF(length_scale=1.0) \
+      sk1 = 50**2 * Matern(length_scale=1.0, length_scale_bounds=(0.000001,1.0))
+      sk2 = Ck(20, constant_value_bounds=(200,1e5)) * RBF(length_scale=1.0, length_scale_bounds=(2000.0,5000.0)) \
           * PER(length_scale=1.0, periodicity=365.0, periodicity_bounds='fixed')  # seasonal component
-      sk3 = 5**2 * RQ(length_scale=1.0, alpha=1.0) 
-      sk4 = 0.1**2 * RBF(length_scale=0.1) + WhiteKernel(noise_level=0.1**2,
+      #sk3 = 5**2 * RQ(length_scale=1.0, alpha=1.0) 
+      sk4 = 0.1**2 * RBF(length_scale=0.1, length_scale_bounds=(1e-5,1)) + WhiteKernel(noise_level=0.1**2,
                         noise_level_bounds=(1e-3, 100))  # noise terms
           
       #---------------------------------------------------------------------
@@ -189,10 +189,18 @@ if __name__ == "__main__":
       # Type II ML for hyp.
           
       #---------------------------------------------------------------------
-          
-      sk_kernel = sk1 + sk2 + sk3 + sk4
-      gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True, n_restarts_optimizer=500)
       
+      varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'n_8']
+      
+      sk1 = np.square(ml_deltas['s_1']) * Matern(length_scale=ml_deltas['ls_2'])
+      sk2 = Ck(ml_deltas['s_3'])**2 * RBF(length_scale=ml_deltas['ls_4']) \
+          * PER(length_scale=ml_deltas['ls_5'], periodicity=365.0, periodicity_bounds='fixed')  # seasonal component
+      sk4 = ml_deltas['s_6']**2 * RBF(length_scale=ml_deltas['ls_7']) + WhiteKernel(noise_level=ml_deltas['n_8']**2,
+                        noise_level_bounds=(1e-3, 100))  # noise terms
+          
+      sk_kernel = sk1 + sk2 + sk4
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True, n_restarts_optimizer=500)
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=False, optimizer=None)
       
       # Fit to data 
       
@@ -221,24 +229,37 @@ if __name__ == "__main__":
       plt.legend(fontsize='small')
       plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
       
-      s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.k1.constant_value)
-      s_3 = np.sqrt(gpr.kernel_.k1.k1.k2.k1.k1.constant_value)
-      s_6 = np.sqrt(gpr.kernel_.k1.k2.k1.constant_value)
-      s_9 = np.sqrt(gpr.kernel_.k2.k1.k1.constant_value)
       
-      p = gpr.kernel_.k1.k1.k2.k2.periodicity
+      s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.constant_value)
+      ls_2 = gpr.kernel_.k1.k1.k2.length_scale
+      
+      s_3 = np.sqrt(gpr.kernel_.k1.k2.k1.k1.constant_value)
+      ls_4 = gpr.kernel_.k1.k2.k1.k2.length_scale
+      ls_5 = gpr.kernel_.k1.k2.k2.length_scale
+      
+      s_6 = np.sqrt(gpr.kernel_.k2.k1.k1.constant_value)
+      ls_7 = gpr.kernel_.k2.k1.k2.length_scale
+      
+      n_8 = np.sqrt(gpr.kernel_.k2.k2.noise_level)
+      
+      #s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.constant_value)
+      #s_3 = np.sqrt(gpr.kernel_.k1.k1.k2.k1.k1.constant_value)
+      #s_6 = np.sqrt(gpr.kernel_.k1.k2.k1.constant_value)
+      #s_9 = np.sqrt(gpr.kernel_.k2.k1.k1.constant_value)
+      
+      #p = gpr.kernel_.k1.k1.k2.k2.periodicity
         
-      ls_2 = gpr.kernel_.k1.k1.k1.k2.length_scale
+      #ls_2 = gpr.kernel_.k1.k1.k1.k2.length_scale
       
-      ls_4 = gpr.kernel_.k1.k1.k2.k1.k2.length_scale
-      ls_5 =  gpr.kernel_.k1.k1.k2.k2.length_scale
-      ls_7 = gpr.kernel_.k1.k2.k2.length_scale
-      ls_10 = gpr.kernel_.k2.k1.k2.length_scale
+      #ls_4 = gpr.kernel_.k1.k1.k2.k1.k2.length_scale
+      #ls_5 =  gpr.kernel_.k1.k1.k2.k2.length_scale
+      #ls_7 = gpr.kernel_.k1.k2.k2.length_scale
+      #ls_10 = gpr.kernel_.k2.k1.k2.length_scale
         
-      alpha_8 = gpr.kernel_.k1.k2.k2.alpha
-      n_11 = np.sqrt(gpr.kernel_.k2.k2.noise_level)
+      #alpha_8 = gpr.kernel_.k1.k2.k2.alpha
+      #n_11 = np.sqrt(gpr.kernel_.k2.k2.noise_level)
       
-      ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 'p': p , 's_6': s_6, 'ls_7': ls_7, 'alpha_8' : alpha_8, 's_9' : s_9, 'ls_10' : ls_10, 'n_11': n_11}
+      ml_deltas = {'s_1': s_1, 'ls_2': ls_2, 's_3' : s_3, 'ls_4': ls_4 , 'ls_5': ls_5 , 's_6': s_6, 'ls_7': ls_7, 'n_8' :n_8}
       
       ml_values = [ml_deltas[v] for v in varnames]
       
@@ -253,40 +274,70 @@ if __name__ == "__main__":
       ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
       
       
+      #---------------------------------------------------------------------
+          
+      # Vanilla GP - pymc3
+          
+      #---------------------------------------------------------------------
+
+    with pm.Model() as model:
+        
+          
+             # Specify the covariance function
+       
+             k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.Matern52(1, ls_2) 
+             k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=p, ls=ls_5)
+             k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.ExpQuad(1, ls_7) +  pm.gp.cov.WhiteNoise(n_8**2)
+             
+             gp_trend = pm.gp.Marginal(cov_func=k1)
+             gp_periodic = pm.gp.Marginal(cov_func=k2)
+             gp_noise = pm.gp.Marginal(cov_func=k3)
+      
+             k =  k1 + k2 
+                
+             gp = gp_trend + gp_periodic
+            
+             # Marginal Likelihood
+             y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k3)
+        
+    with model:
+          
+            f_cond = gp.conditional("f_cond", Xnew=t_test)
+
+      post_pred_mean, post_pred_cov = gp.predict(t_test, pred_noise=True)
+      post_pred_mean, post_pred_cov_nf = gp.predict(t_test, pred_noise=False)
+      post_pred_std = np.sqrt(np.diag(post_pred_cov))
+      
+
      #-----------------------------------------------------
 
      #       Hybrid Monte Carlo + ADVI Inference 
     
      #-----------------------------------------------------
      
-      varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'alpha_8', 's_9', 'ls_10', 'n_11']
-
-
 with pm.Model() as airline_model:
+      
+       i = 100
+       c = 0.1
+       mean_trend = pm.gp.mean.Linear(coeffs=c, intercept=i)
   
        # prior on lengthscales
        
        log_l2 = pm.Uniform('log_l2', lower=1, upper=10)
        log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
        log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
-       log_l7 = pm.Uniform('log_l7', lower=-7, upper=10)
-       log_l10 = pm.Uniform('log_l10', lower=-10, upper=-5)
+       log_l7 = pm.Uniform('log_l7', lower=-10, upper=-5)
        
        #log_l2 = pm.Normal('log_l2', mu=0, sd=50)
        #log_l4 = pm.Normal('log_l4', mu=0, sd=50)
        #log_l5 = pm.Normal('log_l5', mu=0, sd=50)
        #log_l7 = pm.Normal('log_l7', mu=0, sd=50)
-       #log_l10 = pm.Normal('log_l10', mu=ml_deltas['ls_10'], sd=5)
-      
-       #log_p = pm.Uniform('log_p', lower=1, upper=7)
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
        
-       #p = pm.Deterministic('p', tt.exp(log_p))
        
        p = 366
        
@@ -299,53 +350,34 @@ with pm.Model() as airline_model:
 
        log_s1 = pm.Uniform('log_s1', lower=1, upper=10)
        log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
-       log_s6 = pm.Uniform('log_s6', lower=-10, upper=10)
-       log_s9 = pm.Uniform('log_s9', lower=0.5, upper=5)
-
-       #log_s9 = pm.Uniform('log_s9', lower=-9, upper=2, testval=np.log(ml_deltas['s_9']))
+       log_s6 = pm.Uniform('log_s6', lower=-1, upper=4)
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
        s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
-       s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
-       
-       #s_3 = 2.59
-       #s_9 = 0.169
-      
-       # prior on alpha
-      
-       log_alpha8 = pm.Uniform('log_alpha8', lower=-10, upper=-2)
-       alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
-       #alpha_8 = 0.121
-       
+             
        # prior on noise variance term
       
-       #log_n11 = pm.Normal('log_n11', mu=0, sd=10)
-       log_n11 = pm.Uniform('log_n11', lower=-10, upper=10)
-       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
-       
-       #n_11 = ml_deltas['alpha_8']
-       
+       log_n8 = pm.Uniform('log_n8', lower=-2, upper=5)
+       n_8 = pm.Deterministic('n_8', tt.exp(log_n8))
+              
        # Specify the covariance function
        
        k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.Matern52(1, ls_2) 
        k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=p, ls=ls_5)
-       k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
-       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11**2)
+       k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.ExpQuad(1, ls_7) +  pm.gp.cov.WhiteNoise(n_8**2)
        
-       gp_trend = pm.gp.Marginal(cov_func=k1)
+       gp_trend = pm.gp.Marginal(mean_func = mean_trend, cov_func=k1)
        gp_periodic = pm.gp.Marginal(cov_func=k2)
-       gp_rational = pm.gp.Marginal(cov_func=k3)
-       gp_noise = pm.gp.Marginal(cov_func=k4)
+       gp_noise = pm.gp.Marginal(cov_func=k3)
 
-       k =  k1 + k2 + k3
+       k =  k1 + k2 
           
-       gp = gp_trend + gp_periodic + gp_rational
+       gp = gp_trend + gp_periodic
             
        # Marginal Likelihood
-       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
-       
-              
+       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k3)
+                 
 with airline_model:
       
       # HMC NUTS auto-tuning implementation
@@ -362,7 +394,7 @@ with airline_model:
         
 with airline_model:
       
-      mf = pm.ADVI()
+      mf = pm.ADVI(start=ml_deltas)
 
       tracker_mf = pm.callbacks.Tracker(
       mean = mf.approx.mean.eval,    
@@ -396,8 +428,8 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 
       # Updating with implicit values
       
-      mf_param = analytical_variational_opt(airline_model, mf_param, pm.summary(trace_mf))
-      fr_param = analytical_variational_opt(airline_model, fr_param, pm.summary(trace_fr))
+      mf_param = ad.analytical_variational_opt(airline_model, mf_param, pm.summary(trace_mf), raw_mapping, name_mapping)
+      fr_param = ad.analytical_variational_opt(airline_model, fr_param, pm.summary(trace_fr), raw_mapping, name_mapping)
 
       # Saving raw ADVI results
       
@@ -411,9 +443,9 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       # Traceplots
       
-      pa.traceplots(trace_hmc, varnames, ml_deltas, priors)
-      pa.traceplots(trace_mf, varnames, ml_deltas, priors)
-      pa.traceplots(trace_fr, varnames, ml_deltas, priors)
+      pa.traceplots(trace_hmc, varnames, ml_deltas, 4)
+      pa.traceplots(trace_mf, varnames, ml_deltas, 5)
+      pa.traceplots(trace_fr, varnames, ml_deltas, 5)
 
       # Autocorrelations
       
@@ -421,24 +453,33 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       # Saving summary stats 
       
-      hmc_summary_df = pm.summary(trace_hmc)
-      hmc_summary_df.to_csv()
+      hmc_summary_df = pm.summary(trace_hmc).ix[varnames]
+      hmc_summary_df.to_csv(results_path + '/hmc_summary_df.csv', sep=',')
+
+      # Pair Grid plots 
+      
+      trace = trace_hmc
+      clr='blue'
+      
+      k1_names = ['s_1', 'ls_2']
+      k2_names = ['s_3', 'ls_4', 'ls_5']
+      k3_names = ['s_6', 'ls_7', 'n_8']
+      
+      trace_k1 = pa.get_subset_trace(trace, k1_names)
+      trace_k2 = pa.get_subset_trace(trace, k2_names)
+      trace_k3 = pa.get_subset_trace(trace, k3_names)
+      
+      pa.pair_grid_plot(trace_k1, ml_deltas, k1_names, color=clr)
+      pa.pair_grid_plot(trace_k2, ml_deltas, k2_names, color=clr)
+      pa.pair_grid_plot(trace_k3, ml_deltas, k3_names, color=clr)
 
       
       # Testing convergence of ADVI 
       
-      convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
+      pa.convergence_report(tracker_mf, mf_param, mf.hist, 'Mean Field Convergence Report')
+      pa.convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
       
-      # Writing out posterior predictive means
-      
-      write_posterior_predictive_samples(trace_fr, 100, t_train, y_train, t_test, results_path, 'fr')
-
-      sample_means_fr = pd.read_csv(results_path + 'means_fr_100.csv')
-      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
-      
-      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
-            
-    
+   
       #######
       
 
@@ -447,13 +488,13 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 
       # HMC
       
-      sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
+      sample_means_hmc, sample_stds_hmc = pa.write_posterior_predictive_samples(trace_hmc, 20, t_train, y_train, t_test, results_path + 'pred_dist/', method='hmc', gp=gp, varnames=varnames) 
       
       sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
       sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
       
-      mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
-      lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+      mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
+      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
       
       
       # MF

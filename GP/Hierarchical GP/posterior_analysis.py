@@ -16,12 +16,13 @@ import matplotlib.pylab as plt
 import scipy.stats as st
 import seaborn as sns
 import warnings
+import pandas as pd
 import advi_analysis as advi
 warnings.filterwarnings("ignore")
 
 # Helper functions for Trace analysis
 
-def traceplots(trace, varnames, deltas, sep_idx, priors):
+def traceplots(trace, varnames, deltas, sep_idx):
 
       
             traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas)
@@ -30,24 +31,19 @@ def traceplots(trace, varnames, deltas, sep_idx, priors):
             for i in np.arange(sep_idx):
                   
                   delta = deltas.get(str(varnames[i]))
-                  xmax = max(max(trace[varnames[i]]), delta)
-                  x_t = np.linspace(0,xmax,1000) 
+                  #xmax = max(max(trace[varnames[i]]), delta)
                   traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
                   traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
                   traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
-                  traces_part1[i][0].plot(x_t, priors[i], color='gray',alpha=0.2)
-                  #traces_part1[i][0].axes.set_xlim(xmin, xmax)
                   traces_part1[i][0].legend(fontsize='x-small')
             
             for i in np.arange(sep_idx,len(varnames),1):
                   
                   delta = deltas.get(str(varnames[i]))
-                  traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-                  traces_part2[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
-                  traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
-                  traces_part2[i][0].plot(x_t, priors[i], color='gray',alpha=0.2)
-                  #traces_part2[i][0].axes.set_xscale('log')
-                  traces_part2[i][0].legend(fontsize='x-small')
+                  traces_part2[i%sep_idx][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
+                  traces_part2[i%sep_idx][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+                  traces_part2[i%sep_idx][1].axhline(y=delta, color='r', alpha=0.5)
+                  traces_part2[i%sep_idx][0].legend(fontsize='x-small')
 
 
 def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, rv_mapping):
@@ -100,7 +96,14 @@ def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, r
             
 
 # Helper functions for bi-variate traces
+            
 
+def get_subset_trace(trace, varnames):
+      
+      trace_df = pd.DataFrame()
+      for i in varnames:
+            trace_df[i] = trace.get_values(i)
+      return trace_df
       
 def pair_grid_plot(trace_df, ml_deltas, varnames, color):
 
@@ -129,19 +132,19 @@ def plot_scatter(x, y, ml_deltas, color, label):
       
 # Helper functions to generate posterior predictive samples 
 
-def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
+def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method, gp, varnames):
       
       means_file = path + 'means_' + method + '.csv'
       std_file = path + 'std_' + method + '.csv'
-      #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
           
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
-      #trace_writer = csv.writer(open(trace_file, 'w'))
+      trace_writer = csv.writer(open(trace_file, 'w'))
       
       means_writer.writerow(X_star.flatten())
       std_writer.writerow(X_star.flatten())
-      #trace_writer.writerow(varnames + ['lml'])
+      trace_writer.writerow(varnames + ['lml'])
       
       for i in np.arange(len(trace))[::thin_factor]:
             
@@ -213,3 +216,6 @@ def log_predictive_mixture_density(y_test, list_means, list_std):
                   components.append(st.norm.pdf(y_test[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
             lppd_per_point.append(np.mean(components))
       return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
+
+
+
