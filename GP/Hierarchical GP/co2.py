@@ -299,8 +299,51 @@ if __name__ == "__main__":
       ml_df = pd.read_csv(results_path + 'co2_ml.csv')
       
       ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
+      
+      #---------------------------------------------------------------------
+          
+      # Vanilla GP - pymc3
+          
+      #---------------------------------------------------------------------
 
+      with pm.Model() as model:
+        
+             # Specify the covariance function
+       
+             k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
+             k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+             k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
+             k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_7) +  pm.gp.cov.WhiteNoise(n_11**2)
+             
+             gp_trend = pm.gp.Marginal(mean_func=pm.gp.mean.Constant(c=np.mean(y_train)), cov_func=k1)
+             gp_periodic = pm.gp.Marginal(cov_func=k2)
+             gp_rational = pm.gp.Marginal(cov_func=k3)
+             gp_noise = pm.gp.Marginal(cov_func=k4)
+      
+             k =  k1 + k2 + k3
+                
+             gp = gp_trend + gp_periodic + gp_rational
+            
+             # Marginal Likelihood
+             y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
+        
+      with model:
+          
+            f_cond = gp.conditional("f_cond", Xnew=t_test)
 
+      post_pred_mean, post_pred_cov = gp.predict(t_test, pred_noise=True)
+      post_pred_mean, post_pred_cov_nf = gp.predict(t_test, pred_noise=False)
+      post_pred_std = np.sqrt(np.diag(post_pred_cov))
+
+      plt.figure()
+      plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
+      plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
+      plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
+      #plt.plot(df['year'][sep_idx:], post_pred_mean, alpha=0.5, color='b')
+      plt.fill_between(df['year'][0:sep_idx], mu_fit - 2*std_fit, mu_fit + 2*std_fit, color='grey', alpha=0.2)
+      plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
 
      #-----------------------------------------------------
 
@@ -520,8 +563,8 @@ sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 
 sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
 sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
 
-mu_hmc = get_posterior_predictive_mean(sample_means_hmc)
-lower_hmc, upper_hmc = get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
+lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
 
 
 # MF
@@ -538,12 +581,12 @@ lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means
 # FR
 
 sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
-mu_fr = get_posterior_predictive_mean(sample_means_fr)
+mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
 
 sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
 sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
 
-lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
 
 
 plt.figure()
@@ -595,6 +638,36 @@ plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.9
 plt.legend(fontsize='x-small')
 plt.title(title, fontsize='x-small')
 plt.ylim(370,420)
+
+
+# Subplot scheme for WIML
+
+plt.figure(figsize=(14,6))
+
+plt.subplot(131)
+plt.plot(df['year'], df['co2'], 'ko', markersize=1)
+plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
+plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+plt.legend(fontsize='small')
+plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+
+plt.subplot(132)
+plt.plot(df['year'], df['co2'], 'ko', markersize=1)
+plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
+plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
+plt.legend(fontsize='small')
+plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
+
+
+plt.subplot(133)
+plt.plot(df['year'], df['co2'], 'ko', markersize=1)
+plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
+plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
+plt.legend(fontsize='small')
+plt.title('VI' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'LPD: ' + str(lpd_fr), fontsize='small')
 
 # Write out trace summary & autocorrelation plots
 

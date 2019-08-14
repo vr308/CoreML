@@ -479,10 +479,7 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       pa.convergence_report(tracker_mf, mf_param, mf.hist, 'Mean Field Convergence Report')
       pa.convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
       
-   
       #######
-      
-
       
       # Predictions
 
@@ -495,6 +492,27 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
       lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+      
+      rmse_hmc = pa.rmse(mu_hmc, y_test)
+      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+
+      plt.figure(figsize=(14,6))
+      plt.subplot(121)
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+      
+      plt.subplot(122)
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
+      plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
+      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('HMC' + '\n' + 'RMSE: ' + str() + '\n' + 'LPD: ' + str(), fontsize='small')
       
       
       # MF
