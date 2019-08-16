@@ -436,7 +436,6 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       mf_df = pd.DataFrame(mf_param)
       fr_df = pd.DataFrame(fr_param)
       
-      
       # Loading persisted trace
    
       trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=airline_model)
@@ -473,14 +472,11 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       pa.pair_grid_plot(trace_k2, ml_deltas, k2_names, color=clr)
       pa.pair_grid_plot(trace_k3, ml_deltas, k3_names, color=clr)
 
-      
       # Testing convergence of ADVI 
       
       pa.convergence_report(tracker_mf, mf_param, mf.hist, 'Mean Field Convergence Report')
       pa.convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
-      
-      #######
-      
+            
       # Predictions
 
       # HMC
@@ -512,7 +508,7 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
       plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
       plt.legend(fontsize='small')
-      plt.title('HMC' + '\n' + 'RMSE: ' + str() + '\n' + 'LPD: ' + str(), fontsize='small')
+      plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
       
       
       # MF

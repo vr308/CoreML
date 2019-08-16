@@ -645,16 +645,14 @@ plt.ylim(370,420)
 plt.figure(figsize=(14,6))
 
 plt.subplot(131)
-plt.plot(df['year'], df['co2'], 'ko', markersize=1)
-plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
 plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
 plt.legend(fontsize='small')
 plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
 
 plt.subplot(132)
-plt.plot(df['year'], df['co2'], 'ko', markersize=1)
-plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
 plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
 plt.legend(fontsize='small')
@@ -662,8 +660,7 @@ plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc
 
 
 plt.subplot(133)
-plt.plot(df['year'], df['co2'], 'ko', markersize=1)
-plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
 plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
 plt.legend(fontsize='small')
