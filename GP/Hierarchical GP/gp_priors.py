@@ -20,6 +20,7 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
 import scipy.stats as st
+from bokeh.palettes import brewer
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -35,9 +36,10 @@ priors = [
     ("ℓ_med",     pm.Gamma.dist(alpha=2,  beta=0.75)),
     ("α",         pm.Gamma.dist(alpha=5,  beta=2)),
     ("ℓ_trend",   pm.Gamma.dist(alpha=4,  beta=0.1)),
-    ("ℓ_noise",   pm.Gamma.dist(alpha=2,  beta=4))]
+    ("ℓ_noise",   pm.Gamma.dist(alpha=2,  beta=4)),
+    ('test', pm.InverseGamma.dist(alpha=5, beta=4))]
 
-colors = brewer['Paired'][7]
+colors = brewer['Paired'][8]
 
 plt.figure()
 plt.ylabel('Probability')

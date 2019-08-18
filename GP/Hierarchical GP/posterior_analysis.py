@@ -22,11 +22,11 @@ warnings.filterwarnings("ignore")
 
 # Helper functions for Trace analysis
 
-def traceplots(trace, varnames, deltas, sep_idx):
+def traceplots(trace, varnames, deltas, sep_idx, combined, priors):
 
       
-            traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas)
-            traces_part2 = pm.traceplot(trace, varnames[sep_idx:], lines=deltas)
+            traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas, combined=combined, priors=priors)
+            traces_part2 = pm.traceplot(trace, varnames[sep_idx:], lines=deltas, combined=combined, priors=priors)
             
             for i in np.arange(sep_idx):
                   
