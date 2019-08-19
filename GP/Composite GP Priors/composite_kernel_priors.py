@@ -162,7 +162,7 @@ def plot_lml_surface_3way(gpr, sig_sd, lengthscale, noise_sd):
 if __name__ == "__main__":
 
 
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Composite GP Priors/predictions/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Composite GP Priors/'
       
       # Sum of SE Kernels in 1D
          
@@ -194,7 +194,7 @@ if __name__ == "__main__":
       # Priors
       
       priors = {'uniform': pm.Uniform.dist(lower=-10, upper=10), 
-                'normal': pm.Normal.dist(mu=0, sd=10), 
+                'normal': pm.Normal.dist(mu=0, sd=2), 
                 'inv-gamma': pm.InverseGamma.dist(alpha=5, beta=2),
                 'half-normal': pm.HalfNormal.dist(sd=1), 
                 'gamma': pm.Gamma.dist(alpha=5, beta=2)}
@@ -203,23 +203,31 @@ if __name__ == "__main__":
       with pm.Model() as sum_se:
             
                # prior on lengthscale 
-               log_ls1 = pm.Uniform('log_ls1', lower=-10, upper=10)
-               log_ls2 = pm.Uniform('log_ls2', lower=-10, upper=10)
-
-               ls1 = pm.Deterministic('ls1', tt.exp(log_ls1))
-               ls2 = pm.Deterministic('ls2', tt.exp(log_ls2))
+               #log_ls1 = pm.Uniform('log_ls1', lower=-10, upper=10)
+               #log_ls2 = pm.Uniform('log_ls2', lower=-10, upper=10)
                
-               trace_prior = pm.sample()
+               #log_ls1 = pm.Normal('log_ls1', mu=0, sd=2)
+               #log_ls2 = pm.Normal('log_ls2', mu=0, sd=2)
+
+               #ls1 = pm.Deterministic('ls1', tt.exp(log_ls1))
+               #ls2 = pm.Deterministic('ls2', tt.exp(log_ls2))
+               
+               # Lengthscale prior
+               
+               ls1 = pm.InverseGamma('ls1', alpha=5, beta=2)
+               ls2 = pm.InverseGamma('ls2', alpha=5, beta=2)
 
                #prior on noise variance
-               log_n =  pm.Uniform.dist(lower=-10, upper=10)
+               #log_n =  pm.Uniform('log_n', lower=-10, upper=10)
 
-               #log_n = pm.Normal('log_n', mu=0, sd=10)
+               log_n = pm.Normal('log_n', mu=0, sd=2)
                noise_sd = pm.Deterministic('noise_sd', tt.exp(log_n))
                
                #prior on signal variance
-               log_s1 = pm.Uniform.dist(lower=-10, upper=10)
-               log_s2 = pm.Uniform.dist(lower=-10, upper=10)
+               #log_s1 = pm.Uniform('log_s1', lower=-10, upper=10)
+               #log_s2 = pm.Uniform('log_s2', lower=-10, upper=10)
+               log_s1 = pm.Normal('log_s1', mu=0, sd=2)
+               log_s2 = pm.Normal('log_s2', mu=0, sd=2)
 
                sig_sd1 = pm.Deterministic('sig_sd1', tt.exp(log_s1))
                sig_sd2 = pm.Deterministic('sig_sd2', tt.exp(log_s2))
@@ -234,42 +242,92 @@ if __name__ == "__main__":
                # Marginal Likelihood
                y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
               
-               trace = pm.sample()
+               trace_posterior = pm.sample()
             
       
-      prior_tag = 'uni' / 'normal' / 'half-norm'
+      prior_tag = 'inv-gamma' #/ 'normal' / 'half-norm' / 'gamma'
       
-      list_priors = [sum_se.log_ls1.exp()]*5
+      varnames = ['ls1','sig_sd1', 'ls2', 'sig_sd2', 'noise_sd']
+            
+      # Save traceplot  
       
-      # Save traceplot with priors on it 
+      pa.traceplots(trace_posterior, varnames=varnames, deltas=true_deltas, sep_idx=5, combined=True)
       
-      pa.traceplots(trace, varnames=['ls1','sig_sd1', 'ls2', 'sig_sd2', 'noise_sd'], deltas=true_deltas, sep_idx=5, combined=True, priors=list_priors)
+      # Save prior / posterior plots
       
+      plt.figure(figsize=(14,8))
+      for i in np.arange(len(varnames)):
+            plt.subplot(2,3, i+1)
+            plt.hist(trace_prior[varnames[i]], bins=1000, alpha=0.4, normed=True, label='Prior')
+            plt.hist(trace_posterior[varnames[i]], bins=1000, alpha=0.7, normed=True, label='Posterior')
+            plt.axvline(x=true_deltas[varnames[i]], ymin=0, color='r')
+            plt.legend(fontsize='x-small')
+      plt.suptitle('Posterior Contraction - Normal(0,2) Priors', fontsize='small')
       
       # Save trace_summary
       
-      trace_summary = pm.summary(trace)
-      
+      trace_summary = pm.summary(trace_posterior).ix[varnames]
+      trace_summary.to_csv(results_path + 'trace_summary_' + prior_tag + '_10.csv')
       
       # Save autocorrelation
       
+      pm.autocorrplot(trace_posterior, varnames)
       
       # Save predictions
 
-      write_posterior_predictive_samples(trace, 10, X, y, X_star, results_path, 'hmc_' + prior_tag + '_prior', gp)
+      pa.write_posterior_predictive_samples(trace_posterior, 10, X, y, X_star, results_path + 'predictions/', 'hmc_' + prior_tag + '_prior', gp)
       
-      sample_means = pd.read_csv(results_path  + 'means_hmc_' +  + '_prior.csv')
-      sample_stds = pd.read_csv(results_path  + 'std_hmc_uni_prior.csv')
+      sample_means = pd.read_csv(results_path  + 'predictions/' + 'means_hmc_' + prior_tag + '_prior.csv')
+      sample_stds = pd.read_csv(results_path  + 'predictions/' + 'std_hmc_' + prior_tag + '_prior.csv')
+      
+      mean_hmc = pa.get_posterior_predictive_mean(sample_means)
+      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds)
       
       plt.figure()
       plt.plot(X_star, f_star, "k", lw=2, label="True f")
       plt.plot(X, y, 'ok', ms=3, alpha=0.5, label="Data")
-      plt.plot(X_star, sample_means.T, color='grey')
+      plt.plot(X_star, sample_means.T, color='grey', alpha=0.2)
+      plt.plot(X_star, np.mean(sample_means), color='b', label='Integrated Mean')
+      plt.fill_between(X_star.flatten(), lower_hmc, upper_hmc, color='b', alpha=0.2)
+      plt.title('Inv-Gamma Priors ($K_{se1} + K_{se2}$)', fontsize='x-small')
       
       # Save ppc check
 
 
 
+
+
+
+
+
+
+
+
+
+
+log_raw1 = st.uniform.rvs(-10, 20, 10000)
+log_raw2 = st.uniform.rvs(-7, 14, 10000)
+
+log_norm1 = st.norm.rvs(0,2, 10000)
+log_norm2 = st.norm.rvs(0,1, 10000)
+
+fig = plt.figure(figsize=(14,8))
+
+plt.subplot(221)
+plt.hist(log_raw1, bins=100, normed=True, alpha=0.2, color='b')
+plt.hist(log_raw2, bins=100, normed=True, alpha=0.2, color='r')
+
+plt.subplot(222)
+plt.hist(np.exp(log_raw1), bins=1000,  normed=True, alpha=0.3, color='b')
+plt.hist(np.exp(log_raw2), bins=100,  normed=True, alpha=0.3, color='r')
+
+plt.subplot(223)
+plt.hist(log_norm1, bins=100, normed=True, alpha=0.2, color='b')
+plt.hist(log_norm2, bins=100, normed=True, alpha=0.2, color='r')
+
+plt.subplot(224)
+plt.hist(np.exp(log_norm1), bins=1000, normed=True,  alpha=0.3, color='b')
+plt.hist(np.exp(log_norm2), bins=100,  normed=True, alpha=0.3, color='r')
 
 # Product of SE kernels in 1D
 

@@ -22,11 +22,11 @@ warnings.filterwarnings("ignore")
 
 # Helper functions for Trace analysis
 
-def traceplots(trace, varnames, deltas, sep_idx, combined, priors):
+def traceplots(trace, varnames, deltas, sep_idx, combined):
 
       
-            traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas, combined=combined, priors=priors)
-            traces_part2 = pm.traceplot(trace, varnames[sep_idx:], lines=deltas, combined=combined, priors=priors)
+            traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas, combined=combined)
+            traces_part2 = pm.traceplot(trace, varnames[sep_idx:], lines=deltas, combined=combined)
             
             for i in np.arange(sep_idx):
                   
@@ -132,19 +132,19 @@ def plot_scatter(x, y, ml_deltas, color, label):
       
 # Helper functions to generate posterior predictive samples 
 
-def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method, gp, varnames):
+def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method, gp):
       
       means_file = path + 'means_' + method + '.csv'
       std_file = path + 'std_' + method + '.csv'
-      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+      #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
           
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
-      trace_writer = csv.writer(open(trace_file, 'w'))
+      #trace_writer = csv.writer(open(trace_file, 'w'))
       
       means_writer.writerow(X_star.flatten())
       std_writer.writerow(X_star.flatten())
-      trace_writer.writerow(varnames + ['lml'])
+      #trace_writer.writerow(varnames + ['lml'])
       
       for i in np.arange(len(trace))[::thin_factor]:
             
