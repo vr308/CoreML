@@ -188,12 +188,23 @@ def get_posterior_predictive_mean(sample_means):
 # Helper functions for posterior predictive checks
 
 
-# TODO
-
+def plot_prior_posterior_plots(trace_prior, trace_posterior, varnames, deltas):
+        
+        plt.figure(figsize=(14,8))
+        for i in np.arange(len(varnames)):
+                if (i%6 == 0):
+                    plt.figure(figsize=(14,8))
+                plt.subplot(2,3, i%6 + 1)
+                plt.hist(trace_prior[varnames[i]], bins=500, alpha=0.4, normed=True, label='Prior')
+                plt.hist(trace_posterior[varnames[i]], bins=500, alpha=0.7, normed=True, label='Posterior')
+                plt.axvline(x=deltas[varnames[i]], ymin=0, color='r')
+                plt.legend(fontsize='x-small')
+                plt.title(varnames[i])
+        plt.suptitle('Prior Posterior Plots', fontsize='small')
+      
 
 # Helper functions for Metrics
 
-      
 def rmse(post_mean, y_test):
     
     return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),3)

@@ -136,31 +136,6 @@ def get_posterior_predictive_mean(sample_means, weights):
       else:
             return np.average(sample_means, axis=0, weights=weights)
                          
-#--------------------Predictive performance metrics-------------------------
-      
-def rmse(post_mean, f_star):
-    
-    return np.round(np.sqrt(np.mean(np.square(post_mean - f_star))),3)
-
-def log_predictive_density(f_star, post_mean, post_std):
-      
-      lppd_per_point = []
-      for i in np.arange(len(f_star)):
-            lppd_per_point.append(st.norm.pdf(f_star[i], post_mean[i], post_std[i]))
-      #lppd_per_point.remove(0.0)
-      return np.round(np.mean(np.log(lppd_per_point)),3)
-
-def log_predictive_mixture_density(f_star, list_means, list_std, weights):
-            
-      lppd_per_point = []
-      for i in np.arange(len(f_star)):
-            print(i)
-            components = []
-            for j in np.arange(len(list_means)):
-                  components.append(st.norm.pdf(f_star[i], list_means.iloc[:,i][j], list_std.iloc[:,i][j]))
-            lppd_per_point.append(np.average(components, weights=weights))
-      return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
-
 #--------------Predictions------------------------------------
       
 def compute_log_marginal_likelihood(K_noise, y):

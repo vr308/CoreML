@@ -141,9 +141,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
-      path = uni_path
+      path = home_path
       
       df = pd.read_csv(path + 'AirPassengers.csv', infer_datetime_format=True, parse_dates=True, na_values=-99.99, keep_default_na=False, dtype = {'Month': np.str,'Passengers': np.int})
       
@@ -317,27 +318,26 @@ if __name__ == "__main__":
      
 with pm.Model() as airline_model:
       
-       i = 100
-       c = 0.1
+       i = pm.Normal('i', 95, 0.001)
+       c = pm.HalfNormal('c', sd=0.5)
        mean_trend = pm.gp.mean.Linear(coeffs=c, intercept=i)
   
        # prior on lengthscales
        
-       log_l2 = pm.Uniform('log_l2', lower=1, upper=10)
-       log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
-       log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
-       log_l7 = pm.Uniform('log_l7', lower=-10, upper=-5)
+       #log_l2 = pm.Uniform('log_l2', lower=1, upper=10)
+       #log_l4 = pm.Uniform('log_l4', lower=-10, upper=10)
+       #log_l5 = pm.Uniform('log_l5', lower=-5, upper=5)
+       #log_l7 = pm.Uniform('log_l7', lower=-10, upper=-5)
        
-       #log_l2 = pm.Normal('log_l2', mu=0, sd=50)
-       #log_l4 = pm.Normal('log_l4', mu=0, sd=50)
-       #log_l5 = pm.Normal('log_l5', mu=0, sd=50)
-       #log_l7 = pm.Normal('log_l7', mu=0, sd=50)
+       log_l2 = pm.Normal('log_l2', mu=0, sd=1)
+       log_l4 = pm.Normal('log_l4', mu=0, sd=1)
+       log_l5 = pm.Normal('log_l5', mu=0, sd=1)
+       log_l7 = pm.Normal('log_l7', mu=0, sd=1)
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
        ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
        ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
-       
        
        p = 366
        
@@ -348,9 +348,14 @@ with pm.Model() as airline_model:
      
        # prior on amplitudes
 
-       log_s1 = pm.Uniform('log_s1', lower=1, upper=10)
-       log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
-       log_s6 = pm.Uniform('log_s6', lower=-1, upper=4)
+       #log_s1 = pm.Uniform('log_s1', lower=1, upper=10)
+       #log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
+       #log_s6 = pm.Uniform('log_s6', lower=-1, upper=4)
+       
+       log_s1 = pm.Normal('log_s1', mu=0, sd=1)
+       log_s3 = pm.Normal('log_s2', mu=0, sd=1)
+       log_s6 = pm.Normal('log_s3', mu=0, sd=1)
+
 
        s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
@@ -374,6 +379,10 @@ with pm.Model() as airline_model:
        k =  k1 + k2 
           
        gp = gp_trend + gp_periodic
+       
+       trace_prior = pm.sample(500)
+       
+with airline_model:
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k3)
@@ -382,12 +391,10 @@ with airline_model:
       
       # HMC NUTS auto-tuning implementation
 
-      trace_hmc = pm.sample(draws=1000, tune=700, chains=2)
-      
-with airline_model:
-      
+      #trace_hmc = pm.sample(draws=1000, tune=700, chains=2)
       prior_pred = pm.sample_prior_predictive(samples=500)
-            
+      posterior_pred = pm.sample_ppc(trace_hmc, samples=200)
+
 with airline_model:
     
       pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
@@ -445,10 +452,14 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       pa.traceplots(trace_hmc, varnames, ml_deltas, 4)
       pa.traceplots(trace_mf, varnames, ml_deltas, 5)
       pa.traceplots(trace_fr, varnames, ml_deltas, 5)
+      
+      # Prior Posterior Plot
+      
+      pa.plot_prior_posterior_plots(trace_prior, trace_hmc, varnames, ml_deltas)
 
       # Autocorrelations
       
-      pm.autocorr()
+      pm.autocorrplot(trace_hmc, varnames)
       
       # Saving summary stats 
       
@@ -481,7 +492,7 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 
       # HMC
       
-      sample_means_hmc, sample_stds_hmc = pa.write_posterior_predictive_samples(trace_hmc, 20, t_train, y_train, t_test, results_path + 'pred_dist/', method='hmc', gp=gp, varnames=varnames) 
+      sample_means_hmc, sample_stds_hmc = pa.write_posterior_predictive_samples(trace_hmc, 20, t_train, y_train, t_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
       
       sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
       sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
@@ -491,26 +502,8 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       rmse_hmc = pa.rmse(mu_hmc, y_test)
       lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
-
-      plt.figure(figsize=(14,6))
-      plt.subplot(121)
-      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
-      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
-      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
-      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
-      plt.legend(fontsize='small')
-      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
       
-      plt.subplot(122)
-      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
-      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
-      plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
-      plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
-      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
-      plt.legend(fontsize='small')
-      plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
-      
-      
+     
       # MF
       
       sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 200, t_test, results_path, method='mf') 
@@ -532,4 +525,25 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
                   
+      
+      # Plot HMC vs ML vs FR
+
+      plt.figure(figsize=(14,6))
+      plt.subplot(121)
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+      
+      plt.subplot(122)
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
+      plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
+      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
+      
                   
