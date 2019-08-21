@@ -141,10 +141,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Airline/'
       
-      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
-      results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
-      path = home_path
+      path = uni_path
       
       df = pd.read_csv(path + 'AirPassengers.csv', infer_datetime_format=True, parse_dates=True, na_values=-99.99, keep_default_na=False, dtype = {'Month': np.str,'Passengers': np.int})
       
@@ -391,13 +391,17 @@ with airline_model:
       
       # HMC NUTS auto-tuning implementation
 
-      #trace_hmc = pm.sample(draws=1000, tune=700, chains=2)
+      trace_hmc = pm.sample(draws=1000, tune=700, chains=2)
       prior_pred = pm.sample_prior_predictive(samples=500)
       posterior_pred = pm.sample_ppc(trace_hmc, samples=200)
 
 with airline_model:
     
       pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
+      
+with airline_model:
+      
+      trace_hmc = pm.load_trace(results_path + 'Traces_pickle_hmc/')
         
 with airline_model:
       
@@ -449,9 +453,9 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       # Traceplots
       
-      pa.traceplots(trace_hmc, varnames, ml_deltas, 4)
-      pa.traceplots(trace_mf, varnames, ml_deltas, 5)
-      pa.traceplots(trace_fr, varnames, ml_deltas, 5)
+      pa.traceplots(trace_hmc, varnames, ml_deltas, 4, combined=True)
+      pa.traceplots(trace_mf, varnames, ml_deltas, 4, True)
+      pa.traceplots(trace_fr, varnames, ml_deltas, 5, True)
       
       # Prior Posterior Plot
       
@@ -539,7 +543,7 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       plt.subplot(122)
       plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
-      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      #plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
       plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
       plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
       plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
