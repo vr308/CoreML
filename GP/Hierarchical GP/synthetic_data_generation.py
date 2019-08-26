@@ -76,7 +76,7 @@ def generate_fixed_domain_data(X_all, f_all, noise_sd, uniform, seq_n_train):
 
 def generate_increasing_domain_training_sets():
       
-      return
+      return;
             
 def persist_datasets(X, y, X_star, f_star, path, suffix):
       
@@ -114,7 +114,6 @@ def plot_datasets(data_sets, snr, unif):
 
 if __name__ == "__main__":
 
-    n_train = 20
     n_star = 200
     
     xmin = 0
@@ -128,10 +127,9 @@ if __name__ == "__main__":
     
     # Kernel Hyperparameters 
     
-    sig_sd_true = 10.0
+    sig_sd_true = 25.0
     lengthscale_true = 5.0
     
-    hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     cov = pm.gp.cov.Constant(sig_sd_true**2)*pm.gp.cov.ExpQuad(1, lengthscale_true)
     
     # This will change the shape of the function
@@ -141,12 +139,13 @@ if __name__ == "__main__":
     # Data attributes
     
     noise_sd_true = np.sqrt(100)
+    hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
     
-    uniform = False
+    uniform = True
     
-    seq_n_train = [5, 10, 20, 40]  
+    seq_n_train = [5, 10, 20, 40, 80, 120, 150]  
     
     data_sets = generate_fixed_domain_data(X_all, f_all, noise_sd_true, uniform, seq_n_train)
     plot_datasets(data_sets, snr, 'NUnif')

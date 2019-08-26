@@ -44,6 +44,11 @@ def traceplots(trace, varnames, deltas, sep_idx, combined):
                   traces_part2[i%sep_idx][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
                   traces_part2[i%sep_idx][1].axhline(y=delta, color='r', alpha=0.5)
                   traces_part2[i%sep_idx][0].legend(fontsize='x-small')
+                  
+
+def get_trace_divergences(trace):
+      
+      return;
 
 
 def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, rv_mapping):
@@ -149,7 +154,7 @@ def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, m
       for i in np.arange(len(trace))[::thin_factor]:
             
             print('Predicting ' + str(i))
-            post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=False, diag=True)
+            post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=True, diag=True)
             post_std = np.sqrt(post_var)
             #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
             #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
