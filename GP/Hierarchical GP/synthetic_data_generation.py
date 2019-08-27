@@ -51,7 +51,7 @@ def generate_fixed_domain_data(X_all, f_all, noise_sd, uniform, seq_n_train):
        seq_n_train_r = np.flip(seq_n_train)
        data_sets = {}
        
-       for i,j in zip(seq_n_train_r, [0,1,2,3]):
+       for i,j in zip(seq_n_train_r, np.arange(len(seq_n_train))):
              
             if j == 0:
                   X, y, f, train_index = generate_gp_training(X_all, f_all, np.max(seq_n_train), noise_sd, uniform)
@@ -99,25 +99,25 @@ def plot_noisy_data(X, y, X_star, f_star, title):
 
 def plot_datasets(data_sets, snr, unif):
       
-      plt.figure(figsize=(20,5))
+      plt.figure(figsize=(10,5))
       
-      for i, j in zip([0,1,2,3], seq_n_train):
-            plt.subplot(1,4,i+1)
+      for i, j in zip(np.arange(len(seq_n_train)), seq_n_train):
+            plt.subplot(2,4,i+1)
             plt.plot(data_sets['X_star_' + str(j)], data_sets['f_star_' + str(j)], "dodgerblue", lw=3, label="True f")
             plt.plot(data_sets['X_' + str(j)], data_sets['y_' + str(j)], 'ok', ms=3, alpha=0.5, label="Data")
             plt.xlabel("X") 
             plt.ylabel("The true f(x)") 
             plt.title('N = ' + str(j), fontsize = 'small')
-            plt.ylim(-25, 25)
+            plt.ylim(-50, 50)
       plt.tight_layout()
       plt.suptitle('Fixed Domain Training data, SNR = ' + str(snr) + ', ' + unif, fontsize='x-small')
 
 if __name__ == "__main__":
 
-    n_star = 200
+    n_star = 500
     
     xmin = 0
-    xmax = 30
+    xmax = 100
     
     X_all = np.linspace(xmin, xmax,n_star)[:,None]
     
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     # Kernel Hyperparameters 
     
     sig_sd_true = 25.0
-    lengthscale_true = 5.0
+    lengthscale_true = 20.0
     
     cov = pm.gp.cov.Constant(sig_sd_true**2)*pm.gp.cov.ExpQuad(1, lengthscale_true)
     
@@ -145,37 +145,37 @@ if __name__ == "__main__":
     
     uniform = True
     
-    seq_n_train = [5, 10, 20, 40, 80, 120, 150]  
+    seq_n_train = [10, 20, 40, 80, 100, 120]  
     
     data_sets = generate_fixed_domain_data(X_all, f_all, noise_sd_true, uniform, seq_n_train)
-    plot_datasets(data_sets, snr, 'NUnif')
+    plot_datasets(data_sets, snr, 'Unif')
 
     for i in seq_n_train:
       
           suffix = '_' + str(i)
           struct_tag = 'Unif' if uniform else 'NUnif'
          
-          snr_tag = 'SNR_' + str(int(np.round(snr)))
+          snr_tag = 'snr_' + str(int(np.round(snr)))
       
           X = data_sets['X' + suffix]
           y = data_sets['y' + suffix]
           X_star = data_sets['X_star' + suffix]
           f_star = data_sets['f_star' + suffix]    
           
-          path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/' + struct_tag + '/' + snr_tag +'/'
+          path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/' + struct_tag + '/' + snr_tag +'/'
           persist_datasets(X, y, X_star, f_star, path, suffix)
 
-      # Persist the f_all and X_all
+    # Persist the f_all and X_all
       
-      path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Data/1d/' 
+    path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/' 
       
-     #np.savetxt(path + 'X_all.csv', X_all, delimiter=',')
-     #np.savetxt(path + 'f_all.csv', f_all, delimiter=',')
+    np.savetxt(path + 'X_all.csv', X_all, delimiter=',')
+    np.savetxt(path + 'f_all.csv', f_all, delimiter=',')
       
-     # Read f_all and X_all
+    # Read f_all and X_all
      
-     X_all = np.array(pd.read_csv(path + 'X_all.csv', sep=',', header=None))
-     f_all = np.array(pd.read_csv(path + 'f_all.csv', sep=',', header=None)).reshape(200,)
+    X_all = np.array(pd.read_csv(path + 'X_all.csv', sep=',', header=None))
+    f_all = np.array(pd.read_csv(path + 'f_all.csv', sep=',', header=None)).reshape(200,)
      
      
 

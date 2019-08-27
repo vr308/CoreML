@@ -25,13 +25,14 @@ import csv
 import scipy.stats as st
 import warnings
 import posterior_analysis as pa
+import synthetic_data_generation as sdg
 warnings.filterwarnings("ignore")
 
 #----------------------------Loading persisted data----------------------------
 
-def load_datasets(path, n_train):
+def load_datasets(path, n_train, n_star):
       
-       n_test = 200 - n_train
+       n_test = n_star - n_train
        X = np.asarray(pd.read_csv(path + 'X_' + str(n_train) + '.csv', header=None)).reshape(n_train,1)
        y = np.asarray(pd.read_csv(path + 'y_' + str(n_train) + '.csv', header=None)).reshape(n_train,)
        X_star = np.asarray(pd.read_csv(path + 'X_star_' + str(n_train) + '.csv', header=None)).reshape(n_test,1)
@@ -44,9 +45,9 @@ def load_datasets(path, n_train):
     
 def get_ml_report(X, y, X_star, f_star):
       
-          kernel = Ck(50, (1e-10, 1e3)) * RBF(0.0001, length_scale_bounds=(1e-10, 8)) + WhiteKernel(1.0, noise_level_bounds=(1e-10,1000))
+          kernel = Ck(50, (1e-10, 1e3)) * RBF(0.0001, length_scale_bounds=(1e-10, 1e3)) + WhiteKernel(1.0, noise_level_bounds=(1e-10,1000))
           
-          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
+          gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
               
           # Fit to data 
           gpr.fit(X, y)        
@@ -61,6 +62,81 @@ def get_ml_report(X, y, X_star, f_star):
           ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
                             'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
           return gpr, post_mean, post_std, post_std_nf, rmse_, lpd_, ml_deltas_dict, title
+    
+# For one training set size 
+def get_ml_II_hyp_variance(X, y, X_star, f_star, runs):
+      
+          ml_deltas_runs = [];  rmse_runs = []; nlpd_runs = []; post_means = []; lml_runs = []
+         
+          kernel = Ck(50, (1e-3, 1e+7)) * RBF(1, length_scale_bounds=(1e-3, 1e+7)) + WhiteKernel(1.0, noise_level_bounds=(1e-3,1e+7))
+          
+          for i in np.arange(runs):
+                print('Run ' + str(i))
+                gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=5)
+                gpr.fit(X, y)        
+                ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
+                post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
+                post_std = np.sqrt(np.diag(post_cov))
+                post_std_nf = np.sqrt(np.diag(post_cov) - ml_deltas[2])
+                rmse_ = pa.rmse(post_mean, f_star)
+                lpd_ = -pa.log_predictive_density(f_star, post_mean, post_std)
+                lml = gpr.log_marginal_likelihood_value_
+                
+                ml_deltas_runs.append(ml_deltas)
+                rmse_runs.append(rmse_)
+                nlpd_runs.append(lpd_)
+                lml_runs.append(lml)
+                post_means.append(post_mean)
+      
+          return np.array(ml_deltas_runs).reshape(runs,3), rmse_runs, nlpd_runs, lml_runs, np.array(post_means)
+              
+def plot_hyp_variance(sig_sd_data, ls_data, noise_sd_data, labels, snr):
+      
+      plt.figure(figsize=(20,8))
+      plt.subplot(131)
+      sns.violinplot(data=sig_sd_data.T, orient='v', palette='Blues_d', cut=0)
+      sns.swarmplot(data=sig_sd_data.T, color='.2')
+      plt.xticks(np.arange(6),labels)
+      plt.axhline(y=true_hyp[0], color='r', alpha=0.5, label='True value')
+      plt.title('sig_sd', fontsize='small')
+      plt.xlabel('N_train', fontsize='small')
+      plt.legend(fontsize='small')
+      plt.subplot(132)
+      sns.violinplot(data=ls_data.T, orient='v', palette='Greens_d', cut=0)
+      sns.swarmplot(data=sig_sd_data.T, color='.2')
+      plt.axhline(y=true_hyp[1], color='r', alpha=0.5,label='True value')
+      plt.title('lengthscale', fontsize='small')
+      plt.legend(fontsize='small')
+      plt.xlabel('N_train', fontsize='small')
+      plt.xticks(np.arange(6),labels)
+      plt.subplot(133)
+      sns.violinplot(data=noise_sd_data.T, orient='v', palette='Reds_d', inner='sticks')
+      plt.xticks(np.arange(6),labels)
+      plt.axhline(y=true_hyp[2], color='r', alpha=0.5,label='True value')
+      plt.title('noise_sd', fontsize='small')
+      plt.legend(fontsize='small')
+      plt.xlabel('N_train', fontsize='small')
+      plt.suptitle('Evolution / Variance of ML-II estimates vs. N' + 'snr: ' + str(snr), fontsize='small')
+
+      
+def plot_metric_curves(rmse_data, nlpd_data, labels):
+
+      plt.figure(figsize=(15,8))
+      plt.subplot(121)
+      plt.violinplot(rmse_data, showmeans=True, bw_method=0.3)
+      plt.xticks(np.arange(7)[1:], labels)
+      plt.title('RMSE (Test)', fontsize='small')
+      plt.xlabel('N_train')
+      ax = plt.subplot(122)      
+      vp = ax.violinplot(nlpd_data, showmeans=True, bw_method=0.3)
+      for v in vp['bodies']:
+            v.set_facecolor('red')
+      for v in ('cbars','cmins','cmaxes','cmeans'):
+            vp[v].set_edgecolor('red')
+      plt.xticks(np.arange(7)[1:], labels)
+      plt.title('Neg. Log Predictive Density (Test)', fontsize='small')
+      plt.xlabel('N_train')
+
 
 # Generative model for full Bayesian treatment
 
@@ -518,15 +594,15 @@ if __name__ == "__main__":
       # Edit here to change generative model
       
       input_dist =  'Unif'
-      snr = 4
-      n_train = [5, 10, 20, 40]
-      suffix = input_dist + '/' + 'SNR_' + str(snr) + '/'
-      true_hyp = [np.round(np.sqrt(100),3), 5, np.round(np.sqrt(25),3)]
+      snr = 6
+      n_train = [10, 20, 40, 80, 100, 120]  
+      suffix = input_dist + '/' + 'snr_' + str(snr) + '/'
+      true_hyp = [np.round(np.sqrt(625),3), 5, np.round(np.sqrt(100),3)]
       
-      suffix_t = 'SNR = ' + str(snr) + ', ' + input_dist
+      suffix_t = 'snr = ' + str(snr) + ', ' + input_dist
 
       data_path = path + suffix
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/Results/1d/' + suffix 
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/1d/' + suffix 
       
       true_hyp_dict = {'sig_sd': true_hyp[0], 'ls': true_hyp[1] , 'noise_sd': true_hyp[2], 'log_s': np.log(true_hyp[0]),  'log_ls':np.log(true_hyp[1]) , 'log_n':np.log(true_hyp[2])}
       varnames = ['sig_sd', 'ls', 'noise_sd']
@@ -537,23 +613,54 @@ if __name__ == "__main__":
       #----------------------------------------------------
       
       # Type II ML
+      n_star = 500
       
-      X_5, y_5, X_star_5, f_star_5 = load_datasets(data_path, 5)
-      X_10, y_10, X_star_10, f_star_10 = load_datasets(data_path, 10)
-      X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20)
-      X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40)
+      X_10, y_10, X_star_10, f_star_10 = load_datasets(data_path, 10, n_star)
+      X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20, n_star)
+      X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40, n_star)
+      X_80, y_80, X_star_80, f_star_80 = load_datasets(data_path, 80, n_star)
+      X_100, y_100, X_star_100, f_star_100 = load_datasets(data_path, 100, n_star)
+      X_120, y_120, X_star_120, f_star_120 = load_datasets(data_path, 120, n_star)
+
       
       X = [X_5, X_10, X_20, X_40]
       y = [y_5, y_10, y_20, y_40]
       X_star = [X_star_5, X_star_10, X_star_20, X_star_40]
       f_star = [f_star_5, f_star_10, f_star_20, f_star_40] 
       
-      # Collecting ML stats for 1 generative model
+      # Plot metric curves RMSE, NLPD for ML-II
+
+      hyp_10, rmse_10, nlpd_10, lml_10, means_10 = get_ml_II_hyp_variance(X_10, y_10, X_star_10, f_star_10, runs)  
+      hyp_20, rmse_20, nlpd_20, lml_20, means_20 = get_ml_II_hyp_variance(X_20, y_20, X_star_20, f_star_20, runs)  
+      hyp_40, rmse_40, nlpd_40, lml_40, means_40 = get_ml_II_hyp_variance(X_40, y_40, X_star_40, f_star_40, runs)  
+      hyp_80, rmse_80, nlpd_80, lml_80, means_80 = get_ml_II_hyp_variance(X_80, y_80, X_star_80, f_star_80, runs)  
+      hyp_100, rmse_100, nlpd_100, lml_100, means_80 = get_ml_II_hyp_variance(X_100, y_100, X_star_100, f_star_100, runs)  
+      hyp_120, rmse_120, nlpd_120, lml_120, means_120 = get_ml_II_hyp_variance(X_120, y_120, X_star_120, f_star_120, runs)  
       
-      gpr_5, pp_mean_ml_5, pp_std_ml_5, pp_std_ml_nf_5, rmse_ml_5, lpd_ml_5, ml_deltas_dict_5, title_5 =  get_ml_report(X_5, y_5, X_star_5, f_star_5)
+      rmse_data = np.vstack((rmse_10, rmse_20, rmse_40, rmse_80, rmse_100, rmse_120)).T
+      nlpd_data = np.vstack((nlpd_10, nlpd_20, nlpd_40, nlpd_80, nlpd_100, nlpd_120)).T
+      labels=seq_n_train
+      
+      # Function Call
+      plot_metric_curves(rmse_data, nlpd_data, labels)
+      
+      # Plot hyp variance vs. N for ML-II
+      
+      sig_sd_data = np.vstack((np.sqrt(hyp_10[:,0]), np.sqrt(hyp_20[:,0]), np.sqrt(hyp_40[:,0]), np.sqrt(hyp_80[:,0]), np.sqrt(hyp_100[:,0]), np.sqrt(hyp_120[:,0])))
+      ls_data = np.vstack((hyp_10[:,1], hyp_20[:,1], hyp_40[:,1], hyp_80[:,1], hyp_100[:,1], hyp_120[:,1]))
+      noise_sd_data = np.vstack((np.sqrt(hyp_10[:,2]), np.sqrt(hyp_20[:,2]), np.sqrt(hyp_40[:,2]), np.sqrt(hyp_80[:,2]), np.sqrt(hyp_100[:,2]), np.sqrt(hyp_120[:,2])))
+      
+      # Function Call
+      plot_hyp_variance(sig_sd_data, ls_data, noise_sd_data, labels)
+      
+      # Collecting ML stats for 1 generative model
+
       gpr_10, pp_mean_ml_10, pp_std_ml_10, pp_std_ml_nf_10, rmse_ml_10, lpd_ml_10, ml_deltas_dict_10, title_10 =  get_ml_report(X_10, y_10, X_star_10, f_star_10)
       gpr_20, pp_mean_ml_20, pp_std_ml_20, pp_std_ml_nf_20, rmse_ml_20, lpd_ml_20, ml_deltas_dict_20, title_20 =  get_ml_report(X_20, y_20, X_star_20, f_star_20)
       gpr_40, pp_mean_ml_40, pp_std_ml_40, pp_std_ml_nf_40, rmse_ml_40, lpd_ml_40, ml_deltas_dict_40, title_40 =  get_ml_report(X_40, y_40, X_star_40, f_star_40)
+      gpr_80, pp_mean_ml_80, pp_std_ml_80, pp_std_ml_nf_80, rmse_ml_80, lpd_ml_80, ml_deltas_dict_80, title_80 = get_ml_report(X_80, y_80, X_star_80, f_star_80)  
+      gpr_100, pp_mean_ml_100, pp_std_ml_100, pp_std_ml_nf_100, rmse_ml_100, lpd_ml_100, ml_deltas_dict_100, title_100 =  get_ml_report(X_100, y_100, X_star_100, f_star_100)  
+      gpr_120, pp_mean_ml_120, pp_std_ml_120, pp_std_ml_nf_120, rmse_ml_120, lpd_ml_120, ml_deltas_dict_120, title_120 =  get_ml_report(X_120, y_120, X_star_120, f_star_120)
      
       # LML Surface
       
