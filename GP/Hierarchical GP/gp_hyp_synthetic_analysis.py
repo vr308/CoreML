@@ -702,11 +702,13 @@ if __name__ == "__main__":
             
       # Generating traces with NUTS
       
-      with generative_model(X=X_5, y=y_5): trace_hmc_5 = pm.sample(draws=1000, tune=1000)
       with generative_model(X=X_10, y=y_10): trace_hmc_10 = pm.sample(draws=1000, tune=1000)
       with generative_model(X=X_20, y=y_20): trace_hmc_20 = pm.sample(draws=1000, tune=1000)
       with generative_model(X=X_40, y=y_40): trace_hmc_40 = pm.sample(draws=1000, tune=1000)
-      
+      with generative_model(X=X_80, y=y_80): trace_hmc_80 = pm.sample(draws=1000, tune=1000)
+      with generative_model(X=X_100, y=y_100): trace_hmc_100 = pm.sample(draws=1000, tune=1000)
+      with generative_model(X=X_120, y=y_120): trace_hmc_120 = pm.sample(draws=1000, tune=1000)
+
       # Persist traces
        
       with generative_model(X=X_5, y=y_5): pm.save_trace(trace_hmc_5, directory = results_path + 'traces_hmc/x_5/')
@@ -769,21 +771,53 @@ if __name__ == "__main__":
 
        # Predictive means and stds - generate them 
        
-       write_posterior_predictive_samples(trace_hmc_5, 50, X_5, y_5, X_star_5, results_path, 'hmc_lu')
        write_posterior_predictive_samples(trace_hmc_10, 40, X_10, y_10,  X_star_10, results_path, 'hmc')
-       write_posterior_predictive_samples(trace_hmc_20, 20, X_20, y_20,  X_star_20, results_path, 'hmc')
-       write_posterior_predictive_samples(trace_hmc_40, 20, X_40, y_40, X_star_40, results_path, 'hmc') 
-       
-       post_means_hmc_lu_5, post_stds_hmc_lu_5 = load_post_samples(results_path + 'means_hmc_lu_5.csv', results_path + 'std_hmc_lu_5.csv')
+       write_posterior_predictive_samples(trace_hmc_20, 40, X_20, y_20,  X_star_20, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_40, 40, X_40, y_40, X_star_40, results_path, 'hmc') 
+       write_posterior_predictive_samples(trace_hmc_80, 50, X_80, y_80, X_star_80, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_100, 50, X_100, y_100, X_star_100, results_path, 'hmc')
+       write_posterior_predictive_samples(trace_hmc_120, 50, X_120, y_120, X_star_120, results_path, 'hmc')
+
+
        post_means_hmc_10, post_stds_hmc_10 = load_post_samples(results_path + 'means_hmc_10.csv', results_path + 'std_hmc_10.csv')
        post_means_hmc_20, post_stds_hmc_20 = load_post_samples(results_path + 'means_hmc_20.csv', results_path + 'std_hmc_20.csv')
        post_means_hmc_40, post_stds_hmc_40 = load_post_samples(results_path + 'means_hmc_40.csv', results_path + 'std_hmc_40.csv')
+       post_means_hmc_80, post_stds_hmc_80 = load_post_samples(results_path + 'means_hmc_80.csv', results_path + 'std_hmc_80.csv')  
+       post_means_hmc_100, post_stds_hmc_100 = load_post_samples(results_path + 'means_hmc_100.csv', results_path + 'std_hmc_100.csv')
+       post_means_hmc_120, post_stds_hmc_120 = load_post_samples(results_path + 'means_hmc_120.csv', results_path + 'std_hmc_120.csv')
        
        trace_hmc_5 = pd.read_csv(results_path + 'trace_hmc_5.csv')
        trace_hmc_10 = pd.read_csv(results_path + 'trace_hmc_10.csv')
        trace_hmc_20 = pd.read_csv(results_path + 'trace_hmc_20.csv')
        trace_hmc_40 = pd.read_csv(results_path + 'trace_hmc_40.csv')
+       
+       def get_rmse_post_samples(post_means_hmc, post_stds_hmc, f_star):
+             
+             rmse = []
+             nlpd= []
+             for i in np.arange(len(post_means_hmc)):
+                   print('Computing RMSE / NLPD ' + str(i))
+                   rmse.append(pa.rmse(post_means_hmc.ix[i], f_star))
+                   nlpd.append(-pa.log_predictive_density(f_star, post_means_hmc.ix[i], post_stds_hmc.ix[i]))
+             return rmse, nlpd
+                   
+                   
+      rmse_10, nlpd_10 = get_rmse_post_samples(post_means_hmc_10, post_stds_hmc_10, f_star_10)   
+      rmse_20, nlpd_20 = get_rmse_post_samples(post_means_hmc_20, post_stds_hmc_20, f_star_20)    
+      rmse_40, nlpd_40 = get_rmse_post_samples(post_means_hmc_40, post_stds_hmc_40, f_star_40) 
+      rmse_80, nlpd_80 = get_rmse_post_samples(post_means_hmc_80, post_stds_hmc_80, f_star_80)    
+      rmse_100, nlpd_100 = get_rmse_post_samples(post_means_hmc_100, post_stds_hmc_100, f_star_100)    
+      rmse_120, nlpd_120 = get_rmse_post_samples(post_means_hmc_120, post_stds_hmc_120, f_star_120)    
+      
+      rmse_hmc_data = np.vstack((rmse_10[0:20], rmse_20[0:20], rmse_40[0:20], rmse_80[0:20], rmse_100[0:20], rmse_120[0:20])).T
+      nlpd_hmc_data = np.vstack((nlpd_10[0:20], nlpd_20[0:20], nlpd_40[0:20], nlpd_80[0:20], nlpd_100[0:20], nlpd_120[0:20])).T
+      
+      plot_metric_curves(rmse_hmc_data, nlpd_hmc_data, labels)
 
+      plt.figure()
+      plt.subplot(121)
+      plt.violinplot(rmse_10,  vert=True)
+      plt.subplot(122)
       
       # Final predictive mean and stds
 
