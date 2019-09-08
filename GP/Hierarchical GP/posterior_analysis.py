@@ -12,13 +12,29 @@ Analysis for HMC / ADVI runs of hierarchical GP
 import csv
 import pymc3 as pm
 import numpy as np
+import theano as tt
 import matplotlib.pylab as plt
 import scipy.stats as st
+from theano.tensor.nlinalg import matrix_inverse
 import seaborn as sns
 import warnings
 import pandas as pd
 import advi_analysis as advi
 warnings.filterwarnings("ignore")
+
+
+def get_kernel_matrix_blocks(X, X_star, n_train, point, cov):
+    
+          K = cov(X)
+          K_s = cov(X, X_star)
+          K_ss = cov(X_star, X_star)
+          K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
+          K_inv = matrix_inverse(K_noise)
+          return K, K_s, K_ss, K_noise, K_inv
+
+def compute_log_marginal_likelihood(K_noise, y):
+      
+      return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
 
 # Helper functions for Trace analysis
 

@@ -68,11 +68,11 @@ def get_ml_II_hyp_variance(X, y, X_star, f_star, runs):
       
           ml_deltas_runs = [];  rmse_runs = []; nlpd_runs = []; post_means = []; lml_runs = []
          
-          kernel = Ck(50, (1e-3, 1e+7)) * RBF(1, length_scale_bounds=(1e-3, 1e+7)) + WhiteKernel(1.0, noise_level_bounds=(1e-3,1e+7))
+          kernel = Ck(50, (1e-3, 1e+7)) * RBF(1, length_scale_bounds=(1e-3, 1e+3)) + WhiteKernel(1.0, noise_level_bounds=(1e-3,1e+7))
           
           for i in np.arange(runs):
                 print('Run ' + str(i))
-                gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=5)
+                gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
                 gpr.fit(X, y)        
                 ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
                 post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
@@ -103,7 +103,7 @@ def plot_hyp_variance(sig_sd_data, ls_data, noise_sd_data, labels, snr):
       plt.legend(fontsize='small')
       plt.subplot(132)
       sns.violinplot(data=ls_data.T, orient='v', palette='Greens_d', cut=0)
-      sns.swarmplot(data=sig_sd_data.T, color='.2')
+      sns.swarmplot(data=ls_data.T, color='.2')
       plt.axhline(y=true_hyp[1], color='r', alpha=0.5,label='True value')
       plt.title('lengthscale', fontsize='small')
       plt.legend(fontsize='small')
@@ -623,10 +623,10 @@ if __name__ == "__main__":
       X_120, y_120, X_star_120, f_star_120 = load_datasets(data_path, 120, n_star)
 
       
-      X = [X_5, X_10, X_20, X_40]
-      y = [y_5, y_10, y_20, y_40]
-      X_star = [X_star_5, X_star_10, X_star_20, X_star_40]
-      f_star = [f_star_5, f_star_10, f_star_20, f_star_40] 
+      X = [X_10, X_20, X_40, X_80, X_100, X_120]
+      y = [y_10, y_20, y_40, y_80, y_100, y_120]
+      X_star = [X_star_10, X_star_20, X_star_40, X_star_80, X_star_120]
+      f_star = [f_star_10, f_star_20, f_star_40, f_star_80, f_star_120] 
       
       # Plot metric curves RMSE, NLPD for ML-II
 
@@ -639,19 +639,20 @@ if __name__ == "__main__":
       
       rmse_data = np.vstack((rmse_10, rmse_20, rmse_40, rmse_80, rmse_100, rmse_120)).T
       nlpd_data = np.vstack((nlpd_10, nlpd_20, nlpd_40, nlpd_80, nlpd_100, nlpd_120)).T
-      labels=seq_n_train
+      labels=n_train
       
       # Function Call
       plot_metric_curves(rmse_data, nlpd_data, labels)
       
-      # Plot hyp variance vs. N for ML-II
+     # Plot hyp variance vs. N for ML-II
       
       sig_sd_data = np.vstack((np.sqrt(hyp_10[:,0]), np.sqrt(hyp_20[:,0]), np.sqrt(hyp_40[:,0]), np.sqrt(hyp_80[:,0]), np.sqrt(hyp_100[:,0]), np.sqrt(hyp_120[:,0])))
       ls_data = np.vstack((hyp_10[:,1], hyp_20[:,1], hyp_40[:,1], hyp_80[:,1], hyp_100[:,1], hyp_120[:,1]))
       noise_sd_data = np.vstack((np.sqrt(hyp_10[:,2]), np.sqrt(hyp_20[:,2]), np.sqrt(hyp_40[:,2]), np.sqrt(hyp_80[:,2]), np.sqrt(hyp_100[:,2]), np.sqrt(hyp_120[:,2])))
       
       # Function Call
-      plot_hyp_variance(sig_sd_data, ls_data, noise_sd_data, labels)
+      plot_hyp_variance(sig_sd_data, ls_data, noise_sd_data, labels, 6)
+      
       
       # Collecting ML stats for 1 generative model
 
@@ -671,7 +672,7 @@ if __name__ == "__main__":
 
       # Collecting means and stds in a list for plotting
 
-      titles_ml = [ title_5, title_10, title_20, title_40]
+      titles_ml = [ title_10, title_20, title_40]
       pred_mean_ml = [pp_mean_ml_5, pp_mean_ml_10, pp_mean_ml_20, pp_mean_ml_40] 
       pred_std_ml = [pp_std_ml_5, pp_std_ml_10, pp_std_ml_20, pp_std_ml_40]
       pred_std_ml_nf = [pp_std_ml_nf_5, pp_std_ml_nf_10, pp_std_ml_nf_20, pp_std_ml_nf_40]

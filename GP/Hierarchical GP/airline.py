@@ -87,6 +87,15 @@ d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
+def get_cov_point(theta, X):
+      
+       k1 = pm.gp.cov.Constant(theta['s_1']**2)*pm.gp.cov.Matern52(1, theta['ls_2']) 
+       k2 = pm.gp.cov.Constant(theta['s_3']**2)*pm.gp.cov.ExpQuad(1, theta['ls_4'])*pm.gp.cov.Periodic(1, period=366, ls=theta['ls_5'])
+       k3 = pm.gp.cov.Constant(theta['s_6']**2)*pm.gp.cov.ExpQuad(1, theta['ls_7']) +  pm.gp.cov.WhiteNoise(theta['n_8']**2)
+       
+       k = k1 + k2 + k3
+      
+       return k(X,X)
 
 rv_mapping = {'s_1':  airline_model.log_s1_interval__, 
               'ls_2': airline_model.log_l2_interval__, 
@@ -158,6 +167,13 @@ if __name__ == "__main__":
       y = df['Passengers']
       t = df['Time_int']
       
+      # Whiten the data 
+      
+      emp_mu = np.mean(y)
+      emp_sd = np.std(y)
+      
+      y =  (y - emp_mu)/emp_sd
+      
       sep_idx = 100
       
       y_train = y[0:sep_idx].values
@@ -166,6 +182,7 @@ if __name__ == "__main__":
       t_train = t[0:sep_idx].values[:,None]
       t_test = t[sep_idx:].values[:,None]
       
+
       # ML 
       
       # sklearn kernel 
@@ -185,7 +202,7 @@ if __name__ == "__main__":
           
       #---------------------------------------------------------------------
       
-      varnames = ['c', 'i', 's_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'n_8']
+      varnames = ['s_1', 'ls_2', 's_3', 'ls_4', 'ls_5', 's_6', 'ls_7', 'n_8']
       
       sk1 = np.square(ml_deltas['s_1']) * Matern(length_scale=ml_deltas['ls_2'])
       sk2 = Ck(ml_deltas['s_3'])**2 * RBF(length_scale=ml_deltas['ls_4']) \
@@ -201,7 +218,7 @@ if __name__ == "__main__":
       
       # Fit to data 
       for i in np.arange(9):
-            gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=True, n_restarts_optimizer=10)
+            gpr = GaussianProcessRegressor(kernel=sk_kernel, normalize_y=False, n_restarts_optimizer=10)
             print('Fitting ' + str(i))
             gpr.fit(t_train, y_train)
             gpr_models.append(gpr)
@@ -219,14 +236,14 @@ if __name__ == "__main__":
       
       mu_test, std_test = gpr.predict(t_test, return_std=True)
       
-      rmse_ = pa.rmse(mu_test, y_test)
+      rmse_ = pa.rmse(mu_test*emp_sd + emp_mu, y_test*emp_sd +emp_mu)
       
       lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
       
       plt.figure()
       plt.plot(df['Year'], df['Passengers'], 'ko', markersize=2)
-      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
-      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
+      plt.plot(df['Year'][0:sep_idx], mu_fit*emp_sd + emp_mu, alpha=0.5, label='y_pred_train', color='b')
+      plt.plot(df['Year'][sep_idx:], mu_test*emp_sd + emp_mu, alpha=0.5, label='y_pred_test', color='r')
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
       plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
@@ -284,7 +301,6 @@ if __name__ == "__main__":
 
       with pm.Model() as model:
         
-          
              # Specify the covariance function
        
              k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.Matern52(1, ls_2) 
@@ -321,7 +337,7 @@ with pm.Model() as airline_model:
        #i = pm.HalfNormal('i', sd=1)
        #c = pm.HalfNormal('c', sd=1)
        #mean_trend = pm.gp.mean.Linear(coeffs=c, intercept=i)
-       mean = pm.gp.mean.Constant(np.mean(y_train))
+       #mean = pm.gp.mean.Constant(np.mean(y_train))
   
        # prior on lengthscales
        
@@ -333,7 +349,7 @@ with pm.Model() as airline_model:
        log_l2 = pm.Normal('log_l2', mu=0, sd=3)
        log_l4 = pm.Normal('log_l4', mu=0, sd=3)
        log_l5 = pm.Normal('log_l5', mu=0, sd=3)
-       log_l7 = pm.Normal('log_l7', mu=0, sd=3)
+       log_l7 = pm.Normal('log_l7', mu=0, sd=1)
 
        ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
        ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
@@ -342,17 +358,8 @@ with pm.Model() as airline_model:
        
        p = 366
        
-       #ls_2 = ml_deltas['ls_2']
-       #ls_4 = ml_deltas['ls_4']
-       #ls_7 = ml_deltas['ls_7']
-       #ls_10 = ml_deltas['ls_10']
-     
        # prior on amplitudes
 
-       #log_s1 = pm.Uniform('log_s1', lower=1, upper=10)
-       #log_s3 = pm.Uniform('log_s3', lower=-10, upper=7)
-       #log_s6 = pm.Uniform('log_s6', lower=-1, upper=4)
-       
        log_s1 = pm.Normal('log_s1', mu=0, sd=3)
        log_s3 = pm.Normal('log_s2', mu=0, sd=3)
        log_s6 = pm.Normal('log_s3', mu=0, sd=3)
@@ -364,8 +371,7 @@ with pm.Model() as airline_model:
              
        # prior on noise variance term
       
-       #log_n8 = pm.Uniform('log_n8', lower=-2, upper=5)
-       log_n8 = pm.Normal('log_n8', mu=0, sd=3)
+       log_n8 = pm.Normal('log_n8', mu=0, sd=1)
        n_8 = pm.Deterministic('n_8', tt.exp(log_n8))
               
        # Specify the covariance function
@@ -374,9 +380,9 @@ with pm.Model() as airline_model:
        k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=p, ls=ls_5)
        k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.ExpQuad(1, ls_7) +  pm.gp.cov.WhiteNoise(n_8**2)
        
-       gp_trend = pm.gp.Marginal(mean_func = mean, cov_func=k1)
-       gp_periodic = pm.gp.Marginal(mean_func = mean,  cov_func=k2)
-       gp_noise = pm.gp.Marginal(mean_func = mean, cov_func=k3)
+       gp_trend = pm.gp.Marginal(cov_func=k1)
+       gp_periodic = pm.gp.Marginal( cov_func=k2)
+       gp_noise = pm.gp.Marginal(cov_func=k3)
 
        k =  k1 + k2 
           
@@ -454,7 +460,7 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       
       # Traceplots
       
-      pa.traceplots(trace_hmc, varnames, ml_deltas, 5, combined=True)
+      pa.traceplots(trace_hmc, varnames, ml_deltas, 5, combined=False)
       pa.traceplots(trace_mf, varnames, ml_deltas, 4, True)
       pa.traceplots(trace_fr, varnames, ml_deltas, 5, True)
       
