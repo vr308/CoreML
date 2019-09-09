@@ -36,6 +36,17 @@ def compute_log_marginal_likelihood(K_noise, y):
       
       return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
 
+
+def prior_predictive(X, y, prior_pred):
+      
+      plt.figure()
+      plt.plot(X, prior_pred['y'][0], 'grey', alpha=0.2, label='Prior Predictive')
+      plt.plot(X, prior_pred['y'][1:].T, 'grey', alpha=0.2)
+      plt.plot(X, y, 'ko', markersize=2, label='Obs.')
+      plt.title('Prior Predictive Samples', fontsize='x-small')
+      plt.legend(fontsize='x-small')
+
+
 # Helper functions for Trace analysis
 
 def traceplots(trace, varnames, deltas, sep_idx, combined):
@@ -150,39 +161,42 @@ def plot_scatter(x, y, ml_deltas, color, label):
       plt.scatter(x, y, c=color, s=0.5, alpha=0.7)
       plt.scatter(ml_deltas[x.name], ml_deltas[y.name], marker='x', color='r')
       
-      
 # Helper functions to generate posterior predictive samples 
 
-def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method, gp):
+def write_posterior_predictive_samples(trace, thin_factor, X_star, path, method, gp):
       
       means_file = path + 'means_' + method + '.csv'
       std_file = path + 'std_' + method + '.csv'
-      #trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
           
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
-      #trace_writer = csv.writer(open(trace_file, 'w'))
       
       means_writer.writerow(X_star.flatten())
       std_writer.writerow(X_star.flatten())
-      #trace_writer.writerow(varnames + ['lml'])
       
       for i in np.arange(len(trace))[::thin_factor]:
             
             print('Predicting ' + str(i))
             post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=True, diag=True)
             post_std = np.sqrt(post_var)
-            #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
-            #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
-            #marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
-            #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
-            #std = np.sqrt(var)
-            #list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
-            
+           
             print('Writing out ' + str(i) + ' predictions')
             means_writer.writerow(np.round(post_mean, 3))
             std_writer.writerow(np.round(post_std, 3))
-            #trace_writer.writerow(np.round(list_point, 3))
+
+
+def record_trace_points_lml(trace, thin_factor, cov, X, X_star, y, varnames, path, method):
+      
+      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+      trace_writer = csv.writer(open(trace_file, 'w'))
+      trace_writer.writerow(varnames + ['lml'])
+
+      for i in np.arange(len(trace))[::thin_factor]:
+      
+            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i], cov)
+            marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
+            list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
+            trace_writer.writerow(np.round(list_point, 3))
 
 
 def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
