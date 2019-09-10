@@ -49,7 +49,7 @@ def prior_predictive(X, y, prior_pred):
 
 # Helper functions for Trace analysis
 
-def traceplots(trace, varnames, deltas, sep_idx, combined):
+def traceplots(trace, varnames, deltas, sep_idx, combined, clr):
 
       
             traces_part1 = pm.traceplot(trace, varnames[0:sep_idx], lines=deltas, combined=combined)
@@ -60,7 +60,7 @@ def traceplots(trace, varnames, deltas, sep_idx, combined):
                   delta = deltas.get(str(varnames[i]))
                   #xmax = max(max(trace[varnames[i]]), delta)
                   traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-                  traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+                  traces_part1[i][0].hist(trace[varnames[i]], bins=100, normed=True, color=clr, alpha=0.3)
                   traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
                   traces_part1[i][0].legend(fontsize='x-small')
             
@@ -68,7 +68,7 @@ def traceplots(trace, varnames, deltas, sep_idx, combined):
                   
                   delta = deltas.get(str(varnames[i]))
                   traces_part2[i%sep_idx][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-                  traces_part2[i%sep_idx][0].hist(trace[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+                  traces_part2[i%sep_idx][0].hist(trace[varnames[i]], bins=100, normed=True, color=clr, alpha=0.3)
                   traces_part2[i%sep_idx][1].axhline(y=delta, color='r', alpha=0.5)
                   traces_part2[i%sep_idx][0].legend(fontsize='x-small')
                   
@@ -78,10 +78,14 @@ def get_trace_divergences(trace):
       return;
 
 
-def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, rv_mapping):
+def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, rv_mapping, split):
 
-      traces_part1 = pm.traceplot(trace_hmc, varnames[0:5], lines=deltas)
-      traces_part2 = pm.traceplot(trace_hmc, varnames[5:], lines=deltas)
+      rem = len(varnames) - split
+
+      traces_part1 = pm.traceplot(trace_hmc, varnames[0:split], lines=deltas, combined=True)
+      
+      if rem > 0:
+            traces_part2 = pm.traceplot(trace_hmc, varnames[split:], lines=deltas, combined=True)
       
       means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
       std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
@@ -89,44 +93,45 @@ def traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, deltas, r
       means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
       std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
       
-      for i in np.arange(5):
+      for i in np.arange(split):
             
             delta = deltas.get(str(varnames[i]))
             xmax = max(max(trace_hmc[varnames[i]]), delta)
-            xmin = 0
+            xmin = 1e-5
             range_i = np.linspace(xmin, xmax, 1000)  
             mf_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_mf, std_mf, range_i)
             fr_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i)
-            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3)
+            traces_part1[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 4)))
+            traces_part1[i][0].hist(trace_hmc[varnames[i]], bins=100, normed=True, color='b', alpha=0.3, label='HMC')
             traces_part1[i][1].axhline(y=delta, color='r', alpha=0.5)
             traces_part1[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
-            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
-            #traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3)
+            traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4, label='MF')
+            traces_part1[i][0].hist(trace_fr[varnames[i]], bins=100, normed=True, color='green', alpha=0.3, label='FR')
             traces_part1[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
             traces_part1[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
-            #races_part1[i][0].axes.set_ylim(0, max(mf_pdf))
+            traces_part1[i][0].axes.set_ylim(0, max(mf_pdf))
             traces_part1[i][0].legend(fontsize='x-small')
       
-      for i in np.arange(6):
+      for i in np.arange(rem):
             
-            delta = deltas.get(str(varnames[i+5]))
-            xmax = max(max(trace_hmc[varnames[i+5]]), delta)
-            xmin = 0
+            delta = deltas.get(str(varnames[i+split]))
+            xmax = max(max(trace_hmc[varnames[i+split]]), delta)
+            xmin = 1e-5
             range_i = np.linspace(xmin, xmax, 1000) 
-            mf_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_mf, std_mf, range_i)
-            fr_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i+5]), means_fr, std_fr, range_i)
-            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 2)))
-            traces_part2[i][0].hist(trace_hmc[varnames[i+5]], bins=100, normed=True, color='b', alpha=0.3)
+            mf_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i+split]), means_mf, std_mf, range_i)
+            fr_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i+split]), means_fr, std_fr, range_i)
+            traces_part2[i][0].axvline(x=delta, color='r',alpha=0.5, label='ML ' + str(np.round(delta, 4)))
+            traces_part2[i][0].hist(trace_hmc[varnames[i+split]], bins=100, normed=True, color='b', alpha=0.3, label='HMC')
             traces_part2[i][1].axhline(y=delta, color='r', alpha=0.5)
             traces_part2[i][0].plot(range_i, mf_pdf, color='coral',alpha=0.4)
-            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4)
+            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=mf_pdf, color='coral', alpha=0.4, label='MF')
             traces_part2[i][0].plot(range_i, fr_pdf, color='g', alpha=0.4)
-            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4)
-            #traces_part2[i][0].plot(ranges[i], get_implicit_variational_posterior(fr_rv[i], means_fr, std_fr, ranges[i]), color='g')
+            traces_part2[i][0].fill_between(x=range_i, y1=[0]*len(range_i), y2=fr_pdf, color='green', alpha=0.4, label='FR')
+            traces_part2[i][0].axes.set_ylim(0, max(mf_pdf))
             traces_part2[i][0].legend(fontsize='x-small')
-            
-
+      
+      
+      
 # Helper functions for bi-variate traces
             
 
@@ -223,11 +228,11 @@ def get_posterior_predictive_mean(sample_means):
 # Helper functions for posterior predictive checks
 
 
-def plot_prior_posterior_plots(trace_prior, trace_posterior, varnames, deltas):
+def plot_prior_posterior_plots(trace_prior, trace_posterior, varnames, deltas, title):
         
         plt.figure(figsize=(14,8))
         for i in np.arange(len(varnames)):
-                if (i%6 == 0):
+                if (i%7 == 0):
                     plt.figure(figsize=(14,8))
                 plt.subplot(2,3, i%6 + 1)
                 plt.hist(trace_prior[varnames[i]], bins=500, alpha=0.4, normed=True, label='Prior')
@@ -235,7 +240,22 @@ def plot_prior_posterior_plots(trace_prior, trace_posterior, varnames, deltas):
                 plt.axvline(x=deltas[varnames[i]], ymin=0, color='r')
                 plt.legend(fontsize='x-small')
                 plt.title(varnames[i])
-        plt.suptitle('Prior Posterior Plots', fontsize='small')
+        plt.suptitle(title, fontsize='small')
+        
+
+def traceplots_two_way_compare(trace_mf, trace_fr, varnames, deltas, title, label1, label2):
+      
+        plt.figure(figsize=(14,8))
+        for i in np.arange(len(varnames)):
+                if (i%7 == 0):
+                    plt.figure(figsize=(14,8))
+                plt.subplot(2,3, i%6 + 1)
+                plt.hist(trace_fr[varnames[i]], bins=500, alpha=0.4, color='g', normed=True, label=label2)
+                plt.hist(trace_mf[varnames[i]], bins=500, alpha=0.4, color='coral', normed=True, label=label1)
+                plt.axvline(x=deltas[varnames[i]], ymin=0, color='r')
+                plt.legend(fontsize='x-small')
+                plt.title(varnames[i])
+        plt.suptitle(title, fontsize='small')
       
 
 # Helper functions for Metrics

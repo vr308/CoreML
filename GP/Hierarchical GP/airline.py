@@ -97,17 +97,13 @@ def get_cov_point(theta, X):
       
        return k(X,X)
 
-rv_mapping = {'s_1':  airline_model.log_s1_interval__, 
-              'ls_2': airline_model.log_l2_interval__, 
-              's_3':  airline_model.log_s3_interval__,
-              'ls_4': airline_model.log_l4_interval__,
-              'ls_5': airline_model.log_l5_interval__,
-              's_6': airline_model.log_s6_interval__,
-              'ls_7': airline_model.log_l7_interval__,
-              'alpha_8': airline_model.log_alpha8_interval__,
-              's_9': airline_model.log_s9_interval__,
-              'ls_10': airline_model.log_l10_interval__,
-               'n_11': airline_model.log_n11_interval__}
+rv_mapping = {'s_1':  airline_model.log_s1, 
+              'ls_2': airline_model.log_l2, 
+              'ls_3':  airline_model.log_l3,
+              's_4': airline_model.log_s4,
+              'ls_5': airline_model.log_l5,
+              'n_6': airline_model.log_n6}
+          
 
 raw_mapping = {'log_s1_interval__':  airline_model.log_s1_interval__, 
               'log_l2_interval__': airline_model.log_l2_interval__, 
@@ -254,7 +250,7 @@ if __name__ == "__main__":
       plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
-      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'NLPD: ' + str(-lpd_), fontsize='small')
       
       s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.constant_value)
       ls_2 = gpr.kernel_.k1.k1.k2.length_scale
@@ -393,13 +389,13 @@ with airline_model:
         
 with airline_model:
       
-      mf = pm.ADVI(start=ml_deltas)
+      mf = pm.ADVI()
 
       tracker_mf = pm.callbacks.Tracker(
       mean = mf.approx.mean.eval,    
       std = mf.approx.std.eval)
      
-      mf.fit(n=40000, callbacks=[tracker_mf])
+      mf.fit(n=80000, callbacks=[tracker_mf])
       
       trace_mf = mf.approx.sample(4000)
       
@@ -414,6 +410,7 @@ with airline_model:
       fr.fit(n=50000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
+      
       bij_mf = mf.approx.groups[0].bij
 mf_param = {param.name: bij_mf.rmap(param.eval())
 	 for param in mf.approx.params}
@@ -422,10 +419,7 @@ mf_param = {param.name: bij_mf.rmap(param.eval())
 fr_param = {param.name: bij_fr.rmap(param.eval())
 	 for param in fr.approx.params}
 
-      check_mf.approx.params[0].set_value(bij_mf.map(mf_param['mu']))
-      check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
-
-      # Updating with implicit values
+      # Updating with implicit values - %TODO Testing
       
       mf_param = ad.analytical_variational_opt(airline_model, mf_param, pm.summary(trace_mf), raw_mapping, name_mapping)
       fr_param = ad.analytical_variational_opt(airline_model, fr_param, pm.summary(trace_fr), raw_mapping, name_mapping)
@@ -442,12 +436,21 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
       # Traceplots
       
       pa.traceplots(trace_hmc, varnames, ml_deltas, 3, combined=False)
-      pa.traceplots(trace_mf, varnames, ml_deltas, 4, True)
+      pa.traceplots(trace_mf, varnames, ml_deltas, 3, True)
       pa.traceplots(trace_fr, varnames, ml_deltas, 5, True)
       
+      # Traceplots compare
+      
+      pa.traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, rv_mapping, 6)
+      plt.suptitle('Marginal Hyperparameter Posteriors', fontsize='small')
+     
       # Prior Posterior Plot
       
-      pa.plot_prior_posterior_plots(trace_prior, trace_hmc, varnames, ml_deltas)
+      pa.plot_prior_posterior_plots(trace_prior, trace_hmc, varnames, ml_deltas, 'Prior Posterior HMC')
+      pa.plot_prior_posterior_plots(trace_prior, trace_mf, varnames, ml_deltas, 'Prior Posterior MF')
+      pa.plot_prior_posterior_plots(trace_prior, trace_fr, varnames, ml_deltas, 'Prior Posterior FR')
+      
+      pa.traceplots_two_way_compare(trace_mf, trace_fr, varnames, ml_deltas, 'Posteriors MF / FR', 'MF', 'FR')
 
       # Autocorrelations
       
@@ -460,90 +463,185 @@ fr_param = {param.name: bij_fr.rmap(param.eval())
 
       # Pair Grid plots 
       
-      trace = trace_hmc
-      clr='blue'
+      trace = trace_mf
+      clr='coral'
       
-      k1_names = ['s_1', 'ls_2']
-      k2_names = ['s_3', 'ls_4', 'ls_5']
-      k3_names = ['s_6', 'ls_7', 'n_8']
+      k1_names = ['s_1', 'ls_2', 'ls_3']
+      k2_names = ['s_4', 'ls_5', 'n_6']
       
       trace_k1 = pa.get_subset_trace(trace, k1_names)
       trace_k2 = pa.get_subset_trace(trace, k2_names)
-      trace_k3 = pa.get_subset_trace(trace, k3_names)
       
       pa.pair_grid_plot(trace_k1, ml_deltas, k1_names, color=clr)
       pa.pair_grid_plot(trace_k2, ml_deltas, k2_names, color=clr)
-      pa.pair_grid_plot(trace_k3, ml_deltas, k3_names, color=clr)
-
-      # Testing convergence of ADVI 
       
-      pa.convergence_report(tracker_mf, mf_param, mf.hist, 'Mean Field Convergence Report')
-      pa.convergence_report(tracker_fr, fr_param, fr.hist, 'Full Rank Convergence Report')
+      
+      # Pair scatter plot 
+      from itertools import combinations
+
+      bi_list = []
+      for i in combinations(varnames, 2):
+            bi_list.append(i)
+            
+      
+      for i, j  in zip(bi_list, np.arange(len(bi_list))):
+        print(i)
+        print(j)
+        if np.mod(j,8) == 0:
+            fig = plt.figure(figsize=(15,8))
+        plt.subplot(2,4,np.mod(j, 8)+1)
+        sns.kdeplot(trace_fr[i[0]], trace_fr[i[1]], color='g', shade=True, bw='silverman', shade_lowest=False, alpha=0.9)
+        #sns.kdeplot(trace_hmc[i[0]], trace_hmc[i[1]], color='b', shade=True, bw='silverman', shade_lowest=False, alpha=0.8)
+        sns.kdeplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', shade=True, bw='silverman', shade_lowest=False, alpha=0.8)
+        #sns.scatterplot(trace_mf[i[0]], trace_mf[i[1]], color='coral', size=1, legend=False)
+        #sns.scatterplot(trace_fr[i[0]], trace_fr[i[1]], color='g', size=1, legend=False)
+        plt.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
+        plt.xlabel(i[0])
+        plt.ylabel(i[1])
+        plt.tight_layout()
+      
+      
+      # Testing convergence of ADVI - TODO 
+      
+      ad.convergence_report(tracker_mf, mf_param, varnames,  mf.hist, 'Mean Field Convergence Report')
+      pa.convergence_report(tracker_fr, fr_param, varnames, fr.hist, 'Full Rank Convergence Report')
             
       # Predictions
 
       # HMC
       
-      sample_means_hmc, sample_stds_hmc = pa.write_posterior_predictive_samples(trace_hmc, 50, t_test, results_path + 'pred_dist/', method='hmc_5', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_hmc, 10, t_test, results_path + 'pred_dist/', method='hmc_final', gp=gp) 
       
-      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc_5.csv')
-      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc_5.csv')
+      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc_final.csv')
+      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc_final.csv')
+      
+      sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
+      sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
       
       mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
       lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
       
-      rmse_hmc = pa.rmse(forward_mu(mu_hmc, emp_mu, emp_std), forward_mu(y_test, emp_mu, emp_std))
-      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+      rmse_hmc = pa.rmse(mu_hmc, forward_mu(y_test, emp_mu, emp_std))
+      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_hmc, sample_stds_hmc)
       
       
       plt.figure()
+      plt.plot(t_test, sample_means_hmc.T, 'grey', alpha=0.2)
       plt.plot(t_test, mu_test, 'r-')
       plt.plot(t_test, forward_mu(y_test, emp_mu, emp_std), 'ko')
-      plt.plot(t_test, sample_means_hmc.T*emp_std + emp_mu, 'g-', alpha=0.4)
-      plt.plot(t_test, mu_hmc*emp_sd + emp_mu, 'b-')
+      plt.plot(t_test, mu_hmc, 'b-')
+      plt.fill_between(t_test.flatten(), lower_hmc, upper_hmc, color='blue', alpha=0.2)
+      plt.fill_between(t_test.flatten(), mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
 
-      
      
       # MF
       
-      sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 200, t_test, results_path, method='mf') 
+      pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 
       
       sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
       sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
       
-      mu_mf = get_posterior_predictive_mean(sample_means_mf)
-      lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+      sample_means_mf = forward_mu(sample_means_mf, emp_mu, emp_std)
+      sample_stds_mf = forward_std(sample_stds_mf, emp_std)
       
+      mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
+      lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
+      rmse_mf = pa.rmse(mu_mf, forward_mu(y_test, emp_mu, emp_std))
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+
+
       # FR
       
-      sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
-      mu_fr = get_posterior_predictive_mean(sample_means_fr)
+      pa.write_posterior_predictive_samples(trace_fr, 20, t_test, results_path +  'pred_dist/', method='fr', gp=gp) 
       
       sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
       sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
       
-      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      sample_means_fr = forward_mu(sample_means_fr, emp_mu, emp_std)
+      sample_stds_fr = forward_std(sample_stds_fr, emp_std)
+      
+      mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
+      lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      
+      rmse_fr = pa.rmse(mu_fr, forward_mu(y_test, emp_mu, emp_std))
+      lppd_fr, lpd_fr = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_fr, sample_stds_fr)
                   
       
-      # Plot HMC vs ML vs FR
+      # Plot HMC vs ML vs MF vs FR / All-in 
 
-      plt.figure(figsize=(14,6))
-      plt.subplot(121)
-      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
-      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.figure(figsize=(18,10))
+      plt.subplot(241)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      #plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
       plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
-      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+      plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'NLPD: ' + str(-lpd_), fontsize='small')
       
-      plt.subplot(122)
-      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=1)
-      #plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='train', color='k')
+      plt.subplot(242)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
       plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
-      plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
+      #plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
       plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
       plt.legend(fontsize='small')
-      plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
+      plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'NLPD: ' + str(-lpd_hmc), fontsize='small')
       
                   
+      plt.subplot(243)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.5, label='test', color='coral')
+      #plt.plot(df['Year'][sep_idx:], sample_means_hmc.T, alpha=0.1, color='gray')
+      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('MF' + '\n' + 'RMSE: ' + str(rmse_mf) + '\n' + 'NLPD: ' + str(-lpd_mf), fontsize='small')
+      
+      plt.subplot(244)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.plot(df['Year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
+      #plt.plot(df['Year'][sep_idx:], sample_means_fr.T, alpha=0.1, color='gray')
+      plt.fill_between(df['Year'][sep_idx:], lower_fr, upper_fr, color='g', alpha=0.2)
+      plt.legend(fontsize='small')
+      plt.title('FR' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'NLPD: ' + str(-lpd_fr), fontsize='small')
+      
+      
+      # All in 3-way
+      
+      plt.subplot(245)
+      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.4, label='HMC')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
+      plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, color='b')
+      plt.legend(fontsize='small')
+      plt.title('ML-II vs HMC', fontsize='small')
+
+      
+      plt.subplot(246)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.4, label='HMC')
+      plt.fill_between(df['Year'][sep_idx:], lower_fr, upper_fr, color='g', alpha=0.4, label='FR')
+      plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.8, color='b')
+      plt.plot(df['Year'][sep_idx:], mu_fr, alpha=0.8, color='g')
+      plt.legend(fontsize='small')
+      plt.title('HMC vs FR',fontsize='small')
+      
+      
+      plt.subplot(247)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.4, label='MF')
+      plt.fill_between(df['Year'][sep_idx:], lower_fr, upper_fr, color='g', alpha=0.4, label='FR')
+      plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.5, color='coral')
+      plt.plot(df['Year'][sep_idx:], mu_fr, alpha=0.5, color='g')
+      plt.legend(fontsize='small')
+      plt.title('MF vs FR',fontsize='small')
+      
+      
+      plt.subplot(248)      
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
+      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.4, label='MF')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
+      plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.5, color='coral')
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
+      plt.legend(fontsize='small')
+      plt.title('ML-II vs MF',fontsize='small')
