@@ -13,8 +13,7 @@
 import numpy as np
 import matplotlib.pylab as plt
 import scipy.stats as st
-from sklearn.mixture import BayesianGaussianMixture
-from sklearn.mixture import GaussianMixture
+import theano.tensor as tt
 import pandas as pd
 import pymc3 as pm
 import scipy 
@@ -38,7 +37,7 @@ log_data['cdf'] = np.cumsum(log_data['prob'])
 
 
 plt.figure()
-plt.plot(data['x'], data['prob'], '-')
+#plt.plot(data['x'], data['prob'], '-')
 plt.plot(data['x'], data['density'], '-')
 plt.yscale('log')
 plt.xscale('log')
@@ -58,17 +57,18 @@ u = np.random.uniform(np.min(data['cdf']), 1, (N, ))
    
 samples = []
 for i in u:
-    loc = np.where(log_data['cdf'] <= i)[0][-1]
-    lower_limit = log_data['x'][loc]
-    upper_limit = log_data['x'][loc+1]
+    loc = np.where(data['cdf'] <= i)[0][-1]
+    lower_limit = data['x'][loc]
+    upper_limit = data['x'][loc+1]
     samples.append(np.random.uniform(lower_limit, upper_limit))
 
 
 plt.figure()
-plt.hist(samples, bins=500, density=True, alpha=0.8)
+plt.hist(samples, bins=500, alpha=0.8, density=True, log=True)
 plt.title('Samples generated using inverse CDF', fontsize='small')
-#plt.xscale('log')
-#plt.xlim(0,100)
+#plt.yscale('log')
+plt.xscale('log')
+plt.xlim(0,100)
 plt.ylim(0,16)
 
 # Given 2 points of a discrete distribution, form a continuous pdf connecting the two points
@@ -128,21 +128,20 @@ with pm.Model() as model:
     
     w = pm.Deterministic('w', stick_breaking(beta))
     
-    mu = pm.Uniform('mu', -2., 8., shape=K, testval=start['mu'])
-    sd = pm.Uniform('sd', 0.001, 3, shape=K, testval=start['sd'])
+    mu = pm.Normal('mu', 0, 10, shape=K)
+    sd = pm.Gamma('sd', 0.001, 10, shape=K)
     
-    obs = pm.Mixture('obs', w, pm.Normal.dist(mu, sd), observed=np.array(samples[::10]))
+    #samples = pm.sample(500)
+    
+    obs = pm.Mixture('obs', w, pm.Normal.dist(mu, sd), observed=np.array(samples))
     
     
- start = {'mu': np.array([-0.2, 0, 1.2, 2.3, 4.5, -0.5, 0, 1,2,3,4]).reshape(11,), 
+start = {'mu': np.array([-0.2, 0, 1.2, 2.3, 4.5, -0.5, 0, 1,2,3,4]).reshape(11,), 
           'sd': np.array([0.03, 0.03, 0.045, 0.03, 0.03, 0.25, 0.5, 0.5, 0.5, 0.5, 0.5]).reshape(11,),
           'beta': np.array([0.0206186, 0.0421053, 0.10989, 0.0246914, 0.0506329, 0.0666667, 0.257143, 0.307692, 0.388889, 0.545455, 1.]).reshape(11,)}
 
 with model:
-    trace = pm.sample(500, discard_tuned_samples=False, chains=1)
-
-
-
+    trace = pm.sample(500, discard_tuned_samples=True, chains=1)
 
 
 x_plot = np.linspace(-2, 8,1000)
@@ -153,7 +152,7 @@ post_pdf_low, post_pdf_high = np.percentile(post_pdfs, [2.5, 97.5], axis=0)
 
 plt.figure()
 plt.plot(x_plot, post_pdfs.T, c='gray');
-plt.hist(samples[::10], bins=100, density=True)
+plt.hist(samples[::1], bins=100, density=True)
 plt.plot(x_plot, post_pdfs.mean(axis=0),
         c='k', label='Posterior expected density');
 plt.fill_between(x_plot, post_pdf_low, post_pdf_high,
