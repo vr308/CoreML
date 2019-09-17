@@ -34,20 +34,20 @@ def convergence_report(tracker, param_dict, varnames, elbo, title):
       # Plot Negative ElBO track with params in true space
       
       #mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker, param_dict)
+#      mean_fr_df, sd_fr_df = transform_tracker_values(tracker, param_dict)
 
-      fig = plt.figure(figsize=(16, 9))
-      for i in np.arange(3):
-            print(i)
+#      fig = plt.figure(figsize=(16, 9))
+#      for i in np.arange(3):
+#            print(i)
 #            if (np.mod(i,8) == 0):
 #                   fig = plt.figure(figsize=(16,9))
 #                   i = i + 8
 #                   print(i)
-            plt.subplot(2,4,np.mod(i, 8)+1)
+#            plt.subplot(2,4,np.mod(i, 8)+1)
             #plt.plot(mean_mf_df[varnames[i+8]], color='coral')
-            plt.plot(mean_fr_df[varnames[i+8]], color='green')
-            plt.title(varnames[i+8])
-            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
+#            plt.plot(mean_fr_df[varnames[i+8]], color='green')
+#            plt.title(varnames[i+8])
+#            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
       
       
       fig = plt.figure(figsize=(16, 9))

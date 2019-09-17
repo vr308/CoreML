@@ -130,7 +130,6 @@ name_mapping = {'log_s1_interval__':  's_1',
               'log_l10_interval__': 'ls_10',
               'log_n11_interval__': 'n_11'}
 
-prior_mapping = {'s_1':airline_model.s_1}
 
 def forward_mu(x, mu, std):
       

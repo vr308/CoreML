@@ -46,7 +46,6 @@ def prior_predictive(X, y, prior_pred):
       plt.title('Prior Predictive Samples', fontsize='x-small')
       plt.legend(fontsize='x-small')
 
-
 # Helper functions for Trace analysis
 
 def traceplots(trace, varnames, deltas, sep_idx, combined, clr):
@@ -176,8 +175,11 @@ def write_posterior_predictive_samples(trace, thin_factor, X_star, path, method,
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
       
-      means_writer.writerow(X_star.flatten())
-      std_writer.writerow(X_star.flatten())
+      #if(X_star.shape[1] > 1):
+            
+      #else:
+      #      means_writer.writerow(X_star.flatten())
+      #      std_writer.writerow(X_star.flatten())
       
       for i in np.arange(len(trace))[::thin_factor]:
             
@@ -230,9 +232,8 @@ def get_posterior_predictive_mean(sample_means):
 
 def plot_prior_posterior_plots(trace_prior, trace_posterior, varnames, deltas, title):
         
-        plt.figure(figsize=(14,8))
         for i in np.arange(len(varnames)):
-                if (i%7 == 0):
+                if (i%6 == 0):
                     plt.figure(figsize=(14,8))
                 plt.subplot(2,3, i%6 + 1)
                 plt.hist(trace_prior[varnames[i]], bins=500, alpha=0.4, normed=True, label='Prior')
