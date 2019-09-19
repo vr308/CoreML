@@ -263,7 +263,7 @@ def traceplots_two_way_compare(trace_mf, trace_fr, varnames, deltas, title, labe
 
 def rmse(post_mean, y_test):
     
-    return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),3)
+    return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),6)
 
 def log_predictive_density(y_test, list_means, list_stds):
       

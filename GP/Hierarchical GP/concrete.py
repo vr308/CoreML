@@ -101,7 +101,7 @@ if __name__ == "__main__":
       
       models = []
       
-      for i in [0,1,2,3]:
+      for i in [0,1,2]:
       
             gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=20)
             models.append(gpr.fit(X_train, y_train))
@@ -111,15 +111,19 @@ if __name__ == "__main__":
       
       print("Predicting with trained gp on training / test")
       
-      gpr = models[2]
-      
-      mu_fit, std_fit = gpr.predict(X_train, return_std=True)      
-      mu_test, std_test = gpr.predict(X_test, return_std=True)
+      for i in np.arange(6):
             
-      rmse_ = pa.rmse(mu_test, y_test)
+            gpr = models[i]
       
-      lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
-      
+            mu_fit, std_fit = gpr.predict(X_train, return_std=True)      
+            mu_test, std_test = gpr.predict(X_test, return_std=True)
+                  
+            rmse_ = pa.rmse(mu_test, y_test)
+            print(rmse_)
+            
+            lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+            print(lpd_)
+            
       # No plotting 
       
       s = np.sqrt(gpr.kernel_.k1.k1.constant_value)
@@ -140,8 +144,7 @@ if __name__ == "__main__":
                            'ls__7':ls[7],
                            'n': n}
       
-      ml_deltas_log = {'log_s': np.log(s), 
-                       'log_n': np.log(n), 
+      ml_deltas_log = { 'log_n': np.log(n), 
                        'log_ls__0': np.log(ls[0]),
                        'log_ls__1': np.log(ls[1]),
                        'log_ls__2': np.log(ls[2]),
@@ -149,41 +152,42 @@ if __name__ == "__main__":
                        'log_ls__4': np.log(ls[4]),
                        'log_ls__5': np.log(ls[5]),
                        'log_ls__6': np.log(ls[6]),
-                       'log_ls__7': np.log(ls[7])
+                       'log_ls__7': np.log(ls[7]),
+                       'log_s': np.log(s),
                        }
       
       
       # Plotting ML-II high-d
       
-      plt.figure(figsize=(16,9))
-      plt.subplot(241)
-      plt.plot(raw['cement'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      plt.plot(raw['cement'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
-      
-      plt.subplot(242)
-      plt.plot(raw['slag'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      plt.plot(raw['slag'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
-
-      
-      plt.subplot(243)
-      plt.plot(raw['ash'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      plt.plot(raw['ash'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
-
-      plt.subplot(244)
-      plt.plot(raw['water'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      
-      plt.subplot(245)
-      plt.plot(raw['superplasticize'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      
-      plt.subplot(246)
-      plt.plot(raw['coarse_aggregate'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      
-      plt.subplot(247)
-      plt.plot(raw['fine_aggregate'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      
-      plt.subplot(248)
-      plt.plot(raw['age'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
-      
+#      plt.figure(figsize=(16,9))
+#      plt.subplot(241)
+#      plt.plot(raw['cement'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      plt.plot(raw['cement'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
+#      
+#      plt.subplot(242)
+#      plt.plot(raw['slag'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      plt.plot(raw['slag'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
+#
+#      
+#      plt.subplot(243)
+#      plt.plot(raw['ash'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      plt.plot(raw['ash'][0:sep_idx], mu_fit*std_y + mu_y, 'ro', markersize=1)
+#
+#      plt.subplot(244)
+#      plt.plot(raw['water'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      
+#      plt.subplot(245)
+#      plt.plot(raw['superplasticize'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      
+#      plt.subplot(246)
+#      plt.plot(raw['coarse_aggregate'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      
+#      plt.subplot(247)
+#      plt.plot(raw['fine_aggregate'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      
+#      plt.subplot(248)
+#      plt.plot(raw['age'][0:sep_idx], raw['strength'][0:sep_idx], 'kx', markersize=1)
+#      
      
      #-----------------------------------------------------
 
@@ -265,13 +269,20 @@ if __name__ == "__main__":
 
       # Updating with implicit values - %TODO Testing
       
-      mf_param = ad.analytical_variational_opt(airline_model, mf_param, pm.summary(trace_mf), raw_mapping, name_mapping)
-      fr_param = ad.analytical_variational_opt(airline_model, fr_param, pm.summary(trace_fr), raw_mapping, name_mapping)
+      mf_param = ad.analytical_variational_opt(concrete_model, mf_param, pm.summary(trace_mf), raw_mapping, name_mapping)
+      fr_param = ad.analytical_variational_opt(concrete_model, fr_param, pm.summary(trace_fr), raw_mapping, name_mapping)
 
       # Saving raw ADVI results
       
       mf_df = pd.DataFrame(mf_param)
       fr_df = pd.DataFrame(fr_param)
+      
+      # Converting trace to df
+      
+      trace_prior_df = pm.trace_to_dataframe(trace_prior)
+      trace_hmc_df = pm.trace_to_dataframe(trace_hmc)
+      trace_mf_df = pm.trace_to_dataframe(trace_mf)
+      trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
       # Loading persisted trace
    
@@ -283,6 +294,14 @@ if __name__ == "__main__":
       pa.traceplots(trace_mf, ['s', 'n'], ml_deltas, 3, combined=True,clr='coral')
       pa.traceplots(trace_fr, ['s','n'], ml_deltas, 2, combined=True, 'g')
       
+      # Convergence 
+      
+      varnames_log = ['log_n', 'log_ls__0', 'log_ls__1', 'log_ls__2', 'log_ls__3',
+       'log_ls__4', 'log_ls__5', 'log_ls__6', 'log_ls__7', 'log_s']
+      
+      ad.convergence_report(tracker_mf, varnames_log, 'Mean-Field Convergence')
+      ad.convergence_report(tracker_fr, varnames_log, 'Full-Rank Convergence')
+      
       # Traceplots compare
       
       pa.traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, rv_mapping, 6)
@@ -290,15 +309,12 @@ if __name__ == "__main__":
      
       # Prior Posterior Plot
       
-      varnames_log = ['log_s', 'log_ls__0', 'log_ls__1', 'log_ls__2', 'log_ls__3',
-       'log_ls__4', 'log_ls__5', 'log_ls__6', 'log_ls__7', 'log_n']
-      
-      trace_hmc_df = pm.trace_to_dataframe(trace_hmc)
-      trace_prior_df = pm.trace_to_dataframe(trace_prior)
-      
-      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames, ml_deltas_log, 'Prior Posterior HMC')
-      pa.plot_prior_posterior_plots(trace_prior, trace_mf, varnames, ml_deltas, 'Prior Posterior MF')
-      pa.plot_prior_posterior_plots(trace_prior, trace_fr, varnames, ml_deltas, 'Prior Posterior FR')
+      varnames_log = ['log_n', 'log_ls__0', 'log_ls__1', 'log_ls__2', 'log_ls__3',
+       'log_ls__4', 'log_ls__5', 'log_ls__6', 'log_ls__7', 'log_s']
+            
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log, ml_deltas_log, 'Prior Posterior HMC')
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_mf_df, varnames_log, ml_deltas_log, 'Prior Posterior MF')
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_fr_df, varnames_log, ml_deltas_log, 'Prior Posterior FR')
       
       pa.traceplots_two_way_compare(trace_mf, trace_fr, varnames, ml_deltas, 'Posteriors MF / FR', 'MF', 'FR')
 
@@ -361,6 +377,47 @@ if __name__ == "__main__":
       
       rmse_hmc = pa.rmse(mu_hmc, y_test)
       lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_hmc, sample_stds_hmc)
+      
+      # MF
+      
+        pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 
+      
+      sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
+      sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
+      
+      sample_means_mf = forward_mu(sample_means_mf, emp_mu, emp_std)
+      sample_stds_mf = forward_std(sample_stds_mf, emp_std)
+      
+      mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
+      #lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+      
+      rmse_mf = pa.rmse(mu_mf, forward_mu(y_test, emp_mu, emp_std))
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+
+
+      # FR
+      
+      pa.write_posterior_predictive_samples(trace_fr, 20, t_test, results_path +  'pred_dist/', method='fr', gp=gp) 
+      
+      sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+      
+      sample_means_fr = forward_mu(sample_means_fr, emp_mu, emp_std)
+      sample_stds_fr = forward_std(sample_stds_fr, emp_std)
+      
+      mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
+      lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      
+      rmse_fr = pa.rmse(mu_fr, forward_mu(y_test, emp_mu, emp_std))
+      lppd_fr, lpd_fr = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_fr, sample_stds_fr)
+      
+      
+      
+      
+      
+      
+      
+      
       
        
        
