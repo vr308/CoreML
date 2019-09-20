@@ -37,7 +37,7 @@ def animate(data):
 
 # call the animator.  blit=True means only re-draw the parts that have changed.
 anim = animation.FuncAnimation(fig, func=animate, frames=data_gen, init_func=init,
-           repeat= True, interval=500, blit=True)
+           repeat= True, interval=100, blit=True)
 
 plt.show()
 
