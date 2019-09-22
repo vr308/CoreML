@@ -265,6 +265,10 @@ def rmse(post_mean, y_test):
     
     return np.round(np.sqrt(np.mean(np.square(post_mean - y_test))),6)
 
+def se_of_rmse(post_mean, y_test):
+    
+    return np.round(np.std(post_mean - y_test)/len(y_test),6)
+
 def log_predictive_density(y_test, list_means, list_stds):
       
       lppd_per_point = []
