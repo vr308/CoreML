@@ -267,7 +267,7 @@ def rmse(post_mean, y_test):
 
 def se_of_rmse(post_mean, y_test):
     
-    return np.round(np.std(post_mean - y_test)/len(y_test),6)
+    return np.round(np.std((post_mean - y_test))/np.sqrt(len(y_test)),6)
 
 def log_predictive_density(y_test, list_means, list_stds):
       
@@ -287,4 +287,6 @@ def log_predictive_mixture_density(y_test, list_means, list_std):
       return lppd_per_point, np.round(np.mean(np.log(lppd_per_point)),3)
 
 
-
+def prediction_interval_stats(lower, upper, pred_test):
+      
+      return;

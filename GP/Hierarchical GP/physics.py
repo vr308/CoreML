@@ -56,10 +56,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Physics/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Physics/'
       
-      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Physics/'
-      results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Physics/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Physics/'
+      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Physics/'
 
-      path = home_path
+      path = uni_path
       
       raw = pd.read_csv(path + 'physics.csv', keep_default_na=False)
       
@@ -81,8 +81,8 @@ if __name__ == "__main__":
       X_train_folds = []; X_test_folds = []; y_train_folds = []; y_test_folds = []
       
       for i, j in kf.split(X):
-          print(i)
-          print(j)
+          #print(i)
+          #print(j)
           X_train_folds.append(X[i])
           X_test_folds.append(X[j])
           y_train_folds.append(y[i])
@@ -112,9 +112,9 @@ if __name__ == "__main__":
       models = []
       lml = []
       
-      for i in [0,1,2,3,4,5]:
+      for i in np.arange(len(X_train_folds)):
       
-            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=5)
+            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
             models.append(gpr.fit(X_train_folds[i], y_train_folds[i]))
             lml.append(gpr.log_marginal_likelihood_value_)
        
@@ -122,9 +122,7 @@ if __name__ == "__main__":
       print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
       print("Predicting with trained gp on training / test")
-      
-      gpr = models[3]
-      
+            
       mu_test_agg = []
       std_test_agg = []
       rmse_agg = []
@@ -132,7 +130,7 @@ if __name__ == "__main__":
       lpd_agg = []
       
       #mu_fit, std_fit = gpr.predict(X_train, return_std=True) 
-      for i in np.arange(len(models))[:-1]:
+      for i in np.arange(len(models)):
             mu_test, std_test = models[i].predict(X_test_folds[i], return_std=True)
             mu_test_agg.append(mu_test)
             std_test_agg.append(std_test)
@@ -147,9 +145,10 @@ if __name__ == "__main__":
             
       rmse_ = np.mean(rmse_agg)*std_y
       
-      
+      se_rmse_ = np.mean(se_rmse_agg)*std_y
       
       lpd_ = np.mean(lpd_agg)
+      
       
       # No plotting 
       
@@ -217,7 +216,6 @@ if __name__ == "__main__":
            
            log_s = pm.Normal('log_s', 0, 3)
            log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*4, shape=(13,))
-           #log_ls = pm.Uniform('log_ls', -10, +10, shape=(13,))
            log_n = pm.Normal('log_n', 0, 3)
            
            s = pm.Deterministic('s', tt.exp(log_s))
@@ -238,12 +236,11 @@ if __name__ == "__main__":
            
       with physics_model:
             
+           traces_hmc_list = []
            # Marginal Likelihood
-           y_ = gp.marginal_likelihood("y", X=X_train, y=y_train, noise=cov_noise)
-       
-      with physics_model:
-      
-            trace_hmc = pm.sample(draws=1000, tune=500, chains=2)
+           for i in np.arange(len(X_train_folds)):
+                 y_ = gp.marginal_likelihood("y", X=X_train_folds[i], y=y_train_folds[i], noise=cov_noise)
+                 traces_hmc_list.append(pm.sample(draws=1000, tune=500, chains=2))
             
             
       trace_prior_df = pm.trace_to_dataframe(trace_prior)

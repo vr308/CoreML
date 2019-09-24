@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Wed Sep 18 09:42:33 2019
+Created on Mon Sep 23 20:23:37 2019
 
 @author: vidhi
 """
@@ -22,28 +22,55 @@ import csv
 import posterior_analysis as pa
 import advi_analysis as ad
 
+
+def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log):
+      
+      plt.figure(figsize=(16,9))
+      
+      for i,j in zip([1,3,5,7, 9, 11,13], [0,1,2,3,4,5,6]):
+            plt.subplot(7,2,i)
+            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
+            plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
+            plt.subplot(7,2,i+1)
+            plt.plot(trace_hmc_df[varnames[j]], alpha=0.4)
+      plt.tight_layout()
+            
+      plt.figure(figsize=(16,9))
+      
+      for i,j in zip([1,3,5,7, 9, 11], [7,8,9,10,11,12]):
+            plt.subplot(6,2,i)
+            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
+            plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
+            plt.subplot(6,2,i+1)
+            plt.plot(trace_hmc_df[varnames[j]], alpha=0.4)
+      plt.tight_layout()
+      
+      
+      
 if __name__ == "__main__":
       
       # Load data 
       
-      home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
+      home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Power/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Power/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Power/'
       #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
       path = uni_path
       
-      raw = pd.read_csv(path + 'energy.csv', keep_default_na=False)
+      raw = pd.read_csv(path + 'power.csv', keep_default_na=False)
       
       #df = normalize(raw)
       
       df = np.array(raw)
       
-      str_names = ['X1','X2','X3','X4','X5','X6','X7','X8']
+      str_names = ['AT','V','AP','RH']
                 
-     # mu_y = np.mean(raw['quality'])
-     # std_y = np.std(raw['quality'])
+      #mu_y = np.mean(raw['quality'])
+      #std_y = np.std(raw['quality'])
       
       n = len(df)
       n_dim = len(str_names)
@@ -51,7 +78,7 @@ if __name__ == "__main__":
       y = df[:,-1]
       X = df[:,0:n_dim]
       
-      dim_train =  384#50% of the data
+      dim_train = 4784 #50% of the data
       
       train_id = np.random.choice(np.arange(n), size=dim_train, replace=False)
       test_id = ~np.isin(np.arange(n), train_id)
@@ -61,7 +88,6 @@ if __name__ == "__main__":
       
       X_train = X[train_id]
       X_test = X[test_id]
-
       
       # ML-II 
       
@@ -69,20 +95,21 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*8), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*n_dim), length_scale_bounds=(0.000001,1e5))
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 100))  # noise terms
       
       sk_kernel = se_ard + noise
       
-      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=3)
       gpr.fit(X_train, y_train)
        
       print("\nLearned kernel: %s" % gpr.kernel_)
       print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
       print("Predicting with trained gp on training / test")
+      
       
       # No plotting 
             
@@ -106,46 +133,13 @@ if __name__ == "__main__":
 
       np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')
       
-      # No plotting 
-      
-      s = np.sqrt(gpr.kernel_.k1.k1.constant_value)
-      ls =  gpr.kernel_.k1.k2.length_scale
-      n = np.sqrt(gpr.kernel_.k2.noise_level)
-      
-      ml_deltas = {'s':s,'ls':ls, 'n': n}
-      varnames = ['s', 'ls','n']
-      
-      ml_deltas_unravel = {'s':s,
-                           'ls__0':ls[0],
-                           'ls__1':ls[1],
-                           'ls__2':ls[2],
-                           'ls__3':ls[3],
-                           'ls__4':ls[4],
-                           'ls__5':ls[5],
-                           'ls__6':ls[6],
-                           'ls__7':ls[7],
-                           'n': n}
-      
-      ml_deltas_log = {'log_s': np.log(s), 
-                       'log_n': np.log(n), 
-                       'log_ls__0': np.log(ls[0]),
-                       'log_ls__1': np.log(ls[1]),
-                       'log_ls__2': np.log(ls[2]),
-                       'log_ls__3': np.log(ls[3]),
-                       'log_ls__4': np.log(ls[4]),
-                       'log_ls__5': np.log(ls[5]),
-                       'log_ls__6': np.log(ls[6]),
-                       'log_ls__7': np.log(ls[7])
-                       }
-      
-
- #-----------------------------------------------------
+      #-----------------------------------------------------
 
      #       Hybrid Monte Carlo + ADVI Inference 
     
      #-----------------------------------------------------
      
-      with pm.Model() as energy_model:
+      with pm.Model() as power_model:
            
            log_s = pm.Normal('log_s', 0, 3)
            log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*3, shape=(n_dim,))
@@ -167,24 +161,24 @@ if __name__ == "__main__":
            
            trace_prior = pm.sample(500)
            
-      with energy_model:
+      with power_model:
             
            # Marginal Likelihood
            y_ = gp.marginal_likelihood("y", X=X_train, y=y_train, noise=cov_noise)
        
-      with energy_model:
+      with power_model:
       
             trace_hmc = pm.sample(draws=500, tune=500, chains=2)
                
-      with energy_model:
+      with power_model:
     
             pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
       
-      with energy_model:
+      with power_model:
       
             trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
         
-      with energy_model:
+      with power_model:
             
             mf = pm.ADVI()
       
@@ -196,7 +190,7 @@ if __name__ == "__main__":
             
             trace_mf = mf.approx.sample(4000)
       
-      with energy_model:
+      with power_model:
             
             fr = pm.FullRankADVI()
               
@@ -313,21 +307,21 @@ if __name__ == "__main__":
 
       # HMC
       
-      pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
-      
-      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
-      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
-      
-      #sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
-      #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
-      
-      mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
-      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
-      
-      rmse_hmc = pa.rmse(mu_hmc, y_test)
-      se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
-      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
-      
+#      pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
+#      
+#      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
+#      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+#      
+#      #sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
+#      #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
+#      
+#      mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
+#      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+#      
+#      rmse_hmc = pa.rmse(mu_hmc, y_test)
+#      se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
+#      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+#      
       # MF
       
       pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 

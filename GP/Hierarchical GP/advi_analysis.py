@@ -29,7 +29,7 @@ def transform_tracker_values(tracker, param_dict, name_mapping, raw_mapping):
       return mean_df, sd_df
 
 
-def convergence_report(tracker, varnames, title):
+def convergence_report(tracker, elbo, varnames, title):
       
       # Plot Negative ElBO track with params in true space
       
@@ -59,7 +59,7 @@ def convergence_report(tracker, varnames, title):
       std_ax.plot(tracker['std'], label=varnames)
       std_ax.set_title('Std track')
       plt.legend(fontsize='x-small')
-      hist_ax.plot(tracker.hist)
+      hist_ax.plot(elbo)
       hist_ax.set_title('Negative ELBO track');
       fig.suptitle(title)
 

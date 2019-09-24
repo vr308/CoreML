@@ -1,7 +1,0 @@
-0.0325**2 * RBF(length_scale=[0.522, 2.16e+03, 443, 392, 14.3, 1e+05, 1e+05, 1e+05]) + WhiteKernel(noise_level=0.01), 685.3492237888379
-0.0325**2 * RBF(length_scale=[0.522, 319, 1e+05, 1e+05, 9.75e+04, 1e+05, 1e+05, 1e+05]) + WhiteKernel(noise_level=0.01), 685.3492256361558
-0.0325**2 * RBF(length_scale=[0.522, 210, 6.19e+03, 860, 634, 1e+05, 1e+05, 185]) + WhiteKernel(noise_level=0.01), 685.349224743705
-0.0325**2 * RBF(length_scale=[0.522, 276, 536, 107, 1.16e+03, 6.4e+03, 7.78e+03, 1e+05]) + WhiteKernel(noise_level=0.01), 685.349224357202
-0.0325**2 * RBF(length_scale=[0.522, 1e+05, 3.2e+04, 128, 1e+05, 1e+05, 1e+05, 1e+05]) + WhiteKernel(noise_level=0.01),  685.349224876707
-0.0325**2 * RBF(length_scale=[0.522, 1.45e+04, 144, 9.57e+03, 68.2, 1.41e+03, 480, 323]) + WhiteKernel(noise_level=0.01), 685.3492243340277
-0.0325**2 * RBF(length_scale=[0.522, 106, 4.39e+03, 8.91e+03, 1e+05, 979, 2.02e+04, 1.71e+04]) + WhiteKernel(noise_level=0.01), 685.349224680632
