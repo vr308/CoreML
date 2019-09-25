@@ -24,13 +24,13 @@ import posterior_analysis as pa
 import advi_analysis as ad
 
 
-def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log):
+def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log, clr):
       
       plt.figure(figsize=(16,9))
       
       for i,j in zip([1,3,5,7], [0,1,2,3]):
             plt.subplot(4,2,i)
-            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4, color=clr)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
             plt.subplot(4,2,i+1)
@@ -41,7 +41,7 @@ def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log):
       
       for i,j in zip([1,3,5,7], [4,5,6,7]):
             plt.subplot(4,2,i)
-            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4, color=clr)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
             plt.subplot(4,2,i+1)
@@ -325,7 +325,7 @@ if __name__ == "__main__":
             mean = fr.approx.mean.eval,    
             std = fr.approx.std.eval)
             
-            fr.fit(n=50000, callbacks=[tracker_fr])
+            fr.fit(n=40000, callbacks=[tracker_fr])
             trace_fr = fr.approx.sample(4000)
             
             
@@ -360,9 +360,12 @@ if __name__ == "__main__":
       
       pa.traceplots(trace_hmc, ['s', 'n'], ml_deltas, 2, combined=True, clr='b')
       pa.traceplots(trace_mf, ['s', 'n'], ml_deltas, 2, combined=True,clr='coral')
-      pa.traceplots(trace_fr, ['s','n'], ml_deltas, 2, combined=True, 'g')
+      pa.traceplots(trace_fr, ['s','n'], ml_deltas, 2, combined=True, clr='g')
       
       multid_traceplot(trace_hmc_df, varnames_unravel, feature_mapping2, ml_deltas_unravel)
+      multid_traceplot(trace_mf_df, varnames_unravel, feature_mapping2, ml_deltas_unravel, clr='coral') 
+      multid_traceplot(trace_fr_df, varnames_unravel, feature_mapping2, ml_deltas_unravel, clr='g')
+
 
       # Forest plot
       
@@ -455,7 +458,7 @@ if __name__ == "__main__":
       
       # MF
       
-      pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_mf, 20, X_test, results_path + 'pred_dist/', method='mf', gp=gp) 
       
       sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
       sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
@@ -466,14 +469,14 @@ if __name__ == "__main__":
       mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
       lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
-      rmse_mf = pa.rmse(mu_mf, forward_mu(y_test, emp_mu, emp_std))
+      rmse_mf = pa.rmse(mu_mf, y_test)
       se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
-      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 
 
       # FR
       
-      pa.write_posterior_predictive_samples(trace_fr, 20, t_test, results_path +  'pred_dist/', method='fr', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_fr, 20, X_test, results_path +  'pred_dist/', method='fr', gp=gp) 
       
       sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
       sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
