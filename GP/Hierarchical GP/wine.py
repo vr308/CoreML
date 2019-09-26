@@ -57,7 +57,7 @@ if __name__ == "__main__":
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Wine/'
       
       results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Wine/'
-      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Wine/'
 
       path = uni_path
       
@@ -83,16 +83,21 @@ if __name__ == "__main__":
       #mu_y = np.mean(raw['quality'])
       #std_y = np.std(raw['quality'])
       
-      n = len(df)
+      n_all = len(df)
       n_dim = len(str_names)
       
       y = df[:,-1]
       X = df[:,0:n_dim]
       
-      dim_train = 800 #50% of the data
+      n_train = 800 #50% of the data
       
-      train_id = np.random.choice(np.arange(n), size=dim_train, replace=False)
-      test_id = ~np.isin(np.arange(n), train_id)
+      #train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
+      
+      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      
+      train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
+      
+      test_id = ~np.isin(np.arange(n_all), train_id)
       
       y_train = y[train_id]
       y_test = y[test_id]
@@ -126,7 +131,6 @@ if __name__ == "__main__":
        
       print("\nLearned kernel: %s" % gpr.kernel_)
       print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
-      
       print("Predicting with trained gp on training / test")
       
       # No plotting 
@@ -135,6 +139,10 @@ if __name__ == "__main__":
       rmse_ = pa.rmse(mu_test, y_test)
       se_rmse = pa.se_of_rmse(mu_test, y_test)
       lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+      
+      print('rmse_ml: ' + str(rmse_))
+      print('se_rmse_ml: ' + str(se_rmse))
+      print('lpd_:' + str(lpd_))
       
       # Linear regression to double check with Additive / sanity check
       

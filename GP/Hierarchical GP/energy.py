@@ -30,7 +30,7 @@ if __name__ == "__main__":
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       
       results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
-      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
 
       path = uni_path
       
@@ -41,20 +41,26 @@ if __name__ == "__main__":
       df = np.array(raw)
       
       str_names = ['X1','X2','X3','X4','X5','X6','X7','X8']
-                
+      
+      
      # mu_y = np.mean(raw['quality'])
      # std_y = np.std(raw['quality'])
       
-      n = len(df)
+      n_all = len(df)
       n_dim = len(str_names)
       
       y = df[:,-1]
       X = df[:,0:n_dim]
       
-      dim_train =  384#50% of the data
+      n_train =  384 #50% of the data
       
-      train_id = np.random.choice(np.arange(n), size=dim_train, replace=False)
-      test_id = ~np.isin(np.arange(n), train_id)
+      train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
+      
+      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      
+      train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
+      
+      test_id = ~np.isin(np.arange(n_all), train_id)
       
       y_train = y[train_id]
       y_test = y[test_id]
@@ -90,6 +96,10 @@ if __name__ == "__main__":
       rmse_ = pa.rmse(mu_test, y_test)
       se_rmse = pa.se_of_rmse(mu_test, y_test)
       lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+      
+      print('rmse_ml: ' + str(rmse_))
+      print('se_rmse_ml: ' + str(se_rmse))
+      print('lpd_:' + str(lpd_))
       
       # Linear regression to double check with Additive / sanity check
       
@@ -138,7 +148,6 @@ if __name__ == "__main__":
                        'log_ls__7': np.log(ls[7])
                        }
       
-
  #-----------------------------------------------------
 
      #       Hybrid Monte Carlo + ADVI Inference 
@@ -322,15 +331,24 @@ if __name__ == "__main__":
       #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
       
       mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
+      
+      # persist mu_hmc
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_hmc.csv', X=mu_hmc, delimiter=',', header='')
+      
       lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
       
       rmse_hmc = pa.rmse(mu_hmc, y_test)
       se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
       lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
       
+      print('rmse_hmc:' + str(rmse_hmc))
+      print('se_rmse_hmc:' + str(se_rmse_hmc))
+      print('lpd_hmc:' + str(lpd_hmc))
+      
       # MF
       
-      pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_mf, 50, X_test, results_path + 'pred_dist/', method='mf', gp=gp) 
       
       sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
       sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
@@ -339,16 +357,24 @@ if __name__ == "__main__":
       #sample_stds_mf = forward_std(sample_stds_mf, emp_std)
       
       mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
+      
+       # persist mu_mf
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_mf.csv', X=mu_mf, delimiter=',', header='')
+      
       lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
-      rmse_mf = pa.rmse(mu_mf, forward_mu(y_test, emp_mu, emp_std))
+      rmse_mf = pa.rmse(mu_mf, y_test)
       se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
-      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 
+      print('rmse_mf:' + str(rmse_mf))
+      print('se_rmse_mf:' + str(se_rmse_mf))
+      print('lpd_mf:' + str(lpd_mf))
 
       # FR
       
-      pa.write_posterior_predictive_samples(trace_fr, 20, t_test, results_path +  'pred_dist/', method='fr', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_fr, 50, X_test, results_path +  'pred_dist/', method='fr', gp=gp) 
       
       sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
       sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
@@ -357,9 +383,18 @@ if __name__ == "__main__":
       #sample_stds_fr = forward_std(sample_stds_fr, emp_std)
       
       mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
+      
+      # persist mu_fr
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_fr.csv', X=mu_fr, delimiter=',', header='')
+      
       lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
       
-      rmse_fr = pa.rmse(mu_fr, forward_mu(y_test, emp_mu, emp_std))
+      rmse_fr = pa.rmse(mu_fr, y_test)
       se_rmse_fr = pa.se_of_rmse(mu_fr, y_test)
-      lppd_fr, lpd_fr = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_fr, sample_stds_fr)
+      lppd_fr, lpd_fr = pa.log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+      
+      print('rmse_fr:' + str(rmse_fr))
+      print('se_rmse_fr:' + str(se_rmse_fr))
+      print('lpd_fr:' + str(lpd_fr))
       

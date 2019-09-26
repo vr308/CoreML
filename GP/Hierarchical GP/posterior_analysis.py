@@ -275,6 +275,13 @@ def log_predictive_density(y_test, list_means, list_stds):
       for i in np.arange(len(y_test)):
             lppd_per_point.append(st.norm.pdf(y_test[i], list_means[i], list_stds[i]))
       return np.round(np.mean(np.log(lppd_per_point)),3)
+
+def se_of_lpd(y_test, list_means, list_stds):
+      
+      lppd_per_point = []
+      for i in np.arange(len(y_test)):
+            lppd_per_point.append(st.norm.pdf(y_test[i], list_means[i], list_stds[i]))
+      return np.std(lppd_per_point)/np.sqrt(len(y_test))
             
 def log_predictive_mixture_density(y_test, list_means, list_std):
       

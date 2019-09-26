@@ -15,12 +15,10 @@ import  scipy.stats as st
 import seaborn as sns
 from sklearn.preprocessing import normalize
 import warnings
-import time
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.model_selection import KFold
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
-import csv
 import posterior_analysis as pa
 import advi_analysis as ad
 
@@ -63,30 +61,50 @@ if __name__ == "__main__":
       
       raw = pd.read_csv(path + 'physics.csv', keep_default_na=False)
       
-      mu_y = np.mean(raw['objective'])
-      std_y = np.std(raw['objective'])
+      #mu_y = np.mean(raw['objective'])
+      #std_y = np.std(raw['objective'])
       
-      df = normalize(raw)
-
-      str_names = list(raw.columns[0:13])
+      #df = normalize(raw)
+      
+      df = np.array(raw)
       
       y = df[:,-1]
       X = df[:,0:13]
+
+      str_names = list(raw.columns[0:13])
+      
+      n_all = len(X)
+      
+      n_train = 280 #50% of the data
+      
+      train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
+      
+      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      
+      train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
+      
+      test_id = ~np.isin(np.arange(n_all), train_id)
+      
+      y_train = y[train_id]
+      y_test = y[test_id]
+      
+      X_train = X[train_id]
+      X_test = X[test_id]
       
       
-      train_id = []; test_id = []
-      
-      kf = KFold(n_splits=5, shuffle=False)
-      
-      X_train_folds = []; X_test_folds = []; y_train_folds = []; y_test_folds = []
-      
-      for i, j in kf.split(X):
-          #print(i)
-          #print(j)
-          X_train_folds.append(X[i])
-          X_test_folds.append(X[j])
-          y_train_folds.append(y[i])
-          y_test_folds.append(y[j])
+#      train_id = []; test_id = []
+#      
+#      kf = KFold(n_splits=5, shuffle=False)
+#      
+#      X_train_folds = []; X_test_folds = []; y_train_folds = []; y_test_folds = []
+#      
+#      for i, j in kf.split(X):
+#          #print(i)
+#          #print(j)
+#          X_train_folds.append(X[i])
+#          X_test_folds.append(X[j])
+#          y_train_folds.append(y[i])
+#          y_test_folds.append(y[j])
       
       #sep_idx = 200
       #y_train = y[0:sep_idx]
@@ -109,47 +127,56 @@ if __name__ == "__main__":
       
       sk_kernel = se_ard + noise
       
-      models = []
-      lml = []
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=5)
+      gpr.fit(X_train, y_train)
       
-      for i in np.arange(len(X_train_folds)):
-      
-            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
-            models.append(gpr.fit(X_train_folds[i], y_train_folds[i]))
-            lml.append(gpr.log_marginal_likelihood_value_)
+#      models = []
+#      lml = []
+#      
+#      for i in np.arange(len(X_train_folds)):
+#      
+#            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
+#            models.append(gpr.fit(X_train_folds[i], y_train_folds[i]))
+#            lml.append(gpr.log_marginal_likelihood_value_)
        
       print("\nLearned kernel: %s" % gpr.kernel_)
       print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
       print("Predicting with trained gp on training / test")
             
-      mu_test_agg = []
-      std_test_agg = []
-      rmse_agg = []
-      se_rmse_agg = []
-      lpd_agg = []
-      
-      #mu_fit, std_fit = gpr.predict(X_train, return_std=True) 
-      for i in np.arange(len(models)):
-            mu_test, std_test = models[i].predict(X_test_folds[i], return_std=True)
-            mu_test_agg.append(mu_test)
-            std_test_agg.append(std_test)
+#      mu_test_agg = []
+#      std_test_agg = []
+#      rmse_agg = []
+#      se_rmse_agg = []
+#      lpd_agg = []
+#      
+#      #mu_fit, std_fit = gpr.predict(X_train, return_std=True) 
+#      for i in np.arange(len(models)):
+#            mu_test, std_test = models[i].predict(X_test_folds[i], return_std=True)
+#            mu_test_agg.append(mu_test)
+#            std_test_agg.append(std_test)
+#            
+#            rmse_agg.append(pa.rmse(mu_test, y_test_folds[i]))
+#            se_rmse_agg.append(pa.se_of_rmse(mu_test, y_test_folds[i]))
+#            lpd_agg.append(pa.log_predictive_density(y_test_folds[i], mu_test, std_test))
+#            
+#      #mu_test, std_test = gpr.predict(X_test, return_std=True)
+#      
+#      gpr = models[0]
             
-            rmse_agg.append(pa.rmse(mu_test, y_test_folds[i]))
-            se_rmse_agg.append(pa.se_of_rmse(mu_test, y_test_folds[i]))
-            lpd_agg.append(pa.log_predictive_density(y_test_folds[i], mu_test, std_test))
-            
-      #mu_test, std_test = gpr.predict(X_test, return_std=True)
+      mu_test, std_test = gpr.predict(X_test, return_std=True)
       
-      gpr = models[0]
-            
-      rmse_ = np.mean(rmse_agg)*std_y
+      rmse_ = pa.rmse(mu_test, y_test)
+      se_rmse = pa.se_of_rmse(mu_test, y_test)
+      lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
       
-      se_rmse_ = np.mean(se_rmse_agg)*std_y
+      print('rmse_ml: ' + str(rmse_))
+      print('se_rmse_ml: ' + str(se_rmse))
+      print('lpd_:' + str(lpd_))
       
-      lpd_ = np.mean(lpd_agg)
-      
-      
+       # Write down mu_ml
+
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')
       # No plotting 
       
       s = np.sqrt(gpr.kernel_.k1.k1.constant_value)
@@ -215,7 +242,7 @@ if __name__ == "__main__":
       with pm.Model() as physics_model:
            
            log_s = pm.Normal('log_s', 0, 3)
-           log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*4, shape=(13,))
+           log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*3, shape=(13,))
            log_n = pm.Normal('log_n', 0, 3)
            
            s = pm.Deterministic('s', tt.exp(log_s))
@@ -236,12 +263,46 @@ if __name__ == "__main__":
            
       with physics_model:
             
-           traces_hmc_list = []
-           # Marginal Likelihood
-           for i in np.arange(len(X_train_folds)):
-                 y_ = gp.marginal_likelihood("y", X=X_train_folds[i], y=y_train_folds[i], noise=cov_noise)
-                 traces_hmc_list.append(pm.sample(draws=1000, tune=500, chains=2))
+           y_ = gp.marginal_likelihood("y", X=X_train, y=y_train, noise=cov_noise)
+           trace_hmc = pm.sample(draws=500, tune=500, chains=2)
+           
+      with physics_model:
+    
+            pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
+      
+      with physics_model:
+      
+            trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
+        
+      with physics_model:
             
+            mf = pm.ADVI()
+      
+            tracker_mf = pm.callbacks.Tracker(
+            mean = mf.approx.mean.eval,    
+            std = mf.approx.std.eval)
+           
+            mf.fit(n=50000, callbacks=[tracker_mf])
+            
+            trace_mf = mf.approx.sample(2000)
+      
+      with physics_model:
+            
+            fr = pm.FullRankADVI(start=ml_deltas)
+              
+            tracker_fr = pm.callbacks.Tracker(
+            mean = fr.approx.mean.eval,    
+            std = fr.approx.std.eval)
+            
+            fr.fit(n=50000, callbacks=[tracker_fr])
+            trace_fr = fr.approx.sample(2000)
+            
+            
+            bij_mf = mf.approx.groups[0].bij 
+            mf_param = {param.name: bij_mf.rmap(param.eval()) for param in mf.approx.params}
+      
+            bij_fr = fr.approx.groups[0].bij
+            fr_param = {param.name: bij_fr.rmap(param.eval()) for param in fr.approx.params}
             
       trace_prior_df = pm.trace_to_dataframe(trace_prior)
       trace_hmc_df = pm.trace_to_dataframe(trace_hmc)
@@ -252,11 +313,23 @@ if __name__ == "__main__":
       
       # Prior Posterior Learning 
       
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log_unravel, ml_deltas_log, 'Prior Posterior HMC')
+
+       # Forest plot
       
+      pm.forestplot(trace_hmc, varnames=varnames, rhat=True, quartiles=False)
+      plt.title('95% Credible Intervals (HMC)', fontsize='small')
+
+      pm.forestplot(trace_mf, varnames=varnames, rhat=True, quartiles=False)
+      plt.title('95% Credible Intervals (Mean-Field VI)', fontsize='small')
       
-      # Confidence intervals 
-      
-      pm.forestplot(trace_hmc, varnames=varnames)
+      pm.forestplot(trace_fr, varnames=varnames, rhat=True, quartiles=False)
+      plt.title('95% Credible Intervals (Full-Rank VI)', fontsize='small')
+
+      # Convergence 
+   
+      ad.convergence_report(tracker_mf, mf.hist, varnames_log_unravel, 'Mean-Field Convergence')
+      ad.convergence_report(tracker_fr, fr.hist, varnames_log_unravel, 'Full-Rank Convergence')
       
       # Pair scatter plot 
       from itertools import combinations
@@ -277,22 +350,86 @@ if __name__ == "__main__":
         plt.ylabel(i[1])
         plt.tight_layout()
         
-        # Predictions
+      # Predictions
 
-        # HMC
+      # HMC
       
-        pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
       
-        sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
-        sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
+      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
       
-        sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
-        sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
+      #sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
+      #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
       
-        mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
-        lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+      mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
       
-        rmse_hmc = pa.rmse(mu_hmc, y_test)
-        lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+      # persist mu_hmc
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_hmc.csv', X=mu_hmc, delimiter=',', header='')
+      
+      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+      
+      rmse_hmc = pa.rmse(mu_hmc, y_test)
+      se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
+      lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
+      
+      print('rmse_hmc:' + str(rmse_hmc))
+      print('se_rmse_hmc:' + str(se_rmse_hmc))
+      print('lpd_hmc:' + str(lpd_hmc))
+      
+      # MF
+      
+      pa.write_posterior_predictive_samples(trace_mf, 50, X_test, results_path + 'pred_dist/', method='mf', gp=gp) 
+      
+      sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
+      sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
+      
+      #sample_means_mf = forward_mu(sample_means_mf, emp_mu, emp_std)
+      #sample_stds_mf = forward_std(sample_stds_mf, emp_std)
+      
+      mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
+      
+       # persist mu_mf
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_mf.csv', X=mu_mf, delimiter=',', header='')
+      
+      lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+      
+      rmse_mf = pa.rmse(mu_mf, y_test)
+      se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
+
+      print('rmse_mf:' + str(rmse_mf))
+      print('se_rmse_mf:' + str(se_rmse_mf))
+      print('lpd_mf:' + str(lpd_mf))
+
+      # FR
+      
+      pa.write_posterior_predictive_samples(trace_fr, 50, X_test, results_path +  'pred_dist/', method='fr', gp=gp) 
+      
+      sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+      
+      #sample_means_fr = forward_mu(sample_means_fr, emp_mu, emp_std)
+      #sample_stds_fr = forward_std(sample_stds_fr, emp_std)
+      
+      mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
+      
+      # persist mu_fr
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'means_fr.csv', X=mu_fr, delimiter=',', header='')
+      
+      lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      
+      rmse_fr = pa.rmse(mu_fr, y_test)
+      se_rmse_fr = pa.se_of_rmse(mu_fr, y_test)
+      lppd_fr, lpd_fr = pa.log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+      
+      print('rmse_fr:' + str(rmse_fr))
+      print('se_rmse_fr:' + str(se_rmse_fr))
+      print('lpd_fr:' + str(lpd_fr))
+      
+      
       
       
