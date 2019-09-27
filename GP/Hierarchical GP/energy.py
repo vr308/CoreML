@@ -29,10 +29,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
-      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      results_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
 
-      path = uni_path
+      path = home_path
       
       raw = pd.read_csv(path + 'energy.csv', keep_default_na=False)
       
@@ -54,9 +54,9 @@ if __name__ == "__main__":
       
       n_train =  384 #50% of the data
       
-      train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
+      #train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
       
-      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      #train_id.tofile(results_path + 'train_id.csv', sep=',')
       
       train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
       
@@ -82,7 +82,7 @@ if __name__ == "__main__":
       
       sk_kernel = se_ard + noise
       
-      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=30)
       gpr.fit(X_train, y_train)
        
       print("\nLearned kernel: %s" % gpr.kernel_)
@@ -96,6 +96,7 @@ if __name__ == "__main__":
       rmse_ = pa.rmse(mu_test, y_test)
       se_rmse = pa.se_of_rmse(mu_test, y_test)
       lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+      se_lpd = pa.se_of_lpd(y_test, mu_test, std_test)
       
       print('rmse_ml: ' + str(rmse_))
       print('se_rmse_ml: ' + str(se_rmse))
@@ -146,9 +147,12 @@ if __name__ == "__main__":
                        'log_ls__5': np.log(ls[5]),
                        'log_ls__6': np.log(ls[6]),
                        'log_ls__7': np.log(ls[7])
-                       }
+                      }
       
- #-----------------------------------------------------
+      varnames_unravel = np.array(list(ml_deltas_unravel.keys()))
+      varnames_log_unravel = np.array(list(ml_deltas_log.keys()))
+    
+     #-----------------------------------------------------
 
      #       Hybrid Monte Carlo + ADVI Inference 
     
@@ -183,7 +187,7 @@ if __name__ == "__main__":
        
       with energy_model:
       
-            trace_hmc = pm.sample(draws=500, tune=500, chains=2)
+            trace_hmc = pm.sample(draws=300, tune=500, chains=2)
                
       with energy_model:
     
@@ -191,7 +195,7 @@ if __name__ == "__main__":
       
       with energy_model:
       
-            trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
+            trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/0')
         
       with energy_model:
             

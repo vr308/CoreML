@@ -149,7 +149,7 @@ K = 50
 N = sunspot_df.shape[0]
 
 with pm.Model() as model:
-    alpha = pm.Gamma('alpha',1,1)
+    alpha = pm.Gamma('alpha',2,2)
     beta = pm.Beta('beta', 1, alpha, shape=K)
     w = pm.Deterministic('w', stick_breaking(beta))
     mu = pm.Uniform('mu', 0., 300., shape=K)
