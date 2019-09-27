@@ -175,16 +175,36 @@ def write_posterior_predictive_samples(trace, thin_factor, X_star, path, method,
       means_writer = csv.writer(open(means_file, 'w')) 
       std_writer = csv.writer(open(std_file, 'w'))
       
-      #if(X_star.shape[1] > 1):
-            
-      #else:
-      #      means_writer.writerow(X_star.flatten())
-      #      std_writer.writerow(X_star.flatten())
       
       for i in np.arange(len(trace))[::thin_factor]:
             
             print('Predicting ' + str(i))
             post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=True, diag=True)
+            post_std = np.sqrt(post_var)
+           
+            print('Writing out ' + str(i) + ' predictions')
+            means_writer.writerow(np.round(post_mean, 3))
+            std_writer.writerow(np.round(post_std, 3))
+
+
+def write_posterior_predictive_samples_v2(trace, thin_factor, X_star, path, method, gp):
+      
+      means_file = path + 'means_' + method + '.csv'
+      std_file = path + 'std_' + method + '.csv'
+          
+      means_writer = csv.writer(open(means_file, 'w')) 
+      std_writer = csv.writer(open(std_file, 'w'))
+      
+      #varnames = trace.varnames
+      
+      for i in np.arange(len(trace))[::thin_factor]:
+            
+            row = trace.iloc[i]
+            
+            row_point = dict(row)
+            
+            print('Predicting ' + str(i))
+            post_mean, post_var = gp.predict(X_star, point=row_point, pred_noise=True, diag=True)
             post_std = np.sqrt(post_var)
            
             print('Writing out ' + str(i) + ' predictions')

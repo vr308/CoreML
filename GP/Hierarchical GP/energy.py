@@ -29,10 +29,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       
-      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
-      results_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      #results_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
 
-      path = home_path
+      path = uni_path
       
       raw = pd.read_csv(path + 'energy.csv', keep_default_na=False)
       
@@ -49,14 +49,14 @@ if __name__ == "__main__":
       n_all = len(df)
       n_dim = len(str_names)
       
-      y = df[:,-1]
+      y = df[:,-2]
       X = df[:,0:n_dim]
       
       n_train =  384 #50% of the data
       
-      #train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
+      train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
       
-      #train_id.tofile(results_path + 'train_id.csv', sep=',')
+      train_id.tofile(results_path + 'train_id.csv', sep=',')
       
       train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
       
@@ -75,14 +75,14 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*8), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(5.0)*RBF(length_scale=np.array([5.0]*8), length_scale_bounds=(0.000001,1e8))
      
       noise = WhiteKernel(noise_level=1**2,
-                        noise_level_bounds=(1e-5, 100))  # noise terms
+                        noise_level_bounds=(1e-5, 1000))  # noise terms
       
       sk_kernel = se_ard + noise
       
-      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=30)
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
       gpr.fit(X_train, y_train)
        
       print("\nLearned kernel: %s" % gpr.kernel_)
@@ -161,8 +161,10 @@ if __name__ == "__main__":
       with pm.Model() as energy_model:
            
            log_s = pm.Normal('log_s', 0, 3)
-           log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*3, shape=(n_dim,))
-           log_n = pm.Normal('log_n', 0, 3)
+           #log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*2, shape=(n_dim,))
+           log_n = pm.Normal('log_n', ml_deltas_log['log_n'], 0.2)
+           
+           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*[3,1,3,1,3,3,3,3], shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
@@ -187,7 +189,7 @@ if __name__ == "__main__":
        
       with energy_model:
       
-            trace_hmc = pm.sample(draws=300, tune=500, chains=2)
+            trace_hmc = pm.sample(draws=500, tune=500, chains=2)
                
       with energy_model:
     
@@ -195,7 +197,7 @@ if __name__ == "__main__":
       
       with energy_model:
       
-            trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/0')
+            trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
         
       with energy_model:
             
@@ -246,7 +248,7 @@ if __name__ == "__main__":
       
       # Loading persisted trace
    
-      trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=concrete_model)
+      trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=energy_model)
       
       # Traceplots
       
@@ -326,10 +328,18 @@ if __name__ == "__main__":
 
       # HMC
       
+      rmse_drill = []
+      for i in np.arange(len(sample_means_hmc)):
+            print(i)
+            rmse_drill.append(pa.rmse(sample_means_hmc.iloc[i], y_test))
+      
+      trace_hmc_hack = trace_hmc_df
+      trace_hmc_hack['n'] = ml_deltas['n']
+            
       pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
       
-      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
-      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv', header=None)
+      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv', header=None)
       
       #sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
       #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)

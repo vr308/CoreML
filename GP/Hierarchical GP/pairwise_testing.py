@@ -63,3 +63,10 @@ generate_p_value_matrix(p_matrix, means, title=i)
 plt.subplot(142)
 generate_p_value_matrix(p_matrix, means, title=i)
 
+def highlight_cell(x,y, ax=None, **kwargs):
+    rect = plt.Rectangle((x, y), 1,1, fill=False, **kwargs)
+    ax = ax or plt.gca()
+    ax.add_patch(rect)
+    return rect
+
+
