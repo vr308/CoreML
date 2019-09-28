@@ -228,8 +228,10 @@ if __name__ == "__main__":
       with pm.Model() as wine_model:
            
            log_s = pm.Normal('log_s', 0, 3)
-           log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*3, shape=(n_dim,))
+           #log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*3, shape=(n_dim,))
            log_n = pm.Normal('log_n', 0, 3)
+           
+           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*3, shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))

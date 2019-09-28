@@ -74,6 +74,7 @@ if __name__ == "__main__":
       str_names = list(raw.columns[0:13])
       
       n_all = len(X)
+      n_dim = len(str_names)
       
       n_train = 280 #50% of the data
       
@@ -242,8 +243,10 @@ if __name__ == "__main__":
       with pm.Model() as physics_model:
            
            log_s = pm.Normal('log_s', 0, 3)
-           log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*3, shape=(13,))
-           log_n = pm.Normal('log_n', 0, 3)
+           #log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*3, shape=(13,))
+           #log_n = pm.Normal('log_n', ml_deltas['n'], 0.01)
+           log_n = ml_deltas['n']
+           log_ls = pm.MvNormal('log_ls', mu=np.log(ml_deltas['ls']), cov = np.eye(n_dim)*2, shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
@@ -251,7 +254,7 @@ if __name__ == "__main__":
            
            # Specify the covariance function
        
-           cov_main = pm.gp.cov.Constant(s**2)*pm.gp.cov.ExpQuad(13, ls)
+           cov_main = pm.gp.cov.Constant(s**2)*pm.gp.cov.ExpQuad(n_dim, ls)
            cov_noise = pm.gp.cov.WhiteNoise(n**2)
        
            gp_main = pm.gp.Marginal(cov_func=cov_main)
@@ -264,7 +267,7 @@ if __name__ == "__main__":
       with physics_model:
             
            y_ = gp.marginal_likelihood("y", X=X_train, y=y_train, noise=cov_noise)
-           trace_hmc = pm.sample(draws=500, tune=500, chains=2)
+           trace_hmc = pm.sample(draws=500, tune=300, chains=2)
            
       with physics_model:
     
@@ -313,7 +316,7 @@ if __name__ == "__main__":
       
       # Prior Posterior Learning 
       
-      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log_unravel, ml_deltas_log, 'Prior Posterior HMC')
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log_unravel[-13:], ml_deltas_log, 'Prior Posterior HMC')
 
        # Forest plot
       

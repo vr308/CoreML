@@ -164,7 +164,7 @@ if __name__ == "__main__":
            #log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*2, shape=(n_dim,))
            log_n = pm.Normal('log_n', ml_deltas_log['log_n'], 0.2)
            
-           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*[3,1,3,1,3,3,3,3], shape=(n_dim,))
+           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*3, shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
