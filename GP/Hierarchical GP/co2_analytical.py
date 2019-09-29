@@ -10,16 +10,11 @@ Created on Mon Jun 24 19:43:17 2019
 import pymc3 as pm
 import pandas as pd
 import numpy as np
+from autograd import elementwise_grad, jacobian, grad
 import theano.tensor as tt
 import matplotlib.pylab as plt
-import  scipy.stats as st 
-import seaborn as sns
 import warnings
-import time
-from sklearn.gaussian_process import GaussianProcessRegressor
-from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
-import csv
 
 varnames = ['s_1', 'ls_2','s_3', 'ls_4','ls_5','s_6','ls_7','alpha_8','s_9','ls_10','n_11'] 
 
@@ -87,7 +82,7 @@ def gp_mean(theta, X, y, X_star):
      ls_10 = theta[9]
      n_11 = theta[10]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
      sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
@@ -102,7 +97,7 @@ def gp_cov(theta, X, y, X_star):
      ls_10 = theta[9]
      n_11 = theta[10]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
      sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
@@ -124,15 +119,15 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
     #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
     
     pred_g_mean = gp_mean(theta, X, y, X_star)
-    pred_g_cov = np.diag(gp_cov(theta, X, y, X_star))
+    #pred_g_cov = np.diag(gp_cov(theta, X, y, X_star))
 
     pred_ng_mean = []
     pred_ng_var = []
     
     # To fix this 
     
-    pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
-    pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
+    #pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
+    #pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
 
     for i in np.arange(len(X_star)): # To vectorize this loop
           

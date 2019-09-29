@@ -225,7 +225,10 @@ def record_trace_points_lml(trace, thin_factor, cov, X, X_star, y, varnames, pat
             list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
             trace_writer.writerow(np.round(list_point, 3))
 
-
+def get_lml_value(y_test, K, noise_var):
+      
+      return np.log(st.norm.pdf(y_test, cov=K + noise_var*np.eye(len(y_test))))
+      
 def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
       
       # Fixed at 95% CI

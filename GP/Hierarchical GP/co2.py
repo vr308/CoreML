@@ -20,6 +20,7 @@ from sklearn.gaussian_process.kernels import RBF, RationalQuadratic as RQ, ExpSi
 warnings.filterwarnings("ignore")
 import csv
 import posterior_analysis as pa
+import advi_analysis as ad
 
 
 def get_subset_trace(trace, varnames):
@@ -260,8 +261,14 @@ if __name__ == "__main__":
       mu_test, cov_test = gpr.predict(t_test, return_cov=True)
       
       rmse_ = pa.rmse(mu_test, y_test)
-      
       lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+      se_rmse = pa.se_of_rmse(mu_test, y_test)
+      std_lpd = pa.se_of_lpd(y_test, mu_test, std_test)
+      
+      print('rmse_ml: ' + str(rmse_))
+      print('se_rmse_ml: ' + str(se_rmse))
+      print('lpd_:' + str(lpd_))
+      print('se_lpd:' + str(std_lpd))
       
       plt.figure()
       plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
@@ -415,12 +422,72 @@ with pm.Model() as co2_model:
             
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4)
+       
+       
+with pm.Model() as co2_model:
+      
+       log_l2 = pm.Normal('log_l2', mu=0, sd=3)
+       log_l4 = pm.Normal('log_l4', mu=0, sd=3)
+       log_l5 = pm.Normal('log_l5', mu=0, sd=3)
+       log_l7 = pm.Normal('log_l7', mu=0, sd=3)
+       log_l10 = pm.Normal('log_l10', mu=0, sd=3)
+
+       ls_2 = pm.Deterministic('ls_2', tt.exp(log_l2))
+       ls_4 = pm.Deterministic('ls_4', tt.exp(log_l4))
+       ls_5 = pm.Deterministic('ls_5', tt.exp(log_l5))
+       ls_7 = pm.Deterministic('ls_7', tt.exp(log_l7))
+       ls_10 = pm.Deterministic('ls_10', tt.exp(log_l10))
+       
+
+       # prior on amplitudes
+
+       log_s1 = pm.Normal('log_s1', mu=0, sd=3)
+       log_s3 = pm.Normal('log_s3', mu=0, sd=3)
+       log_s6 = pm.Normal('log_s6', mu=0, sd=3)
+       log_s9 = pm.Normal('log_s9', mu=0, sd=3)
+
+       s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
+       s_3 = pm.Deterministic('s_3', tt.exp(log_s3))
+       s_6 = pm.Deterministic('s_6', tt.exp(log_s6))
+       s_9 = pm.Deterministic('s_9', tt.exp(log_s9))
+       
+       #s_3 = 2.59
+       #s_9 = 0.169
+      
+       # prior on alpha
+      
+       log_alpha8 = pm.Normal('log_alpha8', mu=np.log(ml_deltas['alpha_8']), sd=0.1)
+       alpha_8 = pm.Deterministic('alpha_8', tt.exp(log_alpha8))
+       #alpha_8 = 0.121
+       
+       # prior on noise variance term
+      
+       log_n11 = pm.Normal('log_n11', mu=0, sd=3)
+       n_11 = pm.Deterministic('n_11', tt.exp(log_n11))
+       
+       #n_11 = 0.195
+       
+       # Specify the covariance function
+       
+       k1 = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2) 
+       k2 = pm.gp.cov.Constant(s_3**2)*pm.gp.cov.ExpQuad(1, ls_4)*pm.gp.cov.Periodic(1, period=1, ls=ls_5)
+       k3 = pm.gp.cov.Constant(s_6**2)*pm.gp.cov.RatQuad(1, alpha=alpha_8, ls=ls_7)
+       k4 = pm.gp.cov.Constant(s_9**2)*pm.gp.cov.ExpQuad(1, ls_10) +  pm.gp.cov.WhiteNoise(n_11)
+
+       k =  k1 + k2 + k3
+          
+       gp = pm.gp.Marginal(cov_func=k)
+       
+       trace_prior = pm.sample(draws=500)
+            
+       # Marginal Likelihood
+       y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=k4) 
               
 with co2_model:
       
       # HMC Nuts auto-tuning implementation
 
-      trace_hmc = pm.sample(draws=700, tune=500, chains=1)
+      trace_hmc = pm.sample(draws=500, tune=500, chains=1)
             
 with co2_model:
     
@@ -455,6 +522,12 @@ with co2_model:
       check_mf = pm.ADVI()
       check_fr = pm.FullRankADVI()
       
+
+   # Testing convergence of ADVI - TODO 
+
+ad.convergence_report(tracker_mf,  mf.hist, varnames,  'Mean Field Convergence Report')
+ad.convergence_report(tracker_fr, fr_param, varnames, fr.hist, 'Full Rank Convergence Report')
+
       
 bij_mf = mf.approx.groups[0].bij
 mf_param = {param.name: bij_mf.rmap(param.eval())
@@ -479,6 +552,12 @@ fr_df = pd.DataFrame(fr_param)
 
 mf_df.to_csv(results_path  + 'VI/mf_df_raw.csv', sep=',')
 fr_df.to_csv(results_path + 'VI/fr_df_raw.csv', sep=',')
+
+# COmputing lml value at a point 
+
+
+lml_test = pa.get_lml_value()
+
 
 
 rv_mapping = {'s_1':  co2_model.log_s1, 
@@ -558,10 +637,10 @@ ax2.set_title('Full Rank VI')
 
 # HMC
 
-sample_means_hmc, sample_stds_hmc = get_posterior_predictive_samples(trace_hmc, 20, t_test, results_path + 'pred_dist/', method='hmc') 
-
-sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
-sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+pa.write_posterior_predictive_samples(trace_hmc, 10, t_test, results_path + 'pred_dist/', method='hmc_final', gp=gp) 
+      
+sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc_final.csv')
+sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc_final.csv')
 
 mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
 lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
@@ -569,12 +648,12 @@ lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_
 
 # MF
 
-sample_means_mf,sample_stds_mf = get_posterior_predictive_samples(trace_mf, 200, t_test, results_path, method='mf') 
+pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf_final', gp=gp) 
 
-sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
-sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
+sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf_final.csv')
+sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf_final.csv')
 
-mu_mf = get_posterior_predictive_mean(sample_means_mf)
+mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
 lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
 
 
@@ -608,7 +687,6 @@ for i in range(0,30):
      plt.fill_between(df['year'][sep_idx:], sample_means_fr.ix[i] - 2*sample_stds_fr.ix[i],  sample_means_fr.ix[i] + 2*sample_stds_fr.ix[i], alpha=0.3, color='grey')
      plt.plot(df['year'][sep_idx:], sample_means_fr.ix[i], color='green', alpha=0.3)
 
-
 # Metrics
 
 rmse_hmc = pa.rmse(mu_hmc, y_test)
@@ -618,6 +696,15 @@ rmse_fr = pa.rmse(mu_fr, y_test)
 lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(y_test, sample_means_hmc, sample_stds_hmc)
 lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 lppd_fr, lpd_fr = pa.log_predictive_mixture_density(y_test, sample_means_fr, sample_stds_fr)
+
+se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
+se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
+se_rmse_fr = pa.se_of_rmse(mu_fr, y_test)
+
+se_lpd_hmc = np.sqrt(lppd_hmc)/np.sqrt(len(y_test))
+se_lpd_mf = np.sqrt(lppd_mf)/np.sqrt(len(y_test))
+se_lpd_fr = np.sqrt(lppd_fr)/np.sqrt(len(y_test))
+#se_lpd_tlr = pa.se_of_lpd(y_test, mu_tlr, std_tlr)
 
 # Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
 
@@ -759,6 +846,13 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
         plt.ylabel(i[1])
         plt.tight_layout()
       
-       
-        
+      
+ # Write down means for sig testing
+
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_hmc.csv', X=mu_hmc, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_mf.csv', X=mu_mf, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_fr.csv', X=mu_fr, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
+
         
