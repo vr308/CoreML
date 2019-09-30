@@ -495,25 +495,52 @@ with co2_model:
         
 with co2_model:
       
-      mf = pm.ADVI()
+      p=pm.Point({
+                  'log_n11': np.log(ml_deltas['n_11']), 
+                  'log_s1': np.log(ml_deltas['s_1']),
+                  'log_s3': np.log(ml_deltas['s_3']),
+                  'log_s6': np.log(ml_deltas['ls_4']),
+                  'log_s9': np.log(ml_deltas['s_9']),
+                  'log_alpha8': np.log(ml_deltas['alpha_8']),
+                  'log_l2': np.log(ml_deltas['ls_2']),
+                  'log_l4': np.log(ml_deltas['ls_4']),
+                  'log_l5': np.log(ml_deltas['ls_5']),
+                  'log_l7': np.log(ml_deltas['ls_7']),
+                  'log_l10': np.log(ml_deltas['ls_10'])
+                  })
+      mf = pm.ADVI(start=p)
 
       tracker_mf = pm.callbacks.Tracker(
       mean = mf.approx.mean.eval,    
       std = mf.approx.std.eval)
      
-      mf.fit(n=40000, callbacks=[tracker_mf])
+      mf.fit(n=5000, callbacks=[tracker_mf])
       
       trace_mf = mf.approx.sample(4000)
       
 with co2_model:
       
-      fr = pm.FullRankADVI()
+      p=pm.Point({
+                  'log_n11': np.log(ml_deltas['n_11']), 
+                  'log_s1': np.log(ml_deltas['s_1']),
+                  'log_s3': np.log(ml_deltas['s_3']),
+                  'log_s6': np.log(ml_deltas['ls_4']),
+                  'log_s9': np.log(ml_deltas['s_9']),
+                  'log_alpha8': np.log(ml_deltas['alpha_8']),
+                  'log_l2': np.log(ml_deltas['ls_2']),
+                  'log_l4': np.log(ml_deltas['ls_4']),
+                  'log_l5': np.log(ml_deltas['ls_5']),
+                  'log_l7': np.log(ml_deltas['ls_7']),
+                  'log_l10': np.log(ml_deltas['ls_10'])
+                  })
+      
+      fr = pm.FullRankADVI(start=p)
         
       tracker_fr = pm.callbacks.Tracker(
       mean = fr.approx.mean.eval,    
       std = fr.approx.std.eval)
       
-      fr.fit(n=15000, callbacks=[tracker_fr])
+      fr.fit(n=20000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
       
 
@@ -526,7 +553,7 @@ with co2_model:
    # Testing convergence of ADVI - TODO 
 
 ad.convergence_report(tracker_mf,  mf.hist, varnames,  'Mean Field Convergence Report')
-ad.convergence_report(tracker_fr, fr_param, varnames, fr.hist, 'Full Rank Convergence Report')
+ad.convergence_report(tracker_fr, fr.hist, varnames, 'Full Rank Convergence Report')
 
       
 bij_mf = mf.approx.groups[0].bij
@@ -554,10 +581,6 @@ mf_df.to_csv(results_path  + 'VI/mf_df_raw.csv', sep=',')
 fr_df.to_csv(results_path + 'VI/fr_df_raw.csv', sep=',')
 
 # COmputing lml value at a point 
-
-
-lml_test = pa.get_lml_value()
-
 
 
 rv_mapping = {'s_1':  co2_model.log_s1, 
@@ -648,7 +671,7 @@ lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_
 
 # MF
 
-pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf_final', gp=gp) 
+pa.write_posterior_predictive_samples(trace_mf, 100, t_test, results_path + 'pred_dist/', method='mf_final', gp=gp) 
 
 sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf_final.csv')
 sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf_final.csv')
@@ -659,11 +682,13 @@ lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means
 
 # FR
 
-sample_means_fr, sample_stds_fr = get_posterior_predictive_samples(trace_fr, 100, t_test, results_path, method='fr') 
-mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
+pa.write_posterior_predictive_samples(trace_fr, 100, t_test, results_path + 'pred_dist/', method='fr_final', gp=gp) 
 
-sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
-sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
+
+sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr_final.csv')
+sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr_final.csv')
+
+mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
 
 lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
 
@@ -701,9 +726,9 @@ se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
 se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
 se_rmse_fr = pa.se_of_rmse(mu_fr, y_test)
 
-se_lpd_hmc = np.sqrt(lppd_hmc)/np.sqrt(len(y_test))
-se_lpd_mf = np.sqrt(lppd_mf)/np.sqrt(len(y_test))
-se_lpd_fr = np.sqrt(lppd_fr)/np.sqrt(len(y_test))
+se_lpd_hmc = np.std(lppd_hmc)/np.sqrt(len(y_test))
+se_lpd_mf = np.std(lppd_mf)/np.sqrt(len(y_test))
+se_lpd_fr = np.std(lppd_fr)/np.sqrt(len(y_test))
 #se_lpd_tlr = pa.se_of_lpd(y_test, mu_tlr, std_tlr)
 
 # Plot with HMC + ADVI + Type II results with RMSE and LPD for co2 data
@@ -847,12 +872,13 @@ for i, j  in zip(bi_list, np.arange(len(bi_list))):
         plt.tight_layout()
       
       
- # Write down means for sig testing
+# Write down means for sig testing
 
-np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')   
-np.savetxt(fname=results_path + 'pred_dist/' + 'means_hmc.csv', X=mu_hmc, delimiter=',', header='')   
-np.savetxt(fname=results_path + 'pred_dist/' + 'means_mf.csv', X=mu_mf, delimiter=',', header='')   
-np.savetxt(fname=results_path + 'pred_dist/' + 'means_fr.csv', X=mu_fr, delimiter=',', header='')   
-np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'mu_ml.csv', X=mu_test, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'mu_hmc.csv', X=mu_hmc, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'mu_mf.csv', X=mu_mf, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'mu_fr.csv', X=mu_fr, delimiter=',', header='')   
+#np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
 
-        
+# Co2 results 
+

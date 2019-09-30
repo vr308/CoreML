@@ -35,10 +35,6 @@ def franke(X, Y):
       term3 = .5*torch.exp(-((9*X - 7).pow(2) + (9*Y - 3).pow(2))/4)
       term4 = .2*torch.exp(-(9*X - 4).pow(2) - (9*Y - 7).pow(2))
       f = term1 + term2 + term3 - term4
-      #dfx = -2*(9*X - 2)*9/4 * term1 - 2*(9*X + 1)*9/49 * term2 + \
-      #-2*(9*X - 7)*9/4 * term3 + 2*(9*X - 4)*9 * term4
-      #dfy = -2*(9*Y - 2)*9/4 * term1 - 9/10 * term2 + \
-      #-2*(9*Y - 3)*9/4 * term3 + 2*(9*Y - 7)*9 * term4
       return f
 
 # Creating some data 

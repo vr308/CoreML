@@ -51,7 +51,7 @@ def generate_p_value_matrix(path, tag):
       plt.title(tag, fontsize='small')
       
       
-generate_p_value_matrix(path, 'Physics')
+generate_p_value_matrix(path, 'Co2')
       
 for i in datasets:
       
