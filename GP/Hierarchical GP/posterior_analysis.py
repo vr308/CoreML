@@ -177,7 +177,7 @@ def write_posterior_predictive_samples(trace, thin_factor, X_star, path, method,
       
       
       for i in np.arange(len(trace))[::thin_factor]:
-            
+                        
             print('Predicting ' + str(i))
             post_mean, post_var = gp.predict(X_star, point=trace[i], pred_noise=True, diag=True)
             post_std = np.sqrt(post_var)
@@ -187,7 +187,7 @@ def write_posterior_predictive_samples(trace, thin_factor, X_star, path, method,
             std_writer.writerow(np.round(post_std, 3))
 
 
-def write_posterior_predictive_samples_v2(trace, thin_factor, X_star, path, method, gp):
+def write_posterior_predictive_samples_v2(trace, thin_factor, X_star, path, method, gp,ls_log_str):
       
       means_file = path + 'means_' + method + '.csv'
       std_file = path + 'std_' + method + '.csv'
@@ -202,6 +202,10 @@ def write_posterior_predictive_samples_v2(trace, thin_factor, X_star, path, meth
             row = trace.iloc[i]
             
             row_point = dict(row)
+            
+            row_point.update({'log_ls': row[ls_log_str].values, 'ls': np.exp(row[ls_log_str])})
+            
+            print(row_point)
             
             print('Predicting ' + str(i))
             post_mean, post_var = gp.predict(X_star, point=row_point, pred_noise=True, diag=True)

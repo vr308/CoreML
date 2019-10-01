@@ -23,28 +23,28 @@ import posterior_analysis as pa
 import advi_analysis as ad
 
 
-def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log):
+def multid_traceplot(trace_df, varnames, feature_mapping, ml_deltas_log):
       
       plt.figure(figsize=(16,9))
       
       for i,j in zip([1,3,5,7, 9, 11,13], [0,1,2,3,4,5,6]):
             plt.subplot(7,2,i)
-            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.4)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
             plt.subplot(7,2,i+1)
-            plt.plot(trace_hmc_df[varnames[j]], alpha=0.4)
+            plt.plot(trace_df[varnames[j]], alpha=0.4)
       plt.tight_layout()
             
       plt.figure(figsize=(16,9))
       
       for i,j in zip([1,3,5,7, 9, 11], [7,8,9,10,11,12]):
             plt.subplot(6,2,i)
-            plt.hist(trace_hmc_df[varnames[j]], bins=100, alpha=0.4)
+            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.4)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
             plt.subplot(6,2,i+1)
-            plt.plot(trace_hmc_df[varnames[j]], alpha=0.4)
+            plt.plot(trace_df[varnames[j]], alpha=0.4)
       plt.tight_layout()
       
       
@@ -187,6 +187,20 @@ if __name__ == "__main__":
                  'log_ls__10': str_names[10]
                  }
 
+      feature_mapping2 = {'s': '', 
+                       'n': '', 
+                       'ls__0': str_names[0],
+                       'ls__1': str_names[1],
+                       'ls__2': str_names[2],
+                       'ls__3': str_names[3],
+                       'ls__4': str_names[4],
+                       'ls__5': str_names[5],
+                       'ls__6': str_names[6],
+                       'ls__7': str_names[7],
+                       'ls__8': str_names[8],
+                       'ls__9': str_names[9],
+                       'ls__10': str_names[10]}
+
       ml_deltas_unravel = {'s':s,
                            'ls__0':ls[0],
                            'ls__1':ls[1],
@@ -268,25 +282,31 @@ if __name__ == "__main__":
         
       with wine_model:
             
-            mf = pm.ADVI()
+            p=pm.Point({
+                  'log_n': np.log(ml_deltas['n']), 
+                  'log_s': np.log(ml_deltas['s']),
+                  'log_ls': np.log(ml_deltas['ls'])
+                  })
+            
+            mf = pm.ADVI(start=p)
       
             tracker_mf = pm.callbacks.Tracker(
             mean = mf.approx.mean.eval,    
             std = mf.approx.std.eval)
            
-            mf.fit(n=50000, callbacks=[tracker_mf])
+            mf.fit(n=20000, callbacks=[tracker_mf])
             
             trace_mf = mf.approx.sample(4000)
       
       with wine_model:
             
-            fr = pm.FullRankADVI()
+            fr = pm.FullRankADVI(start=p)
               
             tracker_fr = pm.callbacks.Tracker(
             mean = fr.approx.mean.eval,    
             std = fr.approx.std.eval)
             
-            fr.fit(n=50000, callbacks=[tracker_fr])
+            fr.fit(n=20000, callbacks=[tracker_fr])
             trace_fr = fr.approx.sample(4000)
             
             
@@ -313,27 +333,41 @@ if __name__ == "__main__":
       trace_mf_df = pm.trace_to_dataframe(trace_mf)
       trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
+      
+      # Save df 
+      
+      trace_mf_df.to_csv(results_path + '/trace_mf_df.csv', sep=',')
+      trace_fr_df.to_csv(results_path + '/trace_fr_df.csv', sep=',')
+      
+      
       # Loading persisted trace
    
-      trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=concrete_model)
+      trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=wine_model)
       
       # Traceplots
       
       pa.traceplots(trace_hmc, ['s', 'n'], ml_deltas, 2, combined=True, clr='b')
-      pa.traceplots(trace_mf, ['s', 'n'], ml_deltas, 3, combined=True,clr='coral')
+      pa.traceplots(trace_mf, ['s', 'n'], ml_deltas, 2, combined=True,clr='coral')
       pa.traceplots(trace_fr, ['s','n'], ml_deltas, 2, combined=True, 'g')
       
+      multid_traceplot(trace_hmc_df, varnames_unravel, feature_mapping2, ml_deltas_unravel)
+      multid_traceplot(trace_mf_df, varnames_unravel, feature_mapping2, ml_deltas_unravel)
       multid_traceplot(trace_hmc_df, varnames_unravel, feature_mapping2, ml_deltas_unravel)
 
       # Forest plot
       
       pm.forestplot(trace_hmc, varnames=varnames, rhat=True, quartiles=False)
       
+      pm.forestplot(trace_mf, varnames=varnames, rhat=True, quartiles=False)
+      plt.title('95% Credible Intervals (Mean-Field VI)', fontsize='small')
+      
+      pm.forestplot(trace_fr, varnames=varnames, rhat=True, quartiles=False)
+      plt.title('95% Credible Intervals (Full-Rank VI)', fontsize='small')
       
       # Convergence 
    
-      ad.convergence_report(tracker_mf, varnames_log_unravel, 'Mean-Field Convergence')
-      ad.convergence_report(tracker_fr, varnames_log_unravel, 'Full-Rank Convergence')
+      ad.convergence_report(tracker_mf, mf.hist, varnames_log_unravel, 'Mean-Field Convergence')
+      ad.convergence_report(tracker_fr, fr.hist, varnames_log_unravel, 'Full-Rank Convergence')
       
       # Traceplots compare
       
@@ -356,6 +390,12 @@ if __name__ == "__main__":
       
       hmc_summary_df = pm.summary(trace_hmc)
       hmc_summary_df.to_csv(results_path + '/hmc_summary_df.csv', sep=',')
+      
+      mf_summary_df = pm.summary(trace_mf)
+      mf_summary_df.to_csv(results_path + '/mf_summary_df.csv', sep=',')
+      
+      fr_summary_df = pm.summary(trace_hmc)
+      fr_summary_df.to_csv(results_path + '/fr_summary_df.csv', sep=',')
 
       # Pair Grid plots 
       
@@ -412,7 +452,7 @@ if __name__ == "__main__":
       
       # MF
       
-      pa.write_posterior_predictive_samples(trace_mf, 20, t_test, results_path + 'pred_dist/', method='mf', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_mf, 100, X_test, results_path + 'pred_dist/', method='mf', gp=gp) 
       
       sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
       sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
@@ -423,14 +463,14 @@ if __name__ == "__main__":
       mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
       lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
-      rmse_mf = pa.rmse(mu_mf, forward_mu(y_test, emp_mu, emp_std))
+      rmse_mf = pa.rmse(mu_mf, y_test)
       se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
-      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 
 
       # FR
       
-      pa.write_posterior_predictive_samples(trace_fr, 20, t_test, results_path +  'pred_dist/', method='fr', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_fr, 100, X_test, results_path +  'pred_dist/', method='fr', gp=gp) 
       
       sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
       sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')

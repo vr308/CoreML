@@ -9,7 +9,8 @@ Created on Mon Jun 24 19:43:17 2019
 
 import pymc3 as pm
 import pandas as pd
-import numpy as np
+#import numpy as np
+import autograd.numpy as np
 from autograd import elementwise_grad, jacobian, grad
 import theano.tensor as tt
 import matplotlib.pylab as plt
@@ -107,11 +108,6 @@ def gp_cov(theta, X, y, X_star):
      K_ss = kernel(theta, X_star, X_star)
      return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
              
-dh = elementwise_grad(gp_mean)
-d2h = jacobian(dh)
-dg = grad(gp_cov)
-d2g = jacobian(dg) 
-
 def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
                   
     #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
@@ -119,7 +115,7 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
     #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
     
     pred_g_mean = gp_mean(theta, X, y, X_star)
-    #pred_g_cov = np.diag(gp_cov(theta, X, y, X_star))
+    pred_g_var = np.diag(gp_cov(theta, X, y, X_star))
 
     pred_ng_mean = []
     pred_ng_var = []
@@ -135,8 +131,7 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
           x_star = X_star[i].reshape(1,1)
 
           pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
-          print(pred_ng_mean[i])
-          pred_ng_var.append(pred_vi_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
+          pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
 
     return pred_ng_mean, pred_ng_var
 
@@ -183,9 +178,9 @@ if __name__ == "__main__":
       
       # Read in trace_fr
       
-      trace_fr_df = pm.trace_to_dataframe(trace_fr)
+      #trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
-      trace_fr_df = pd.read_csv(results_path + 'VI/trace_fr_df.csv', sep=',')
+      trace_fr_df = pd.read_csv(results_path + '/trace_fr_df.csv', sep=',')
       
       # Read in fr_param 
 
@@ -196,25 +191,30 @@ if __name__ == "__main__":
       
       # Analytical mean and var
 
-      theta = np.array([mu_theta['s_1'], mu_theta['ls_2'], mu_theta['s_3'], mu_theta['ls_4'], mu_theta['ls_5'], mu_theta['s_6'], mu_theta['ls_7'], mu_theta['alpha_8'], mu_theta['s_9'], mu_theta['ls_10'], mu_theta['n_11']])
+      theta = np.array(mu_theta)
+      
+      dh = elementwise_grad(gp_mean)
+      d2h = jacobian(dh)
+      dg = grad(gp_cov)
+      d2g = jacobian(dg) 
       
       pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
       
-      sample_mcvi_means = pd.read_csv(results_path + 'pred_dist/means_fr.csv', sep=',')
-      sample_mcvi_stds = pd.read_csv(results_path + 'pred_dist/std_fr.csv', sep=',')
-      lower_fr, upper_fr = get_posterior_predictive_uncertainty_intervals(sample_mcvi_means, sample_mcvi_stds)
+      #sample_mcvi_means = pd.read_csv(results_path + 'pred_dist/means_fr.csv', sep=',')
+      #sample_mcvi_stds = pd.read_csv(results_path + 'pred_dist/std_fr.csv', sep=',')
+      #lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_mcvi_means, sample_mcvi_stds)
      
       # Plotting 
       
-      plt.figure()
-      plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-      plt.plot(df['year'][sep_idx:], np.mean(sample_mcvi_means), alpha=1, label='MCVI', color='g')
-      plt.plot(df['year'][sep_idx:], pred_ng_mean, alpha=1, label='Analytical VI', color='b')
-      plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.5)
-      plt.fill_between(df['year'][sep_idx:], (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), (pred_ng_mean + 1.96*np.sqrt(pred_ng_var)), color='b', alpha=0.3)
-      plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='Type II ML', color='r')
-      plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.3)
-      plt.legend(fontsize='x-small')
-      plt.title('Co2 - Test Predictions')
+#      plt.figure()
+#      plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
+#      plt.plot(df['year'][sep_idx:], np.mean(sample_mcvi_means), alpha=1, label='MCVI', color='g')
+#      plt.plot(df['year'][sep_idx:], pred_ng_mean, alpha=1, label='Analytical VI', color='b')
+#      plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.5)
+#      plt.fill_between(df['year'][sep_idx:], (pred_ng_mean - 1.96*np.sqrt(pred_ng_var)), (pred_ng_mean + 1.96*np.sqrt(pred_ng_var)), color='b', alpha=0.3)
+#      plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='Type II ML', color='r')
+#      plt.fill_between(df['year'][sep_idx:], (mu_test - 1.96*std_test), (mu_test + 1.96*std_test), color='red', alpha=0.3)
+#      plt.legend(fontsize='x-small')
+#      plt.title('Co2 - Test Predictions')
 
 

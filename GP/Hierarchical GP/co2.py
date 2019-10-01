@@ -14,11 +14,9 @@ import matplotlib.pylab as plt
 import  scipy.stats as st 
 import seaborn as sns
 import warnings
-import time
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, RationalQuadratic as RQ, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
-import csv
 import posterior_analysis as pa
 import advi_analysis as ad
 
@@ -40,7 +38,7 @@ def get_implicit_variational_posterior(var, means, std, x):
             # Then it is an interval variable
             
             eps = lambda x : var.distribution.transform_used.forward_val(np.log(x))
-            backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
+            #backward_theta = lambda x: var.distribution.transform_used.backward(x).eval()   
             width = (var.distribution.transform_used.b -  var.distribution.transform_used.a).eval()
             total_jacobian = lambda x: x*(width)*sigmoid(eps(x))*(1-sigmoid(eps(x)))
             pdf = lambda x: st.norm.pdf(eps(x), means[var.name], std[var.name])/total_jacobian(x)
@@ -100,88 +98,7 @@ def transform_tracker_values(tracker, param_dict):
                 mean_df[name_mapping[i]] = np.exp(mean_df[i]) 
       return mean_df, sd_df
                 
-def convergence_report(tracker, param_dict, elbo, title):
-      
-      # Plot Negative ElBO track with params in true space
-      
-      mean_mf_df, sd_mf_df = transform_tracker_values(tracker_mf, mf_param)
-      mean_fr_df, sd_fr_df = transform_tracker_values(tracker_fr, fr_param)
 
-      fig = plt.figure(figsize=(16, 9))
-      for i in np.arange(3):
-            print(i)
-#            if (np.mod(i,8) == 0):
-#                   fig = plt.figure(figsize=(16,9))
-#                   i = i + 8
-#                   print(i)
-            plt.subplot(2,4,np.mod(i, 8)+1)
-            plt.plot(mean_mf_df[varnames[i+8]], color='coral')
-            plt.plot(mean_fr_df[varnames[i+8]], color='green')
-            plt.title(varnames[i+8])
-            plt.axhline(param_dict['mu_implicit'][varnames[i+8]], color='r')
-      
-      
-      fig = plt.figure(figsize=(16, 9))
-      mu_ax = fig.add_subplot(221)
-      std_ax = fig.add_subplot(222)
-      hist_ax = fig.add_subplot(212)
-      mu_ax.plot(tracker['mean'])
-      mu_ax.set_title('Mean track')
-      std_ax.plot(tracker['std'])
-      std_ax.set_title('Std track')
-      hist_ax.plot(elbo)
-      hist_ax.set_title('Negative ELBO track');
-      fig.suptitle(title)
-
-# Constructing posterior predictive distribution
-
-def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds):
-      
-      # Fixed at 95% CI
-      
-      n_test = sample_means.shape[-1]
-      components = sample_means.shape[0]
-      lower_ = []
-      upper_ = []
-      for i in np.arange(n_test):
-            print(i)
-            mix_idx = np.random.choice(np.arange(components), size=2000, replace=True)
-            mixture_draws = np.array([st.norm.rvs(loc=sample_means.iloc[j,i], scale=sample_stds.iloc[j,i]) for j in mix_idx])
-            lower, upper = st.scoreatpercentile(mixture_draws, per=[2.5,97.5])
-            lower_.append(lower)
-            upper_.append(upper)
-      return np.array(lower_), np.array(upper_)
-
-def get_posterior_predictive_mean(sample_means):
-      
-      return np.mean(sample_means)
-
-def get_posterior_predictive_samples(trace, thin_factor, X_star, path, method):
-      
-      means_file = path + 'means_' + method + '.csv'
-      std_file = path + 'std_' + method + '.csv'
-    
-      means_writer = csv.writer(open(means_file, 'w')) 
-      std_writer = csv.writer(open(std_file, 'w'))
-      
-      means_writer.writerow(df['year'][sep_idx:])
-      std_writer.writerow(df['year'][sep_idx:])
-      
-      for i in np.arange(len(trace))[::thin_factor]:
-            
-            print('Predicting ' + str(i))
-            mu, var = gp.predict(X_star, point=trace[i], pred_noise=False, diag=True)
-            std = np.sqrt(var)
-            
-            print('Writing out ' + str(i) + ' predictions')
-            means_writer.writerow(np.round(mu, 3))
-            std_writer.writerow(np.round(std, 3))
-
-      time.sleep(5.0)    # pause 5.5 seconds
-      sample_means =  pd.read_csv(means_file, sep=',', header=0)
-      sample_stds = pd.read_csv(std_file, sep=',', header=0)
-      
-      return sample_means, sample_stds
 
 if __name__ == "__main__":
 
@@ -569,8 +486,20 @@ check_mf.approx.params[1].set_value(bij_mf.map(mf_param['rho']))
 
 # Updating with implicit values
 
-mf_param = analytical_variational_opt(co2_model, mf_param, pm.summary(trace_mf))
-fr_param = analytical_variational_opt(co2_model, fr_param, pm.summary(trace_fr))
+name_mapping = {'log_s1':  's_1', 
+              'log_l2': 'ls_2', 
+              'log_s3':  's_3',
+              'log_l4': 'ls_4',
+              'log_l5': 'ls_5',
+              'log_s6': 's_6',
+              'log_l7': 'ls_7',
+              'log_alpha8': 'alpha_8',
+              'log_s9': 's_9',
+              'log_l10': 'ls_10',
+              'log_n11': 'n_11'}
+
+mf_param = ad.analytical_variational_opt(co2_model, mf_param, pm.summary(trace_mf), name_mapping)
+fr_param = ad.analytical_variational_opt(co2_model, fr_param, pm.summary(trace_fr), name_mapping)
 
 # Saving raw ADVI results
 
@@ -580,7 +509,13 @@ fr_df = pd.DataFrame(fr_param)
 mf_df.to_csv(results_path  + 'VI/mf_df_raw.csv', sep=',')
 fr_df.to_csv(results_path + 'VI/fr_df_raw.csv', sep=',')
 
-# COmputing lml value at a point 
+trace_mf_df = pm.trace_to_dataframe(trace_mf)
+trace_fr_df = pm.trace_to_dataframe(trace_fr)
+
+# Save df 
+      
+trace_mf_df.to_csv(results_path + '/trace_mf_df.csv', sep=',')
+trace_fr_df.to_csv(results_path + '/trace_fr_df.csv', sep=',')
 
 
 rv_mapping = {'s_1':  co2_model.log_s1, 
@@ -607,20 +542,6 @@ raw_mapping = {'log_s1':  co2_model.log_s1,
               'log_s9_interval__': co2_model.log_s9_interval__,
               'log_l10_interval__': co2_model.log_l10_interval__,
                'log_n11_interval__': co2_model.log_n11_interval__ }
-
-
-name_mapping = {'log_s1':  's_1', 
-              'log_l2_interval__': 'ls_2', 
-              'log_s3_interval__':  's_3',
-              'log_l4_interval__': 'ls_4',
-              'log_l5_interval__': 'ls_5',
-              'log_s6': 's_6',
-              'log_l7_interval__': 'ls_7',
-              'log_alpha8': 'alpha_8',
-              'log_s9_interval__': 's_9',
-              'log_l10_interval__': 'ls_10',
-              'log_n11_interval__': 'n_11'}
-
 
 # Loading persisted results
    
@@ -677,7 +598,7 @@ sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf_final.csv'
 sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf_final.csv')
 
 mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
-lower_mf, upper_mf = get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
 
 
 # FR
@@ -691,6 +612,10 @@ sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr_final.csv')
 mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
 
 lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+
+# Taylor 
+
+
 
 
 plt.figure()
@@ -879,6 +804,8 @@ np.savetxt(fname=results_path + 'pred_dist/' + 'mu_hmc.csv', X=mu_hmc, delimiter
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_mf.csv', X=mu_mf, delimiter=',', header='')   
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_fr.csv', X=mu_fr, delimiter=',', header='')   
 #np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
+
+# Read 
 
 # Co2 results 
 

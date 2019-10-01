@@ -89,7 +89,7 @@ def get_implicit_variational_posterior(var, means, std, x):
 
 # Converting raw params back to param space
 
-def analytical_variational_opt(model, param_dict, summary_trace, raw_mapping, name_mapping):
+def analytical_variational_opt(model, param_dict, summary_trace, name_mapping):
       
       keys = list(param_dict['mu'].keys())
       
