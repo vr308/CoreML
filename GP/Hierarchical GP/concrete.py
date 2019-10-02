@@ -360,7 +360,7 @@ if __name__ == "__main__":
       pm.forestplot([trace_hmc,trace_mf, trace_fr], models= ['HMC', 'MF', 'FR'], varnames=varnames, rhat=True, quartiles=False, plot_kwargs={'color':'g'})
       plt.title('95% Credible Intervals (HMC)', fontsize='small')
 
-      pm.forestplot(trace_mf, varnames=varnames, rhat=True, quartiles=False)
+      pm.forestplot(trace_hmc_load, varnames=varnames, rhat=True, quartiles=False)
       plt.title('95% Credible Intervals (Mean-Field VI)', fontsize='small')
       
       pm.forestplot(trace_fr, varnames=varnames, rhat=True, quartiles=False)

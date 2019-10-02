@@ -502,7 +502,7 @@ with airline_model:
       # Traceplots
       v_sub = ['ls_2', 'ls_3', 's_4', 'ls_5', 'n_6']
 
-      pa.traceplots(trace_hmc, varnames, ml_deltas, 3, combined=False, clr='b')
+      pa.traceplots(trace_hmc, varnames, ml_deltas, 2, combined=False, clr='b')
       pa.traceplots(trace_mf, v_sub, ml_deltas, 3, True, clr='coral')
       pa.traceplots(trace_fr, v_sub, ml_deltas, 5, True, clr='g')
       

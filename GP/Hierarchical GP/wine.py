@@ -300,7 +300,7 @@ if __name__ == "__main__":
       
       with wine_model:
             
-            fr = pm.FullRankADVI(start=p)
+            fr = pm.FullRankADVI()
               
             tracker_fr = pm.callbacks.Tracker(
             mean = fr.approx.mean.eval,    

@@ -633,7 +633,7 @@ if __name__ == "__main__":
       hyp_10, rmse_10, nlpd_10, lml_10, means_10 = get_ml_II_hyp_variance(X_10, y_10, X_star_10, f_star_10, runs)  
       hyp_20, rmse_20, nlpd_20, lml_20, means_20 = get_ml_II_hyp_variance(X_20, y_20, X_star_20, f_star_20, runs)  
       hyp_40, rmse_40, nlpd_40, lml_40, means_40 = get_ml_II_hyp_variance(X_40, y_40, X_star_40, f_star_40, runs)  
-      hyp_80, rmse_80, nlpd_80, lml_80, means_80 = get_ml_II_hyp_variance(X_80, y_80, X_star_80, f_star_80, runs)  
+      hyp_80, rmse_80, nlpd_80, lml_80, means_80 = get_ml_II_hyp_variance(X_80, y_80, X_star_80, f_star_80, 2)  
       hyp_100, rmse_100, nlpd_100, lml_100, means_80 = get_ml_II_hyp_variance(X_100, y_100, X_star_100, f_star_100, runs)  
       hyp_120, rmse_120, nlpd_120, lml_120, means_120 = get_ml_II_hyp_variance(X_120, y_120, X_star_120, f_star_120, runs)  
       
