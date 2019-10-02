@@ -84,9 +84,9 @@ if __name__ == "__main__":
       
       #train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
       
-      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      #train_id.tofile(results_path + 'train_id.csv', sep=',')
       
-      #train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
+      train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
       
       test_id = ~np.isin(np.arange(n_all), train_id)
       
@@ -333,6 +333,11 @@ if __name__ == "__main__":
       
       trace_mf_df.to_csv(results_path + '/trace_mf_df.csv', sep=',')
       trace_fr_df.to_csv(results_path + '/trace_fr_df.csv', sep=',')
+      
+      # Read mf and fr dfs
+      
+      trace_mf_df = pd.read_csv(results_path + '/trace_mf_df.csv', sep=',', index_col=0)
+      trace_fr_df = pd.read_csv(results_path + '/trace_fr_df.csv', sep=',', index_col=0)
 
       
       # Loading persisted trace

@@ -266,7 +266,7 @@ if __name__ == "__main__":
       
       # Fit to data 
       for i in np.arange(9):
-            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=10)
+            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=30)
             print('Fitting ' + str(i))
             gpr.fit(t_train, y_train)
             gpr_models.append(gpr)
@@ -389,11 +389,11 @@ with pm.Model() as airline_model:
        
        # prior on amplitudes
 
-       #log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
+       log_s1 = pm.Normal('log_s1', mu=np.log(ml_deltas['s_1']), sd=0.5)
        log_s4 = pm.Normal('log_s4', mu=np.log(ml_deltas['s_4']), sd=3)
 
-       s_1 = 316.22
-       #s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
+       #s_1 = 316.22
+       s_1 = pm.Deterministic('s_1', tt.exp(log_s1))
        s_4 = pm.Deterministic('s_4', tt.exp(log_s4))
              
        # prior on noise variance term
