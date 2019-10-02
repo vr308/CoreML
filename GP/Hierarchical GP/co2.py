@@ -803,7 +803,7 @@ np.savetxt(fname=results_path + 'pred_dist/' + 'mu_ml.csv', X=mu_test, delimiter
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_hmc.csv', X=mu_hmc, delimiter=',', header='')   
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_mf.csv', X=mu_mf, delimiter=',', header='')   
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_fr.csv', X=mu_fr, delimiter=',', header='')   
-#np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
 
 # Read 
 

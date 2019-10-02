@@ -140,11 +140,11 @@ if __name__ == "__main__":
 
       # Loading data
       
-      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
-      mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
-      desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hyperparameter Integration/'
+      uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/'
+      mac_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/'
+      desk_home_path = '/home/vr308/Desktop/Workspace/CoreML/GP/Hierarchical GP/'
       
-      path = uni_path
+      path = mac_path
 
       data_path = path + 'Data/Co2/' 
       results_path = path + 'Results/Co2/' 
@@ -200,6 +200,20 @@ if __name__ == "__main__":
       
       pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
       
+      mu_taylor = pred_ng_mean 
+      std_taylor = [np.sqrt(x) for x in pred_ng_var]
+      
+      rmse_taylor = pa.rmse(mu_taylor, y_test)
+      se_rmse_taylor = pa.se_of_rmse(mu_taylor, y_test)
+      lppd_mf, lpd_mf = pa.log_predictive_density(y_test, mu_taylor, std_taylor)
+
+      print('rmse_mf:' + str(rmse_mf))
+      print('se_rmse_mf:' + str(se_rmse_mf))
+      print('lpd_mf:' + str(lpd_mf))
+      
+      np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=mu_taylor, delimiter=',', header='')   
+      np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=std_taylor, delimiter=',', header='')   
+
       #sample_mcvi_means = pd.read_csv(results_path + 'pred_dist/means_fr.csv', sep=',')
       #sample_mcvi_stds = pd.read_csv(results_path + 'pred_dist/std_fr.csv', sep=',')
       #lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_mcvi_means, sample_mcvi_stds)
