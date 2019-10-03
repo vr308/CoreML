@@ -14,6 +14,8 @@ import matplotlib.pylab as plt
 import  scipy.stats as st 
 import seaborn as sns
 import warnings
+import autograd.numpy as np
+from autograd import elementwise_grad, jacobian, grad
 import time
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
@@ -44,9 +46,9 @@ def gp_mean(theta, X, y, X_star):
      ls_5 = theta[4]
      n_6 = theta[5]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk2 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
+     sk2 = s_4**2 * np.exp(-0.5 / ls_5**2 * sqdist_X) + n_6**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
      K_noise = K + sk2*np.eye(len(X))
@@ -59,9 +61,9 @@ def gp_cov(theta, X, y, X_star):
      ls_5 = theta[4]
      n_6 = theta[5]
   
-     sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk2 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
+     sk2 = s_4**2 * np.exp(-0.5 / ls_5**2 * sqdist_X) + n_6**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
      K_noise = K + sk2*np.eye(len(X))
@@ -75,34 +77,35 @@ d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
+def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path, ):
+                  
+    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
+    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+    
+    pred_g_mean = gp_mean(theta, X, y, X_star)
+    pred_g_var = np.diag(gp_cov(theta, X, y, X_star))
 
-rv_mapping = {'s_1':  airline_model.log_s1, 
-              'ls_2': airline_model.log_l2, 
-              'ls_3':  airline_model.log_l3,
-              's_4': airline_model.log_s4,
-              'ls_5': airline_model.log_l5,
-              'n_6': airline_model.log_n6}
+    pred_ng_mean = []
+    pred_ng_var = []
+    
+    # To fix this 
+    
+    #pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
+    #pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
+
+    for i in np.arange(len(X_star)): # To vectorize this loop
           
+          print(i)
+          x_star = X_star[i].reshape(1,1)
 
-raw_mapping = {'log_s1':  airline_model.log_s1, 
-              'log_ls2': airline_model.log_l2, 
-              'log_ls3':  airline_model.log_ls3,
-              'log_s4': airline_model.log_l4,
-              'log_ls5': airline_model.log_l5,
-              'log_n6': airline_model.log_n6,
-              
+          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
+          pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
 
-name_mapping = {'log_s1':  's_1', 
-              'log_l2': 'ls_2', 
-              'log_s3':  's_3',
-              'log_l4_interval__': 'ls_4',
-              'log_l5_interval__': 'ls_5',
-              'log_s6_interval__': 's_6',
-              'log_l7_interval__': 'ls_7',
-              'log_alpha8_interval__': 'alpha_8',
-              'log_s9_interval__': 's_9',
-              'log_l10_interval__': 'ls_10',
-              'log_n11_interval__': 'n_11'}
+    np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=pred_ng_mean, delimiter=',', header='')   
+    np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=np.sqrt(pred_ng_var), delimiter=',', header='')   
+
+    return pred_ng_mean, np.sqrt(pred_ng_var)
 
 
 def forward_mu(x, mu, std):
@@ -139,15 +142,18 @@ if __name__ == "__main__":
       
       ctime = lambda x: (float(x.strftime("%j"))-1) / 366 + float(x.strftime("%Y"))
       df['Year'] = df['Year'].apply(ctime)
+      
+      emp_mu = np.mean(y)
+      emp_std = np.std(y)
      
+      df = normalize()
       
       y = df['Passengers']
       t = df['Time_int']
       
       # Whiten the data 
       
-      #emp_mu = np.mean(y)
-      #emp_std = np.std(y)
+    
       
       #y =  (y - emp_mu)/emp_sd
       
@@ -161,60 +167,60 @@ if __name__ == "__main__":
       
       # ML 
       
-      import GPy as gp
-
-      k1 = gp.kern.RBF(input_dim=1, variance=1, lengthscale=1, active_dims=1)
-      k2 = gp.kern.StdPeriodic(input_dim=1, variance=1, period=365, lengthscale=1,active_dims=1)
-      #k = gp.kern.Prod(k1,k2, input_dim=1)
-      m =  gp.models.GPRegression(t_train, y_train.reshape(len(y_train),1), kernel = k1*k2)
-      
-      # We will use the simplest form of GP model, exact inference
-      class ExactGPModel(gpytorch.models.ExactGP):
-          def __init__(self, train_x, train_y, likelihood):
-              super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
-              self.mean_module = gpytorch.means.LinearMean(input_size=1)
-              self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.ProductKernel(gpytorch.kernels.RBFKernel(), gpytorch.kernels.PeriodicKernel()))
-      
-          def forward(self, x):
-              mean_x = self.mean_module(x)
-              covar_x = self.covar_module(x)
-              return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
-      
-      data=torch.tensor(np.array(df[['Passengers', 'Time_int']]))
-      train_x = data[:,:-1].double()
-      train_y = data[:,-1].double()
-      
-      # initialize likelihood and model
-      likelihood = gpytorch.likelihoods.GaussianLikelihood()
-      model = ExactGPModel(train_x, train_y, likelihood).double()
-      
-      # Find optimal model hyperparameters
-      model.train()
-      likelihood.train()
-      
-      # Use the adam optimizer
-      optimizer = torch.optim.Adam([
-          {'params': model.parameters()},  # Includes GaussianLikelihood parameters
-      ], lr=0.1)
-      
-      # "Loss" for GPs - the marginal log likelihood
-      mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-      
-      training_iter = 50
-      for i in range(training_iter):
-          # Zero gradients from previous iteration
-          optimizer.zero_grad()
-          # Output from model
-          output = model(train_x)
-          # Calc loss and backprop gradients
-          loss = -mll(output,train_y)
-          loss.backward()
-          print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
-              i + 1, training_iter, loss.item(),
-              model.covar_module.lengthscale.item(),
-              model.likelihood.noise.item()
-          ))
-          optimizer.step()
+#      import GPy as gp
+#
+#      k1 = gp.kern.RBF(input_dim=1, variance=1, lengthscale=1, active_dims=1)
+#      k2 = gp.kern.StdPeriodic(input_dim=1, variance=1, period=365, lengthscale=1,active_dims=1)
+#      #k = gp.kern.Prod(k1,k2, input_dim=1)
+#      m =  gp.models.GPRegression(t_train, y_train.reshape(len(y_train),1), kernel = k1*k2)
+#      
+#      # We will use the simplest form of GP model, exact inference
+#      class ExactGPModel(gpytorch.models.ExactGP):
+#          def __init__(self, train_x, train_y, likelihood):
+#              super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
+#              self.mean_module = gpytorch.means.LinearMean(input_size=1)
+#              self.covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.ProductKernel(gpytorch.kernels.RBFKernel(), gpytorch.kernels.PeriodicKernel()))
+#      
+#          def forward(self, x):
+#              mean_x = self.mean_module(x)
+#              covar_x = self.covar_module(x)
+#              return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+#      
+#      data=torch.tensor(np.array(df[['Passengers', 'Time_int']]))
+#      train_x = data[:,:-1].double()
+#      train_y = data[:,-1].double()
+#      
+#      # initialize likelihood and model
+#      likelihood = gpytorch.likelihoods.GaussianLikelihood()
+#      model = ExactGPModel(train_x, train_y, likelihood).double()
+#      
+#      # Find optimal model hyperparameters
+#      model.train()
+#      likelihood.train()
+#      
+#      # Use the adam optimizer
+#      optimizer = torch.optim.Adam([
+#          {'params': model.parameters()},  # Includes GaussianLikelihood parameters
+#      ], lr=0.1)
+#      
+#      # "Loss" for GPs - the marginal log likelihood
+#      mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+#      
+#      training_iter = 50
+#      for i in range(training_iter):
+#          # Zero gradients from previous iteration
+#          optimizer.zero_grad()
+#          # Output from model
+#          output = model(train_x)
+#          # Calc loss and backprop gradients
+#          loss = -mll(output,train_y)
+#          loss.backward()
+#          print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.3f' % (
+#              i + 1, training_iter, loss.item(),
+#              model.covar_module.lengthscale.item(),
+#              model.likelihood.noise.item()
+#          ))
+#          optimizer.step()
       
       
       # sklearn kernel 
@@ -239,14 +245,17 @@ if __name__ == "__main__":
       sk_kernel =  sk2 + sk4
       
       # Fit to data 
-      for i in np.arange(9):
-            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=30)
-            print('Fitting ' + str(i))
-            gpr.fit(t_train, y_train)
-            gpr_models.append(gpr)
-            gpr_lml.append(gpr.log_marginal_likelihood(gpr.kernel_.theta))
-            gpr_ml_deltas.append(gpr.kernel_)
-           
+#      for i in np.arange(9):
+#            gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=50)
+#            print('Fitting ' + str(i))
+#            gpr.fit(t_train, y_train)
+#            gpr_models.append(gpr)
+#            gpr_lml.append(gpr.log_marginal_likelihood(gpr.kernel_.theta))
+#            gpr_ml_deltas.append(gpr.kernel_)
+      
+      gpr = GaussianProcessRegressor(kernel=sk_kernel, n_restarts_optimizer=100)
+      gpr.fit(t_train, y_train)
+      
       print("\nLearned kernel: %s" % gpr.kernel_)
       print("Log-marginal-likelihood: %.3f" % gpr.log_marginal_likelihood(gpr.kernel_.theta))
       
@@ -306,39 +315,7 @@ if __name__ == "__main__":
       ml_df = pd.read_csv(results_path + 'airline_ml.csv')
       
       ml_deltas = dict(zip(ml_df['hyp'], ml_df['values']))
-      
-      
-      #---------------------------------------------------------------------
-          
-      # Vanilla GP - pymc3
-          
-      #---------------------------------------------------------------------
-
-      with pm.Model() as model:
-        
-             # Specify the covariance function
        
-             cov_main = pm.gp.cov.Constant(s_1**2)*pm.gp.cov.ExpQuad(1, ls_2)*pm.gp.cov.Periodic(1, period=p, ls=ls_3)
-             cov_noise = pm.gp.cov.Constant(s_4**2)*pm.gp.cov.ExpQuad(1, ls_5) +  pm.gp.cov.WhiteNoise(n_6**2)
-             
-             gp_main = pm.gp.Marginal(cov_func=cov_main)
-             gp_noise = pm.gp.Marginal(cov_func=cov_noise)
-      
-             k =  cov_main + cov_noise
-                
-             gp = gp_main
-            
-             # Marginal Likelihood
-             y_ = gp.marginal_likelihood("y", X=t_train, y=y_train, noise=cov_noise)
-        
-      with model:
-          
-            f_cond = gp.conditional("f_cond", Xnew=t_test)
-
-      mu_ml, var_ml = gp.predict(t_test, pred_noise=True)
-     
-      
-      
      #-----------------------------------------------------
 
      #       Hybrid Monte Carlo + ADVI Inference 
@@ -399,10 +376,7 @@ with airline_model:
       
        trace_hmc = pm.sample(draws=500, tune=500, chains=2)
 
-      
-# Prior predictive check
-       
-                 
+
 with airline_model:
     
       pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc_final/', overwrite=True)
@@ -410,18 +384,47 @@ with airline_model:
 with airline_model:
       
       trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
-
-        
-with airline_model:
       
-      p=pm.Point({
+
+rv_mapping = {'s_1':  airline_model.log_s1, 
+              'ls_2': airline_model.log_l2, 
+              'ls_3':  airline_model.log_l3,
+              's_4': airline_model.log_s4,
+              'ls_5': airline_model.log_l5,
+              'n_6': airline_model.log_n6}
+          
+
+raw_mapping = {'log_s1':  airline_model.log_s1, 
+              'log_ls2': airline_model.log_l2, 
+              'log_ls3':  airline_model.log_ls3,
+              'log_s4': airline_model.log_l4,
+              'log_ls5': airline_model.log_l5,
+              'log_n6': airline_model.log_n6}
+              
+
+name_mapping = {'log_s1':  's_1', 
+              'log_l2': 'ls_2', 
+              'log_s3':  's_3',
+              'log_l4_interval__': 'ls_4',
+              'log_l5_interval__': 'ls_5',
+              'log_s6_interval__': 's_6',
+              'log_l7_interval__': 'ls_7',
+              'log_alpha8_interval__': 'alpha_8',
+              'log_s9_interval__': 's_9',
+              'log_l10_interval__': 'ls_10',
+              'log_n11_interval__': 'n_11'}
+
+  #p=pm.Point({
             'log_n6': np.log(ml_deltas['n_6']), 
             'log_s1': np.log(ml_deltas['s_1']),
             'log_s4': np.log(ml_deltas['s_4']),
             'log_l2': np.log(ml_deltas['ls_2']),
             'log_l3': np.log(ml_deltas['ls_3']),
                   })
-      mf = pm.ADVI(start=p)
+        
+with airline_model:
+      
+      mf = pm.ADVI()
 
       tracker_mf = pm.callbacks.Tracker(
       mean = mf.approx.mean.eval,    
@@ -432,14 +435,6 @@ with airline_model:
       trace_mf = mf.approx.sample(500)
       
 with airline_model:
-      
-      p=pm.Point({
-            'log_n6': np.log(ml_deltas['n_6']), 
-            'log_s1': np.log(ml_deltas['s_1']),
-            'log_s4': np.log(ml_deltas['s_4']),
-            'log_l2': np.log(ml_deltas['ls_2']),
-            'log_l3': np.log(ml_deltas['ls_3']),
-                  })
       
       fr = pm.FullRankADVI()
         
@@ -473,11 +468,14 @@ with airline_model:
    
       trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=airline_model)
       
+      trace_hmc = trace_hmc_load
+      
+      trace_hmc_df = pm.trace_to_dataframe(trace_hmc)
       # Traceplots
       v_sub = ['ls_2', 'ls_3', 's_4', 'ls_5', 'n_6']
 
       pa.traceplots(trace_hmc, varnames, ml_deltas, 2, combined=False, clr='b')
-      pa.traceplots(trace_mf, v_sub, ml_deltas, 3, True, clr='coral')
+      pa.traceplots(trace_mf, varnames, ml_deltas, 3, True, clr='coral')
       pa.traceplots(trace_fr, v_sub, ml_deltas, 5, True, clr='g')
       
       # Traceplots compare
@@ -566,38 +564,38 @@ with airline_model:
       lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_hmc, sample_stds_hmc)
       
       
-      plt.figure()
-      plt.plot(t_test, sample_means_hmc.T, 'grey', alpha=0.2)
-      plt.plot(t_test, mu_test, 'r-')
-      plt.plot(t_test, y_test, 'ko')
-      plt.plot(t_test, mu_hmc, 'b-')
-      plt.fill_between(t_test.flatten(), lower_hmc, upper_hmc, color='blue', alpha=0.2)
-      plt.fill_between(t_test.flatten(), mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+#      plt.figure()
+#      plt.plot(t_test, sample_means_hmc.T, 'grey', alpha=0.2)
+#      plt.plot(t_test, mu_test, 'r-')
+#      plt.plot(t_test, y_test, 'ko')
+#      plt.plot(t_test, mu_hmc, 'b-')
+#      plt.fill_between(t_test.flatten(), lower_hmc, upper_hmc, color='blue', alpha=0.2)
+#      plt.fill_between(t_test.flatten(), mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
 
      
       # MF
       
       pa.write_posterior_predictive_samples(trace_mf, 10, t_test, results_path + 'pred_dist/', method='mf_final', gp=gp) 
       
-      sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf_final.csv')
-      sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf_final.csv')
+      sample_means_mf = pd.read_csv(results_path + 'pred_dist/' + 'means_mf.csv')
+      sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf.csv')
       
-      #sample_means_mf = forward_mu(sample_means_mf, emp_mu, emp_std)
-      #sample_stds_mf = forward_std(sample_stds_mf, emp_std)
+      sample_means_mf = forward_mu(sample_means_mf, emp_mu, emp_std)
+      sample_stds_mf = forward_std(sample_stds_mf, emp_std)
       
       mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
       lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
       rmse_mf = pa.rmse(mu_mf, y_test)
-      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(forward_mu(y_test, emp_mu, emp_std), sample_means_mf, sample_stds_mf)
+      lppd_mf, lpd_mf = pa.log_predictive_mixture_density(y_test, sample_means_mf, sample_stds_mf)
 
 
       # FR
       
       pa.write_posterior_predictive_samples(trace_fr, 10, t_test, results_path +  'pred_dist/', method='fr_final', gp=gp) 
       
-      sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr_final.csv')
-      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr_final.csv')
+      sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr.csv')
+      sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr.csv')
       
       sample_means_fr = forward_mu(sample_means_fr, emp_mu, emp_std)
       sample_stds_fr = forward_std(sample_stds_fr, emp_std)

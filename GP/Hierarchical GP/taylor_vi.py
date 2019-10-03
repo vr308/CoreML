@@ -31,7 +31,7 @@ def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta, re
           pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
           pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
 
-     np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=pred_ng_mean, delimiter=',', header='')   
-     np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=np.sqrt(pred_ng_var), delimiter=',', header='')   
+     #np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=pred_ng_mean, delimiter=',', header='')   
+     #np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=np.sqrt(pred_ng_var), delimiter=',', header='')   
 
     return pred_ng_mean, np.sqrt(pred_ng_var)

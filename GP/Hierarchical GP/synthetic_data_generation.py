@@ -138,7 +138,7 @@ if __name__ == "__main__":
     
     # Data attributes
     
-    noise_sd_true = np.sqrt(100)
+    noise_sd_true = np.sqrt(300)
     hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
@@ -147,6 +147,7 @@ if __name__ == "__main__":
     
     seq_n_train = [10, 20, 40, 80, 100, 120]  
     
+    seq_n_train=[200]
     data_sets = generate_fixed_domain_data(X_all, f_all, noise_sd_true, uniform, seq_n_train)
     plot_datasets(data_sets, snr, 'Unif')
 
@@ -175,10 +176,9 @@ if __name__ == "__main__":
     # Read f_all and X_all
      
     X_all = np.array(pd.read_csv(path + 'X_all.csv', sep=',', header=None))
-    f_all = np.array(pd.read_csv(path + 'f_all.csv', sep=',', header=None)).reshape(200,)
+    f_all = np.array(pd.read_csv(path + 'f_all.csv', sep=',', header=None)).reshape(500,)
      
      
-
 
      
      

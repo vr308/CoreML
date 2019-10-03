@@ -186,7 +186,19 @@ def analytical_gp(y, K, K_s, K_ss, K_noise, K_inv):
           post_mean = np.dot(K_s.eval().T, alpha)
           post_cov = K_ss.eval() - v.T.dot(v)
           post_std = np.sqrt(np.diag(post_cov))
+          #post_std_y = np.sqrt(np.diag(post_cov))
           return post_mean,  post_std
+
+def analytical_gp2(y, K, K_s, K_ss, K_noise, K_inv, noise_var):
+    
+          L = np.linalg.cholesky(K_noise.eval())
+          alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+          v = np.linalg.solve(L, K_s.eval())
+          post_mean = np.dot(K_s.eval().T, alpha)
+          post_cov = K_ss.eval() - v.T.dot(v)
+          #post_std = np.sqrt(np.diag(post_cov))
+          post_std_y = np.sqrt(np.diag(post_cov) + noise_var)
+          return post_mean,  post_std_y
     
       
 def get_posterior_predictive_uncertainty_intervals(sample_means, sample_stds, weights):
@@ -239,7 +251,8 @@ def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, m
             
             print('Predicting ' + str(i))
             K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
-            post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            post_mean, post_std = analytical_gp2(y, K, K_s, K_ss, K_noise, K_inv, np.square(trace[i]['noise_sd']))
             marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
             #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
             #std = np.sqrt(var)

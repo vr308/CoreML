@@ -23,31 +23,49 @@ import posterior_analysis as pa
 import advi_analysis as ad
 
 
-def multid_traceplot(trace_df, varnames, feature_mapping, ml_deltas_log):
+def multid_traceplot_3way(trace_df, trace_mf_df, trace_fr_df, varnames, feature_mapping, ml_deltas_log):
       
-      plt.figure(figsize=(16,9))
+      means_mf = mf.approx.bij.rmap(mf.approx.mean.eval())  
+      std_mf = mf.approx.bij.rmap(mf.approx.std.eval())  
       
-      for i,j in zip([1,3,5,7, 9, 11,13], [0,1,2,3,4,5,6]):
-            plt.subplot(7,2,i)
-            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.4)
+      means_fr = fr.approx.bij.rmap(fr.approx.mean.eval())  
+      std_fr = fr.approx.bij.rmap(fr.approx.std.eval())  
+      
+      plt.figure(figsize=(10,12))
+      
+      for i, j in zip([1,2,3,4, 5, 6,7], [0,1,2,3,4,5,6]):
+            
+            #delta = deltas.get(str(varnames[i]))
+            #xmax = max(max(trace_hmc[varnames[i]]), delta)
+            #xmin = 1e-5
+            #range_i = np.linspace(xmin, xmax, 1000)  
+            #mf_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_mf, std_mf, range_i)
+            #fr_pdf = advi.get_implicit_variational_posterior(rv_mapping.get(varnames[i]), means_fr, std_fr, range_i)
+            
+            plt.subplot(7,1,i)
+            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.7, normed=True)
+            sns.kdeplot(trace_mf_df[varnames[j]], alpha=0.5, color='coral', shade=True, legend=False)
+            sns.kdeplot(trace_fr_df[varnames[j]],alpha=0.5,color='g', shade=True, legend=False)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
-            plt.subplot(7,2,i+1)
-            plt.plot(trace_df[varnames[j]], alpha=0.4)
+            #plt.subplot(7,2,i+1)
+            #plt.plot(trace_df[varnames[j]], alpha=0.4)
       plt.tight_layout()
             
-      plt.figure(figsize=(16,9))
+      plt.figure(figsize=(10,12))
       
-      for i,j in zip([1,3,5,7, 9, 11], [7,8,9,10,11,12]):
-            plt.subplot(6,2,i)
-            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.4)
+      for i,j in zip([1,2,3,4, 5, 6], [7,8,9,10,11,12]):
+            plt.subplot(6,1,i)
+            plt.hist(trace_df[varnames[j]], bins=100, alpha=0.7, normed=True)
+            sns.kdeplot(trace_mf_df[varnames[j]],  alpha=0.5, color='coral', shade=True, legend=False)
+            sns.kdeplot(trace_fr_df[varnames[j]],  alpha=0.5,color='g', shade=True, legend=False)
             plt.axvline(x=ml_deltas_log[varnames[j]], color='r')
             plt.title(varnames[j] + ' / ' + feature_mapping[varnames[j]], fontsize='small')
-            plt.subplot(6,2,i+1)
-            plt.plot(trace_df[varnames[j]], alpha=0.4)
+            #plt.subplot(6,2,i+1)
+            #plt.plot(trace_df[varnames[j]], alpha=0.4)
       plt.tight_layout()
       
-      
+multid_traceplot_3way(trace_hmc_df, trace_mf_df, trace_fr_df, varnames_unravel, feature_mapping2, ml_deltas_unravel) 
       
 if __name__ == "__main__":
       
@@ -93,7 +111,7 @@ if __name__ == "__main__":
       
       #train_id = np.random.choice(np.arange(n_all), size=n_train, replace=False)
       
-      train_id.tofile(results_path + 'train_id.csv', sep=',')
+      #train_id.tofile(results_path + 'train_id.csv', sep=',')
       
       train_id = np.array(pd.read_csv(results_path + 'train_id.csv', header=None)).reshape(n_train,)
       
@@ -158,11 +176,6 @@ if __name__ == "__main__":
       # Write down mu_ml
 
       np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')
-      
-      # Get prediction interval 
-      
-      lower = mu_test - 1*std_test
-      upper = mu_test + 1*std_test
       
       
       s = np.sqrt(gpr.kernel_.k1.k1.constant_value)
@@ -229,6 +242,13 @@ if __name__ == "__main__":
                        'log_ls__10': np.log(ls[10]),
                        'log_s': np.log(s)
                        }
+      
+      rv_mapping = {'s_1':  wine_model.log_s1, 
+              'ls_2': airline_model.log_l2, 
+              'ls_3':  airline_model.log_l3,
+              's_4': airline_model.log_s4,
+              'ls_5': airline_model.log_l5,
+              'n_6': airline_model.log_n6}
       
       varnames_unravel = np.array(list(ml_deltas_unravel.keys()))
       varnames_log_unravel = np.array(list(ml_deltas_log.keys()))
@@ -333,12 +353,12 @@ if __name__ == "__main__":
       trace_mf_df = pm.trace_to_dataframe(trace_mf)
       trace_fr_df = pm.trace_to_dataframe(trace_fr)
       
-      
       # Save df 
       
       trace_mf_df.to_csv(results_path + '/trace_mf_df.csv', sep=',')
       trace_fr_df.to_csv(results_path + '/trace_fr_df.csv', sep=',')
-      
+      trace_hmc_df.to_csv(results_path + '/trace_hmc_df.csv', sep=',')
+
       
       # Loading persisted trace
    
@@ -371,8 +391,9 @@ if __name__ == "__main__":
       
       # Traceplots compare
       
-      pa.traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, rv_mapping, 6)
-      plt.suptitle('Marginal Hyperparameter Posteriors', fontsize='small')
+      #pa.traceplot_compare(mf, fr, trace_hmc, trace_mf, trace_fr, varnames, ml_deltas, rv_mapping, 6)
+      #plt.suptitle('Marginal Hyperparameter Posteriors', fontsize='small')
+
      
       # Prior Posterior Plot
       
