@@ -30,72 +30,51 @@ def kernel(theta, X1, X2):
      
      s_1 = theta[0]
      ls_2 = theta[1]
-     s_3 = theta[2]
-     ls_4 = theta[3]
-     ls_5 = theta[4]
-     s_6 = theta[5]
-     ls_7 = theta[6]
-     alpha_8 = theta[7]
-    
+     ls_3 = theta[2]
+     
      sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
      dist = np.abs(np.sum(X1,1).reshape(-1,1) - np.sum(X2,1))
-               
-     sk1 = s_1**2 * np.exp(-0.5 / ls_2**2 * sqdist)
-     sk2 = s_3**2 * np.exp(-0.5 / ls_4**2 * sqdist) * np.exp(-2*(np.sin(np.pi*dist)/ls_5)**2)
-     sk3 = s_6**2 * np.power(1.0 + 0.5*(sqdist / (alpha_8 * ls_7**2)), -1*alpha_8)
+     sk = s_1**2 * np.exp(-0.5 / ls_2*2 * sqdist) * np.exp(-2*(np.sin(np.pi*dist)/ls_3)**2)
     
-     return sk1 + sk2 + sk3
-
-def get_empirical_covariance(trace_df, varnames):
-      
-      #df = pm.trace_to_dataframe(trace)
-      return pd.DataFrame(np.cov(trace_df[varnames], rowvar=False), index=varnames, columns=varnames)
+     return sk
 
 def gp_mean(theta, X, y, X_star):
       
-     s_9 = theta[8]
-     ls_10 = theta[9]
-     n_11 = theta[10]
+     s_4 = theta[3]
+     ls_5 = theta[4]
+     n_6 = theta[5]
   
      sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
+     sk2 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
-     K_noise = K + sk4*np.eye(len(X))
+     K_noise = K + sk2*np.eye(len(X))
      K_s = kernel(theta, X, X_star)
      return np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), y)
 
 def gp_cov(theta, X, y, X_star):
       
-     s_9 = theta[8]
-     ls_10 = theta[9]
-     n_11 = theta[10]
+     s_4 = theta[3]
+     ls_5 = theta[4]
+     n_6 = theta[5]
   
      sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
      sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
-     sk4 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
+     sk2 = s_9**2 * np.exp(-0.5 / ls_10**2 * sqdist_X) + n_11**2*np.eye(len(X))
       
      K = kernel(theta, X, X)
-     K_noise = K + sk4*np.eye(len(X))
+     K_noise = K + sk2*np.eye(len(X))
      K_s = kernel(theta, X, X_star)
      K_ss = kernel(theta, X_star, X_star)
      return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
-             
+            
+   
 dh = elementwise_grad(gp_mean)
 d2h = jacobian(dh)
 dg = grad(gp_cov)
 d2g = jacobian(dg) 
 
-def get_cov_point(theta, X):
-      
-       k1 = pm.gp.cov.Constant(theta['s_1']**2)*pm.gp.cov.Matern52(1, theta['ls_2']) 
-       k2 = pm.gp.cov.Constant(theta['s_3']**2)*pm.gp.cov.ExpQuad(1, theta['ls_4'])*pm.gp.cov.Periodic(1, period=366, ls=theta['ls_5'])
-       k3 = pm.gp.cov.Constant(theta['s_6']**2)*pm.gp.cov.ExpQuad(1, theta['ls_7']) +  pm.gp.cov.WhiteNoise(theta['n_8']**2)
-       
-       k = k1 + k2 + k3
-      
-       return k(X,X)
 
 rv_mapping = {'s_1':  airline_model.log_s1, 
               'ls_2': airline_model.log_l2, 
@@ -105,22 +84,17 @@ rv_mapping = {'s_1':  airline_model.log_s1,
               'n_6': airline_model.log_n6}
           
 
-raw_mapping = {'log_s1_interval__':  airline_model.log_s1_interval__, 
-              'log_l2_interval__': airline_model.log_l2_interval__, 
-              'log_s3_interval__':  airline_model.log_s3_interval__,
-              'log_l4_interval__': airline_model.log_l4_interval__,
-              'log_l5_interval__': airline_model.log_l5_interval__,
-              'log_s6_interval__': airline_model.log_s6_interval__,
-              'log_l7_interval__': airline_model.log_l7_interval__,
-              'log_alpha8_interval__': airline_model.log_alpha8_interval__,
-              'log_s9_interval__': airline_model.log_s9_interval__,
-              'log_l10_interval__': airline_model.log_l10_interval__,
-               'log_n11_interval__': airline_model.log_n11_interval__}
+raw_mapping = {'log_s1':  airline_model.log_s1, 
+              'log_ls2': airline_model.log_l2, 
+              'log_ls3':  airline_model.log_ls3,
+              'log_s4': airline_model.log_l4,
+              'log_ls5': airline_model.log_l5,
+              'log_n6': airline_model.log_n6,
+              
 
-
-name_mapping = {'log_s1_interval__':  's_1', 
-              'log_l2_interval__': 'ls_2', 
-              'log_s3_interval__':  's_3',
+name_mapping = {'log_s1':  's_1', 
+              'log_l2': 'ls_2', 
+              'log_s3':  's_3',
               'log_l4_interval__': 'ls_4',
               'log_l5_interval__': 'ls_5',
               'log_s6_interval__': 's_6',

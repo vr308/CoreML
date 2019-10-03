@@ -286,7 +286,14 @@ def traceplots_two_way_compare(trace_mf, trace_fr, varnames, deltas, title, labe
         plt.suptitle(title, fontsize='small')
       
 
+def get_empirical_covariance(trace_df, varnames):
+      
+      #df = pm.trace_to_dataframe(trace)
+      return pd.DataFrame(np.cov(trace_df[varnames], rowvar=False), index=varnames, columns=varnames)
+
+
 # Helper functions for Metrics
+        
 
 def rmse(post_mean, y_test):
     

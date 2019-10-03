@@ -12,6 +12,7 @@ import pandas as pd
 #import numpy as np
 import autograd.numpy as np
 from autograd import elementwise_grad, jacobian, grad
+import taylor_vi as tv
 import theano.tensor as tt
 import matplotlib.pylab as plt
 import warnings
@@ -108,32 +109,6 @@ def gp_cov(theta, X, y, X_star):
      K_ss = kernel(theta, X_star, X_star)
      return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
              
-def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta):
-                  
-    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
-    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
-    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
-    
-    pred_g_mean = gp_mean(theta, X, y, X_star)
-    pred_g_var = np.diag(gp_cov(theta, X, y, X_star))
-
-    pred_ng_mean = []
-    pred_ng_var = []
-    
-    # To fix this 
-    
-    #pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
-    #pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
-
-    for i in np.arange(len(X_star)): # To vectorize this loop
-          
-          print(i)
-          x_star = X_star[i].reshape(1,1)
-
-          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
-          pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
-
-    return pred_ng_mean, pred_ng_var
 
 
 if __name__ == "__main__":
@@ -198,10 +173,10 @@ if __name__ == "__main__":
       dg = grad(gp_cov)
       d2g = jacobian(dg) 
       
-      pred_ng_mean, pred_ng_var = get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
+      mu_taylor, std_taylor = tv.get_vi_analytical(t_train, y_train, t_test, dh, d2h, d2g, theta, mu_theta, cov_theta)
       
-      mu_taylor = pred_ng_mean 
-      std_taylor = [np.sqrt(x) for x in pred_ng_var]
+      #mu_taylor = pred_ng_mean 
+      #std_taylor = [np.sqrt(x) for x in pred_ng_var]
       
       rmse_taylor = pa.rmse(mu_taylor, y_test)
       se_rmse_taylor = pa.se_of_rmse(mu_taylor, y_test)
