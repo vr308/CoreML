@@ -54,10 +54,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Concrete/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Concrete/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Concrete/'
-      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Concrete/'
+      results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
-      path = uni_path
+      path = home_path
       
       raw = pd.read_csv(path + 'concrete.csv', keep_default_na=False)
       

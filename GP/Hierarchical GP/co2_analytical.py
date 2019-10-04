@@ -186,9 +186,7 @@ if __name__ == "__main__":
       print('se_rmse_mf:' + str(se_rmse_mf))
       print('lpd_mf:' + str(lpd_mf))
       
-      np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=mu_taylor, delimiter=',', header='')   
-      np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=std_taylor, delimiter=',', header='')   
-
+     
       #sample_mcvi_means = pd.read_csv(results_path + 'pred_dist/means_fr.csv', sep=',')
       #sample_mcvi_stds = pd.read_csv(results_path + 'pred_dist/std_fr.csv', sep=',')
       #lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_mcvi_means, sample_mcvi_stds)
