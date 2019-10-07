@@ -24,7 +24,7 @@ def generate_gp_training(X_all, f_all, n_train, noise_sd, uniform):
     if uniform == True:
          X = np.random.choice(X_all.ravel(), n_train, replace=False)
     else:
-         pdf = 0.3*st.norm.pdf(X_all, 2, 1) + 0.4*st.norm.pdf(X_all, 12, 1) + 0.3*st.norm.pdf(X_all, 27, 2)
+         pdf = 0.3*st.norm.pdf(X_all, 2, 5) + 0.4*st.norm.pdf(X_all, 40, 5) + 0.3*st.norm.pdf(X_all, 87, 5)
          prob = pdf/np.sum(pdf)
          X = np.random.choice(X_all.ravel(), n_train, replace=False,  p=prob.ravel())
         
@@ -138,16 +138,16 @@ if __name__ == "__main__":
     
     # Data attributes
     
-    noise_sd_true = np.sqrt(300)
+    noise_sd_true = np.sqrt(50)
     hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
     
-    uniform = True
+    uniform = False
     
-    seq_n_train = [10, 20, 40, 80, 100, 120]  
+    seq_n_train = [10, 20, 40, 60, 80, 100, 120]  
     
-    seq_n_train=[200]
+    #seq_n_train=[200]
     data_sets = generate_fixed_domain_data(X_all, f_all, noise_sd_true, uniform, seq_n_train)
     plot_datasets(data_sets, snr, 'Unif')
 

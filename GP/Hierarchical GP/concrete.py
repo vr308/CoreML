@@ -8,18 +8,105 @@ Created on Tue Sep 10 13:40:26 2019
 
 import pymc3 as pm
 import pandas as pd
-import numpy as np
 import theano.tensor as tt
 import matplotlib.pylab as plt
-import  scipy.stats as st 
 import seaborn as sns
-from sklearn.preprocessing import normalize
+import autograd.numpy as np
+from autograd import elementwise_grad, jacobian, grad
 import warnings
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 warnings.filterwarnings("ignore")
 import posterior_analysis as pa
 import advi_analysis as ad
+
+
+# Analytical variational inference for Concrete data
+
+def kernel(theta, X1, X2):
+        
+     s = theta[0]
+     ls_0 = theta[1]
+     ls_1 = theta[2]
+     ls_2 = theta[3]
+     ls_3 = theta[4]
+     ls_4 = theta[5]
+     ls_5 = theta[6]
+     ls_6 = theta[7]
+     ls_7 = theta[8]
+     #n = theta[9]
+     lengthscales = theta[1:9]
+     
+     #sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
+     #dist = np.abs(np.sum(X1,1).reshape(-1,1) - np.sum(X2,1))
+     #sk = s**2 * np.exp(-0.5 / ls_0**2 * sqdist) * np.exp(-0.5 / ls_1**2 * sqdist) * np.exp(-0.5 / ls_2**2 * sqdist) * np.exp(-0.5 / ls_3**2 * sqdist) * np.exp(-0.5 / ls_4**2 * sqdist) *np.exp(-0.5 / ls_5**2 * sqdist) * np.exp(-0.5 / ls_6**2 * sqdist) * np.exp(-0.5 / ls_7**2 * sqdist) 
+     
+     diffs = np.expand_dims(X1 /lengthscales, 1)\
+          - np.expand_dims(X2/lengthscales, 0)
+          
+     sk = s**2 * np.exp(-0.5 * np.sum(diffs**2, axis=2))
+     
+     return sk
+
+def gp_mean(theta, X, y, X_star):
+      
+     n = theta[8]
+  
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk2 = n**2*np.eye(len(X))
+      
+     K = kernel(theta, X, X)
+     K_noise = K + sk2
+     K_s = kernel(theta, X, X_star)
+     return np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), y)
+
+def gp_cov(theta, X, y, X_star):
+      
+     n = theta[8]
+  
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     #sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk2 = n**2*np.eye(len(X))
+      
+     K = kernel(theta, X, X)
+     K_noise = K + sk2
+     K_s = kernel(theta, X, X_star)
+     K_ss = kernel(theta, X_star, X_star)
+     return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
+            
+dh = elementwise_grad(gp_mean)
+d2h = jacobian(dh)
+dg = elementwise_grad(gp_cov)
+d2g = jacobian(dg) 
+
+def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path):
+                  
+    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
+    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+    
+    pred_g_mean = gp_mean(theta, X, y, X_star)
+    pred_g_var = np.diag(gp_cov(theta, X, y, X_star))
+
+    pred_ng_mean = []
+    pred_ng_var = []
+    
+    #pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
+    #pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
+
+    for i in np.arange(len(X_star)): # To vectorize this loop
+          
+          print(i)
+          x_star = X_star[i].reshape(8,1)
+
+          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
+          pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
+
+    np.savetxt(fname=results_path + 'pred_dist/' + 'mu_taylor.csv', X=pred_ng_mean, delimiter=',', header='')   
+    np.savetxt(fname=results_path + 'pred_dist/' + 'std_taylor.csv', X=np.sqrt(pred_ng_var), delimiter=',', header='')   
+
+    return pred_ng_mean, np.sqrt(pred_ng_var)
 
 
 def multid_traceplot(trace_hmc_df, varnames, feature_mapping, ml_deltas_log, clr):
@@ -54,10 +141,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Concrete/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Concrete/'
       
-      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Concrete/'
-      results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
+      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Concrete/'
+      #results_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Airline/'
 
-      path = home_path
+      path = uni_path
       
       raw = pd.read_csv(path + 'concrete.csv', keep_default_na=False)
       
@@ -110,7 +197,7 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*8), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(50.0)*RBF(length_scale=np.array([1.0]*8), length_scale_bounds=(0.000001,1e5))
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 100))  # noise terms
@@ -209,8 +296,12 @@ if __name__ == "__main__":
                        'log_ls__5': np.log(ls[5]),
                        'log_ls__6': np.log(ls[6]),
                        'log_ls__7': np.log(ls[7]),
-                       'log_s': np.log(s),
+                       'log_s': np.log(s)
                        }
+      
+      name_mapping = {'log_s':  's', 
+              'log_ls': 'ls', 
+              'log_n4': 'n'}
       
       varnames_unravel = np.array(list(ml_deltas_unravel.keys()))
       varnames_log_unravel = np.array(list(ml_deltas_log.keys()))
@@ -225,8 +316,8 @@ if __name__ == "__main__":
       with pm.Model() as concrete_model:
            
            log_s = pm.Normal('log_s', 0, 3)
-           log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*3, shape=(n_dim,))
-           log_n = pm.Normal('log_n', 0, 3)
+           log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*2, shape=(n_dim,))
+           log_n = pm.Normal('log_n', 0, 1)
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
@@ -281,20 +372,14 @@ if __name__ == "__main__":
       
       with concrete_model:
             
-            p=pm.Point({
-                  'log_n': np.log(ml_deltas['n']), 
-                  'log_s': np.log(ml_deltas['s']),
-                  'log_ls': np.log(ml_deltas['ls'])
-                  })
-            
-            fr = pm.FullRankADVI(start=p)
+            fr = pm.FullRankADVI()
               
             tracker_fr = pm.callbacks.Tracker(
             mean = fr.approx.mean.eval,    
             std = fr.approx.std.eval)
             
-            fr.fit(n=20000, callbacks=[tracker_fr])
-            trace_fr = fr.approx.sample(500)
+            fr.fit(n=30000, callbacks=[tracker_fr])
+            trace_fr = fr.approx.sample(5000)
             
       with concrete_model:
     
@@ -312,10 +397,10 @@ if __name__ == "__main__":
             fr_param = {param.name: bij_fr.rmap(param.eval()) for param in fr.approx.params}
             
       
-      # Updating with implicit values - %TODO Testing
+      # Updating with implicit values 
       
-      mf_param = ad.analytical_variational_opt(concrete_model, mf_param, pm.summary(trace_mf), raw_mapping, name_mapping)
-      fr_param = ad.analytical_variational_opt(concrete_model, fr_param, pm.summary(trace_fr), raw_mapping, name_mapping)
+      mf_param = ad.analytical_variational_opt(concrete_model, mf_param, pm.summary(trace_mf), name_mapping)
+      fr_param = ad.analytical_variational_opt(concrete_model, fr_param, pm.summary(trace_fr), name_mapping)
 
       # Saving raw ADVI results
       
@@ -338,8 +423,14 @@ if __name__ == "__main__":
       
       trace_mf_df = pd.read_csv(results_path + '/trace_mf_df.csv', sep=',', index_col=0)
       trace_fr_df = pd.read_csv(results_path + '/trace_fr_df.csv', sep=',', index_col=0)
-
       
+      # Get mu_theta & cov_theta
+      
+      mu_theta = []
+      theta = np.array(np.mean(trace_fr_df, axis=0)[varnames_unravel])
+      cov_theta = pa.get_empirical_covariance(trace_fr_df, varnames_unravel)
+      mu_taylor, std_taylor = get_vi_analytical(X_train, y_train, X_test, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path)
+
       # Loading persisted trace
    
       trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/', model=concrete_model)
@@ -354,13 +445,12 @@ if __name__ == "__main__":
       multid_traceplot(trace_mf_df, varnames_unravel, feature_mapping2, ml_deltas_unravel, clr='coral') 
       multid_traceplot(trace_fr_df, varnames_unravel, feature_mapping2, ml_deltas_unravel, clr='g')
 
-
       # Forest plot
       
       pm.forestplot([trace_hmc,trace_mf, trace_fr], models= ['HMC', 'MF', 'FR'], varnames=varnames, rhat=True, quartiles=False, plot_kwargs={'color':'g'})
       plt.title('95% Credible Intervals (HMC)', fontsize='small')
 
-      pm.forestplot(trace_hmc_load, varnames=varnames, rhat=True, quartiles=False)
+      pm.forestplot(trace_hmc, varnames=varnames, rhat=True, quartiles=False)
       plt.title('95% Credible Intervals (Mean-Field VI)', fontsize='small')
       
       pm.forestplot(trace_fr, varnames=varnames, rhat=True, quartiles=False)
@@ -441,7 +531,7 @@ if __name__ == "__main__":
       
       
       mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
-      lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
+      #lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(sample_means_hmc, sample_stds_hmc)
       
       rmse_hmc = pa.rmse(mu_hmc, y_test)
       se_rmse_hmc = pa.se_of_rmse(mu_hmc, y_test)
@@ -459,7 +549,7 @@ if __name__ == "__main__":
       sample_stds_mf = pd.read_csv(results_path + 'pred_dist/' + 'std_mf_final.csv')
       
       mu_mf = pa.get_posterior_predictive_mean(sample_means_mf)
-      lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
+      #lower_mf, upper_mf = pa.get_posterior_predictive_uncertainty_intervals(sample_means_mf, sample_stds_mf)
       
       rmse_mf = pa.rmse(mu_mf, y_test)
       se_rmse_mf = pa.se_of_rmse(mu_mf, y_test)
@@ -471,13 +561,13 @@ if __name__ == "__main__":
 
       # FR
       
-      pa.write_posterior_predictive_samples(trace_fr,10, X_test, results_path +  'pred_dist/', method='fr_final', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_fr,10, X_test, results_path +  'pred_dist/', method='fr_final2', gp=gp) 
       
       sample_means_fr = pd.read_csv(results_path + 'pred_dist/' + 'means_fr_final.csv')
       sample_stds_fr = pd.read_csv(results_path + 'pred_dist/' + 'std_fr_final.csv')
       
       mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)    
-      lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
+      #lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
       
       rmse_fr = pa.rmse(mu_fr, y_test)
       se_rmse_fr = pa.se_of_rmse(mu_fr, y_test)
@@ -491,6 +581,7 @@ if __name__ == "__main__":
       
 # Persist all means 
 
+np.savetxt(fname=results_path + 'pred_dist/' + 'means_ml.csv', X=mu_test, delimiter=',', header='')
 np.savetxt(fname=results_path + 'pred_dist/' + 'means_mf.csv', X=mu_mf, delimiter=',', header='')
 np.savetxt(fname=results_path + 'pred_dist/' + 'means_fr.csv', X=mu_fr, delimiter=',', header='')
 np.savetxt(fname=results_path + 'pred_dist/' + 'means_hmc.csv', X=mu_hmc, delimiter=',', header='')

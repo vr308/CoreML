@@ -27,6 +27,77 @@ import posterior_analysis as pa
 import synthetic_data_generation as sdg
 warnings.filterwarnings("ignore")
 
+def get_kernel_matrix_blocks(X, X_star, n_train, point):
+    
+          cov = pm.gp.cov.Constant(point['sig_sd']**2)*pm.gp.cov.ExpQuad(1, ls=point['ls'])
+          K = cov(X)
+          K_s = cov(X, X_star)
+          K_ss = cov(X_star, X_star)
+          K_noise = K + np.square(point['noise_sd'])*tt.eye(n_train)
+          K_inv = matrix_inverse(K_noise)
+          return K, K_s, K_ss, K_noise, K_inv
+
+def analytical_gp_predict_latent(y, K, K_s, K_ss, K_noise, K_inv):
+    
+          L = np.linalg.cholesky(K_noise.eval())
+          alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+          v = np.linalg.solve(L, K_s.eval())
+          post_mean = np.dot(K_s.eval().T, alpha)
+          post_cov = K_ss.eval() - v.T.dot(v)
+          post_std = np.sqrt(np.diag(post_cov))
+          #post_std_y = np.sqrt(np.diag(post_cov))
+          return post_mean,  post_std
+
+def analytical_gp_predict_noise(y, K, K_s, K_ss, K_noise, K_inv, noise_var):
+          
+          L = np.linalg.cholesky(K_noise.eval())
+          alpha = np.linalg.solve(L.T, np.linalg.solve(L, y))
+          v = np.linalg.solve(L, K_s.eval())
+          post_mean = np.dot(K_s.eval().T, alpha)
+          post_cov = K_ss.eval() - v.T.dot(v)
+          #post_std = np.sqrt(np.diag(post_cov))
+          post_std_y = np.sqrt(np.diag(post_cov) + noise_var)
+          return post_mean,  post_std_y
+    
+def compute_log_marginal_likelihood(K_noise, y):
+      
+      return np.log(st.multivariate_normal.pdf(y, cov=K_noise.eval()))
+
+def load_post_samples(means_file, std_file):
+      
+      return pd.read_csv(means_file, sep=',', header=0), pd.read_csv(std_file, sep=',', header=0)
+
+def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, method):
+      
+      means_file = path + 'means_' + method + '_' + str(len(X)) + '.csv'
+      std_file = path + 'std_' + method + '_' + str(len(X)) + '.csv'
+      trace_file = path + 'trace_' + method + '_' + str(len(X)) + '.csv'
+    
+      means_writer = csv.writer(open(means_file, 'w')) 
+      std_writer = csv.writer(open(std_file, 'w'))
+      trace_writer = csv.writer(open(trace_file, 'w'))
+      
+      means_writer.writerow(X_star.flatten())
+      std_writer.writerow(X_star.flatten())
+      trace_writer.writerow(varnames + ['lml'])
+      
+      for i in np.arange(len(trace))[::thin_factor]:
+            
+            print('Predicting ' + str(i))
+            K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), trace[i])
+            #post_mean, post_std = analytical_gp(y, K, K_s, K_ss, K_noise, K_inv)
+            post_mean, post_std = analytical_gp_predict_noise(y, K, K_s, K_ss, K_noise, K_inv, np.square(trace[i]['noise_sd']))
+            marginal_likelihood = compute_log_marginal_likelihood(K_noise, y)
+            #mu, var = pm.gp.Marginal.predict(Xnew=X_star, point=trace[i], pred_noise=False, diag=True)
+            #std = np.sqrt(var)
+            list_point = [trace[i]['sig_sd'], trace[i]['ls'], trace[i]['noise_sd'], marginal_likelihood]
+            
+            print('Writing out ' + str(i) + ' predictions')
+            means_writer.writerow(np.round(post_mean, 3))
+            std_writer.writerow(np.round(post_std, 3))
+            trace_writer.writerow(np.round(list_point, 3))
+            
+
 # Plot with function draws from a single lengthscale 
 
 lengthscale = 2.0
@@ -228,43 +299,49 @@ plt.axvline(np.log(20), color='r', label='True')
 plt.legend()
 
 
-
-
 # 1d full example - 3 rows of plots 
 #Row 1 -  ML, HMC, FR predictions 
 #Row 2 - Marginal posteriors with ml2 lines
 #Row 3 bivariate plots
 
+varnames = ['sig_sd', 'ls', 'noise_sd']
+varnames_log = ['log_s', 'log_ls', 'log_n']
+
+data_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/NUnif/snr_10/'
+
+
+X_10, y_10, X_star_10, f_star_10 = load_datasets(data_path, 10, n_star)
+X_20, y_20, X_star_20, f_star_20 = load_datasets(data_path, 20, n_star)
+X_60, y_60, X_star_60, f_star_60 = load_datasets(data_path, 60, n_star)
 X_40, y_40, X_star_40, f_star_40 = load_datasets(data_path, 40, n_star)
+X_80, y_80, X_star_80, f_star_80 = load_datasets(data_path, 80, n_star)
 
-
-X = X_80
-y = y_80
-X_star = X_star_80
-f_star = f_star_80
+X = X_20
+y = y_20
+X_star = X_star_20
+f_star = f_star_20
 
 # Generate some data from a SE-Kernel 
 
 def plot_gp(X_star, f_star, X, y, post_mean, lower, upper, post_samples, title, clr):
     
-    if ~post_samples.empty:
+    if post_samples.empty == False:
           plt.plot(X_star, post_samples.T, color='grey', alpha=0.2)
     plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
     plt.plot(X, y, 'ok', ms=3, alpha=0.5)
-    plt.plot(X_star, post_mean, color='r', lw=2, label='Posterior mean')
+    plt.plot(X_star, post_mean, color=clr, lw=2, label='Posterior mean')
     plt.fill_between(np.ravel(X_star), lower, 
                      upper, alpha=0.3, color=clr,
                      label='95% CI')
-    plt.legend(fontsize='x-small')
+    #plt.legend(fontsize='x-small')
     plt.title(title, fontsize='x-small')
 
 
 # ML-II
 
-
     kernel = Ck(50, (1e-10, 1e3)) * RBF(1, length_scale_bounds=(1e-5, 1e3)) + WhiteKernel(1.0, noise_level_bounds=(1e-10,1000))
           
-    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10)
+    gpr = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=20)
   
     # Fit to data 
     gpr.fit(X, y)        
@@ -272,42 +349,73 @@ def plot_gp(X_star, f_star, X, y, post_mean, lower, upper, post_samples, title, 
     post_mean, post_cov = gpr.predict(X_star, return_cov = True) # sklearn always predicts with noise
     post_std = np.sqrt(np.diag(post_cov))
     post_std_nf = np.sqrt(np.diag(post_cov) - ml_deltas[2])
-    post_samples = np.random.multivariate_normal(post_mean, post_cov , 10)
+    post_samples = np.random.multivariate_normal(post_mean, post_cov - np.eye(len(X_star))*ml_deltas[2], 30)
+    post_samples=pd.Series()
     rmse_ = pa.rmse(post_mean, f_star)
     lpd_ = -pa.log_predictive_density(f_star, post_mean, post_std)
-    title = 'GPR' + '\n' + str(gpr.kernel_) + '\n' + '-LPD: ' + str(lpd_)     
-    #ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
-    #'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
+    title = 'ML-II' + '\n' + 'RMSE: ' + str(np.round(rmse_,3)) + '\n' + '-LPD: ' + str(lpd_)     
+    ml_deltas_dict = {'ls': ml_deltas[1], 'noise_sd': np.sqrt(ml_deltas[2]), 'sig_sd': np.sqrt(ml_deltas[0]), 
+    'log_ls': np.log(ml_deltas[1]), 'log_n': np.log(np.sqrt(ml_deltas[2])), 'log_s': np.log(np.sqrt(ml_deltas[0]))}
     
-    lower = post_mean - 1.96*post_std
-    upper = post_mean + 1.96*post_std
+    lower = post_mean - 1.9*post_std
+    upper = post_mean + 1.9*post_std
     
-    
+    plot_gp(X_star, f_star, X, y, post_mean, lower, upper, pd.Series(), title, 'r')
 
 
 # HMC
-
-results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/1d/Unif/snr_2/'
-write_posterior_predictive_samples(trace_hmc_80, 20, X, y, X_star, results_path, 'hmc_2') 
-
-post_means_hmc, post_stds_hmc = load_post_samples(results_path + 'means_hmc_80.csv', results_path + 'std_hmc_80.csv')
-post_means_hmc2, post_stds_hmc2 = load_post_samples(results_path + 'means_hmc_2_80.csv', results_path + 'std_hmc_2_80.csv')
-
-lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(post_means_hmc, post_stds_hmc)
-lower_hmc2, upper_hmc2 = pa.get_posterior_predictive_uncertainty_intervals(post_means_hmc2, post_stds_hmc2)
-
-pp_mean_hmc = np.mean(post_means_hmc)
-
-rmse_hmc = pa.rmse(pp_mean_hmc, f_star)
-
-lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(f_star, post_means_hmc, post_stds_hmc)
-
-title_hmc = 'RMSE: ' + str(rmse_hmc) + '\n' + '-LPD: ' + str(-lpd_hmc)
+    with pm.Model() as syn_model:
+          
+       # prior on lengthscale 
+       #log_ls = pm.Normal('log_ls',mu = 0, sd = 1.5)
+       #ls = pm.Deterministic('ls', tt.exp(log_ls))
+       ls = pm.Gamma('ls', 2, 0.1)
        
+        #prior on noise variance
+       log_n = pm.Normal('log_n', mu = 0 , sd = 3)
+       noise_sd = pm.Deterministic('noise_sd', tt.exp(log_n))
+         
+       #prior on signal variance
+       log_s = pm.Normal('log_s', mu=0, sd = 3)
+       sig_sd = pm.Deterministic('sig_sd', tt.exp(log_s))
+       #sig_sd = pm.InverseGamma('sig_sd', 4, 4)
+       
+       # Specify the covariance function.
+       cov_func = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
+    
+       gp = pm.gp.Marginal(cov_func=cov_func)
+       
+       #Prior
+       trace_prior = pm.sample(draws=1000)
+            
+       # Marginal Likelihood
+       y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
+       
+       trace_hmc_20 = pm.sample(draws=1000)
+       
+       #####
 
+ results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/1d/NUnif/snr_10/'
+
+ pa.plot_prior_posterior_plots(trace_prior, trace_hmc_20, varnames, ml_deltas_dict, '')
+
+ write_posterior_predictive_samples(trace_hmc_20, 10, X, y, X_star, results_path, 'hmc') 
+ 
+ post_means_hmc, post_stds_hmc = load_post_samples(results_path + 'means_hmc_20.csv', results_path + 'std_hmc_20.csv')
+
+ lower_hmc, upper_hmc = pa.get_posterior_predictive_uncertainty_intervals(post_means_hmc, post_stds_hmc)
+
+ pp_mean_hmc = np.mean(post_means_hmc)
+
+ rmse_hmc = pa.rmse(pp_mean_hmc, f_star)
+
+ lppd_hmc, lpd_hmc = pa.log_predictive_mixture_density(f_star, post_means_hmc, post_stds_hmc)
+
+ title_hmc = 'HMC' + '\n' + 'RMSE: ' + str(np.round(rmse_fr,3)) + '\n' + '-LPD: ' + str(-lpd_fr)
+ 
 # FR-VI
 
-with generative_model(X=X_80, y=y_80): 
+    with syn_model: 
       
       fr = pm.FullRankADVI()
       tracker_fr = pm.callbacks.Tracker(
@@ -317,10 +425,9 @@ with generative_model(X=X_80, y=y_80):
       fr.fit(n=20000, callbacks=[tracker_fr])
       trace_fr = fr.approx.sample(4000)
 
-
-write_posterior_predictive_samples(trace_fr, 80, X, y, X_star, results_path, 'fr') 
-sample_means_fr = pd.read_csv(results_path + 'means_fr_80.csv')
-sample_stds_fr = pd.read_csv(results_path + 'std_fr_80.csv')
+write_posterior_predictive_samples(trace_fr, 40, X, y, X_star, results_path, 'fr') 
+sample_means_fr = pd.read_csv(results_path + 'means_fr_20.csv')
+sample_stds_fr = pd.read_csv(results_path + 'std_fr_20.csv')
       
 mu_fr = pa.get_posterior_predictive_mean(sample_means_fr)
 lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_means_fr, sample_stds_fr)
@@ -328,12 +435,27 @@ lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_me
 rmse_fr = pa.rmse(mu_fr, f_star)
 lppd_fr, lpd_fr = pa.log_predictive_mixture_density(f_star, sample_means_fr, sample_stds_fr)
                  
+title_fr = 'Full Rank VI' + '\n' + 'RMSE: ' + str(np.round(rmse_hmc,3)) + '\n' + '-LPD: ' + str(-lpd_hmc)
 
-plt.figure()
+plt.figure(figsize=(10,8))
+plt.subplot(231)
+plot_gp(X_star, f_star, X, y, post_mean, lower, upper, pd.Series(), title, 'r')
+plt.subplot(232)
+plot_gp(X_star, f_star, X, y, pp_mean_hmc, lower_hmc, upper_hmc, pd.Series(), title_hmc, 'b')
+plt.subplot(233)
+plot_gp(X_star, f_star, X, y, mu_fr, lower_fr, upper_fr, pd.Series(), title_fr, 'g')
+plt.subplot(234)
+plt.plot(X_star, post_samples.T, color='r', alpha=0.4, label='ML')
+plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
+plt.subplot(235)
 plt.plot(X_star, post_means_hmc.T, color='b', alpha=0.2, label='HMC means')
-plt.plot(X_star, sample_means_fr.T, color='coral', alpha=0.4, label='VI means')
+plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
+plt.subplot(236)
+plt.plot(X_star, sample_means_fr.T, color='g', alpha=0.3, label='VI means')
+plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
+plt.ylim(-80,+40)
 
- 
+
  # Convergence 
    
 ad.convergence_report(tracker_fr, fr.hist, varnames, 'Full-Rank Convergence')

@@ -6,6 +6,8 @@ Created on Wed Oct  2 23:58:26 2019
 @author: vidhi.lalchand
 """
 
+
+
 def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path, ):
                   
     #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
