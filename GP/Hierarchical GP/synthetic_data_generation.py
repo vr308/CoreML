@@ -138,7 +138,7 @@ if __name__ == "__main__":
     
     # Data attributes
     
-    noise_sd_true = np.sqrt(50)
+    noise_sd_true = np.sqrt(62.5)
     hyp = [sig_sd_true, lengthscale_true, noise_sd_true]
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
