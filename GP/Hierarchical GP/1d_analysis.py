@@ -286,7 +286,7 @@ with generative_model(X=X_120, y=y_120): trace_hmc_120 = pm.sample(draws=1000)
 with generative_model(X=X_200, y=y_200): trace_hmc_200 = pm.sample(draws=1000)
 
 
-plt.figure()
+plt.figure(figsize=(4,4))
 plt.hist(np.log(trace_hmc_10['ls']), bins=100, normed=True, label='10', alpha=0.8)
 plt.hist(np.log(trace_hmc_20['ls']), bins=100, normed=True, label='20', alpha=0.8)
 plt.hist(np.log(trace_hmc_40['ls']), bins=100, normed=True, label='40', alpha=0.8)
@@ -447,9 +447,11 @@ plot_gp(X_star, f_star, X, y, mu_fr, lower_fr, upper_fr, pd.Series(), title_fr, 
 plt.subplot(234)
 plt.plot(X_star, post_samples.T, color='r', alpha=0.4, label='ML')
 plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
+plt.ylim(-80,+40)
 plt.subplot(235)
 plt.plot(X_star, post_means_hmc.T, color='b', alpha=0.2, label='HMC means')
 plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
+plt.ylim(-80,+40)
 plt.subplot(236)
 plt.plot(X_star, sample_means_fr.T, color='g', alpha=0.3, label='VI means')
 plt.plot(X_star, f_star, "k", lw=1.4, label="True f",alpha=0.7);
