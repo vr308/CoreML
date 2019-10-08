@@ -143,7 +143,7 @@ if __name__ == "__main__":
     
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
     
-    uniform = False
+    uniform = True
     
     seq_n_train = [10, 20, 40, 60, 80, 100, 120]  
     

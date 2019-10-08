@@ -100,128 +100,125 @@ def write_posterior_predictive_samples(trace, thin_factor, X, y, X_star, path, m
 
 # Plot with function draws from a single lengthscale 
 
-lengthscale = 2.0
+lengthscale = 1.0
 eta = 2.0
 cov = eta**2 * pm.gp.cov.ExpQuad(1, lengthscale)
 
 X = np.linspace(0, 10, 200)[:,None]
 K = cov(X).eval()
 
-plt.figure(figsize=(4,6))
+plt.figure(figsize=(4,4))
 plt.subplot(211)
 plt.plot(X, pm.MvNormal.dist(mu=np.zeros(K.shape[0]), cov=K).random(size=5).T, color='g');
 plt.title("Fixed lengthscale", fontsize='x-small');
-plt.ylabel("y");
-plt.xlabel("X");
+plt.ylabel("y", fontsize='x-small');
+plt.xlabel("X", fontsize='x-small');
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+
 
 plt.subplot(212)
 for i in np.arange(5):
-      lengthscale = np.random.gamma(1,1)
+      lengthscale = np.random.gamma(2,2)
       cov = eta**2 * pm.gp.cov.ExpQuad(1, lengthscale)
       K = cov(X).eval()
       plt.plot(X, pm.MvNormal.dist(mu=np.zeros(K.shape[0]), cov=K).random(size=1).T);
 plt.title("Prior over lengthscales", fontsize='x-small');
-plt.ylabel("y");
-plt.xlabel("X");
-
+plt.ylabel("y", fontsize='x-small');
+plt.xlabel("X", fontsize='x-small');
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.tight_layout()
 
 # Plot with lml surface and two modes with predictions 
 
-plt.figure(figsize=(14,4))
 
 rng = np.random.RandomState(0)
-X = rng.uniform(0, 5, 20)[:, np.newaxis]
-y = 0.5 * np.sin(10 * X[:, 0]) + rng.normal(0, 0.2, X.shape[0])
+X = rng.uniform(0, 10, 20)[:, np.newaxis]
+f = np.exp(np.cos((0.4 - X[:,0])))
+y = f + rng.normal(0, 0.5, X.shape[0])
+
+X_star = np.linspace(0, 10, 100)
+f_star = np.exp(np.cos((0.4 - X_star)))
+
+plt.plot(X_star, f_star, 'k', lw=3, zorder=9)
+plt.scatter(X[:, 0], y, c='k', s=10)
+
+
+plt.figure(figsize=(8,2))
 
 # First run
 plt.subplot(133)
-kernel = 1.0 * RBF(length_scale=100.0, length_scale_bounds=(1e-2, 1e3)) \
+kernel = 1.0 * RBF(length_scale=100.0, length_scale_bounds=(1e-2, 1e4)) \
     + WhiteKernel(noise_level=1, noise_level_bounds=(1e-10, 1e+1))
 gp1 = GaussianProcessRegressor(kernel=kernel,
                               alpha=0.0).fit(X, y)
-X_ = np.linspace(0, 5, 100)
-y_mean, y_cov = gp1.predict(X_[:, np.newaxis], return_cov=True)
-plt.plot(X_, y_mean, 'r', lw=1, zorder=9)
-plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
+
+y_mean, y_cov = gp1.predict(X_star[:, np.newaxis], return_cov=True)
+plt.plot(X_star, y_mean, 'r', lw=1, zorder=9)
+plt.fill_between(X_star, y_mean - np.sqrt(np.diag(y_cov)),
                  y_mean + np.sqrt(np.diag(y_cov)),
                  alpha=0.2, color='k')
-plt.plot(X_, 0.5*np.sin(3*X_), 'k', lw=3, zorder=9)
+plt.plot(X_star, f_star, 'k', lw=2, zorder=9)
 plt.scatter(X[:, 0], y, c='k', s=10)
 #plt.title("Initial: %s\nOptimum: %s\nLog-Marginal-Likelihood: %s"
 #          % (kernel, gp.kernel_,
 #             gp.log_marginal_likelihood(gp.kernel_.theta)))
 lml = np.round(gp1.log_marginal_likelihood(gp1.kernel_.theta), 3)
 plt.title('LML:' + str(lml), fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
 plt.tight_layout()
 
 # Second run
 plt.subplot(132)
 
-kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
-    + WhiteKernel(noise_level=1e-5, noise_level_bounds=(1e-10, 1e+1))
+kernel = 1.0 * RBF(length_scale=0.1, length_scale_bounds=(1e-2, 1e3)) \
+    + WhiteKernel(noise_level=1e-2, noise_level_bounds=(1e-10, 1e+1))
 gp2 = GaussianProcessRegressor(kernel=kernel,
                               alpha=0.0).fit(X, y)
 X_ = np.linspace(0, 5, 100)
-y_mean, y_cov = gp2.predict(X_[:, np.newaxis], return_cov=True)
-plt.plot(X_, y_mean, 'r', lw=1, zorder=9)
-plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
+y_mean, y_cov = gp2.predict(X_star[:, np.newaxis], return_cov=True)
+plt.plot(X_star, y_mean, 'r', lw=1, zorder=9)
+plt.fill_between(X_star, y_mean - np.sqrt(np.diag(y_cov)),
                  y_mean + np.sqrt(np.diag(y_cov)),
                  alpha=0.2, color='k')
-plt.plot(X_, 0.5*np.sin(3*X_), 'k', lw=3, zorder=9)
+plt.plot(X_star, f_star, 'k', lw=2, zorder=9)
 plt.scatter(X[:, 0], y, c='k', s=10)
 #plt.title("Initial: %s\nOptimum: %s\nLog-Marginal-Likelihood: %s"
 #          % (kernel, gp.kernel_,
 #             gp.log_marginal_likelihood(gp.kernel_.theta)))
 lml = np.round(gp2.log_marginal_likelihood(gp2.kernel_.theta), 3)
 plt.title('LML:' + str(lml), fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+
 plt.tight_layout()
 
-#Third run
-plt.subplot(131)
-kernel = 1.0 * RBF(length_scale=300, length_scale_bounds=(1e-5, 1e3)) \
-    + WhiteKernel(noise_level=0.03, noise_level_bounds=(1e-10, 1e+1))
-gp3 = GaussianProcessRegressor(kernel=kernel,
-                              alpha=0.0).fit(X, y)
-X_ = np.linspace(0, 5, 100)
-y_mean, y_cov = gp3.predict(X_[:, np.newaxis], return_cov=True)
-plt.plot(X_, y_mean, 'r', lw=1, zorder=9)
-plt.fill_between(X_, y_mean - np.sqrt(np.diag(y_cov)),
-                 y_mean + np.sqrt(np.diag(y_cov)),
-                 alpha=0.2, color='k')
-plt.plot(X_, 0.5*np.sin(3*X_), 'k', lw=3, zorder=9)
-plt.scatter(X[:, 0], y, c='k', s=10)
-#plt.title("Initial: %s\nOptimum: %s\nLog-Marginal-Likelihood: %s"
-#          % (kernel, gp.kernel_,
-#             gp.log_marginal_likelihood(gp.kernel_.theta)))
-lml = np.round(gp3.log_marginal_likelihood(gp3.kernel_.theta), 3)
-plt.title('LML:' + str(lml), fontsize='x-small')
-plt.tight_layout()
-print(gp3.kernel_)
 
 # Plot LML landscape
 plt.subplot(131)
 theta0 = np.logspace(-2, 4, 70)
-theta1 = np.logspace(-3, 0, 70)
+theta1 = np.logspace(-5, 1, 70)
 Theta0, Theta1 = np.meshgrid(theta0, theta1)
-LML = [[gp.log_marginal_likelihood(np.log([0.36, Theta0[i, j], Theta1[i, j]]))
+LML = [[gp1.log_marginal_likelihood(np.log([gp1.kernel_.k1.k1.constant_value, Theta0[i, j], Theta1[i, j]]))
         for i in range(Theta0.shape[0])] for j in range(Theta0.shape[1])]
 LML = np.array(LML).T
 
 vmin, vmax = (-LML).min(), (-LML).max()
 vmax = 50
-level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 80), decimals=2)
+level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
 plt.contourf(Theta0, Theta1, -LML,
             levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=plt.cm.coolwarm, alpha=1, extend='both')
-plt.colorbar()
 plt.xscale("log")
 plt.yscale("log")
 plt.scatter(gp1.kernel_.k1.k2.length_scale, gp1.kernel_.k2.noise_level, marker='x', color='r')
 plt.scatter(gp2.kernel_.k1.k2.length_scale, gp2.kernel_.k2.noise_level, marker='x', color='r')
-plt.xlabel("Length-scale")
-plt.ylabel("Noise-level")
+plt.xlabel("Length-scale", fontsize='x-small')
+plt.ylabel("Noise-level", fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
 plt.title("Negative Log-marginal-likelihood", fontsize='x-small')
-plt.tight_layout()
-
 
 # Compression of lengthscale posterior in fixed domain data
 
@@ -261,7 +258,7 @@ def generative_model(X, y):
        # Marginal Likelihood
        y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
        
-data_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/Unif/snr_2/'
+data_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/Unif/snr_6/'
 
 n_star = 500
 
@@ -294,10 +291,13 @@ plt.hist(np.log(trace_hmc_80['ls']), bins=100, normed=True, label='80', alpha=0.
 plt.hist(np.log(trace_hmc_100['ls']), bins=100, normed=True, label='100', alpha=0.6)
 plt.hist(np.log(trace_hmc_120['ls']), bins=100, normed=True, label='120', alpha=0.6)
 #plt.hist(np.log(trace_hmc_200['ls']), bins=100, normed=True, label='200', alpha=0.6)
-plt.title('Log Lengthscale Posterior', fontsize='x-small')
-plt.axvline(np.log(20), color='r', label='True')
-plt.legend()
-
+plt.title('Marginal Posterior', fontsize='x-small')
+plt.ylabel('Normalized Counts', fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.axvline(np.log(18), color='r', label='True')
+plt.xlabel('Log(length-scale)', fontsize='x-small')
+plt.legend(fontsize='x-small')
 
 # 1d full example - 3 rows of plots 
 #Row 1 -  ML, HMC, FR predictions 
@@ -473,11 +473,154 @@ plot_gp(X_star, f_star, X, y, mu_fr, lower_fr, upper_fr, sample_means_fr, title,
 # Traceplots
 
 
-# 2d full example - sample as above
-
-
-
-
 # FR-VI compared to Taylor VI
 
+import autograd.numpy as np
+from autograd import elementwise_grad, grad, jacobian
+
+def kernel(theta, X1, X2):
+        
+     # se +  sexper + rq + se 
+     
+     s_1 = theta[0]
+     ls_2 = theta[1]
+     
+     sqdist = np.sum(X1**2, 1).reshape(-1, 1) + np.sum(X2**2, 1) - 2 * np.dot(X1, X2.T)
+     dist = np.abs(np.sum(X1,1).reshape(-1,1) - np.sum(X2,1))
+     sk = s_1**2 * np.exp(-0.5 / ls_2**2 * sqdist)
+    
+     return sk
+
+def gp_mean(theta, X, y, X_star):
+      
+     n_4 = theta[2]
+  
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk2 = n_4**2*np.eye(len(X))
+      
+     K = kernel(theta, X, X)
+     K_noise = K + sk2*np.eye(len(X))
+     K_s = kernel(theta, X, X_star)
+     return np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), y)
+
+def gp_cov(theta, X, y, X_star):
+      
+     n_4 = theta[2]
+   
+  
+     #sqdist = np.sum(X**2, 1).reshape(-1, 1) + np.sum(X_star**2, 1) - 2 * np.dot(X, X_star.T)
+     sqdist_X =  np.sum(X**2, 1).reshape(-1, 1) + np.sum(X**2, 1) - 2 * np.dot(X, X.T)
+     sk2 = n_4**2*np.eye(len(X))
+      
+     K = kernel(theta, X, X)
+     K_noise = K + sk2*np.eye(len(X))
+     K_s = kernel(theta, X, X_star)
+     K_ss = kernel(theta, X_star, X_star)
+     return K_ss - np.matmul(np.matmul(K_s.T, np.linalg.inv(K_noise)), K_s)
+            
+   
+def get_vi_analytical(X, y, X_star, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path):
+                  
+    #K, K_s, K_ss, K_noise, K_inv = get_kernel_matrix_blocks(X, X_star, len(X), theta)      
+    #pred_vi_mean =  np.matmul(np.matmul(K_s.T, K_inv), y)
+    #pred_vi_var =  np.diag(K_ss - np.matmul(np.matmul(K_s.T, K_inv), K_s))
+    
+    pred_g_mean = gp_mean(theta, X, y, X_star)
+    pred_g_var = np.diag(gp_cov(theta, X, y, X_star))
+
+    pred_ng_mean = []
+    pred_ng_var = []
+    
+    # To fix this 
+    
+    #pred_ng_mean = pred_g_mean + 0.5*np.trace(np.matmul(d2h(theta, X, y, X_star), np.array(cov_theta)))
+    #pred_ng_var = pred_vi_var + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta))
+
+    for i in np.arange(len(X_star)): # To vectorize this loop
+          
+          print(i)
+          x_star = X_star[i].reshape(1,1)
+
+          pred_ng_mean.append(pred_g_mean[i] + 0.5*np.trace(np.matmul(d2h(theta, X, y, x_star), np.array(cov_theta))))
+          pred_ng_var.append(pred_g_var[i] + 0.5*np.trace(np.matmul(d2g(theta, X, y, x_star), cov_theta)) + np.trace(np.matmul(np.outer(dh(theta, X, y, x_star),dh(theta, X, y, x_star).T), cov_theta)))
+
+    np.savetxt(fname=results_path  + 'mu_taylor.csv', X=pred_ng_mean, delimiter=',', header='')   
+    np.savetxt(fname=results_path + 'std_taylor.csv', X=np.sqrt(pred_ng_var), delimiter=',', header='')   
+
+    return pred_ng_mean, np.sqrt(pred_ng_var)
+
+# Load some data 
+    
+data_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/1d/Unif/snr_10/'
+
+X_60, y_60, X_star_60, f_star_60 = load_datasets(data_path, 60, n_star)
+
+X = X_60
+y = y_60
+X_star = X_star_60
+    
+with pm.Model() as vi_test_model:
+          
+       # prior on lengthscale 
+       log_ls = pm.Normal('log_ls',mu = 0, sd = 2)
+       ls = pm.Deterministic('ls', tt.exp(log_ls))
+       #ls = pm.Gamma('ls', 2, 0.1)
+       
+        #prior on noise variance
+       log_n = pm.Normal('log_n', mu = 0 , sd = 3)
+       noise_sd = pm.Deterministic('noise_sd', tt.exp(log_n))
+         
+       #prior on signal variance
+       log_s = pm.Normal('log_s', mu=0, sd = 3)
+       sig_sd = pm.Deterministic('sig_sd', tt.exp(log_s))
+       #sig_sd = pm.InverseGamma('sig_sd', 4, 4)
+       
+       # Specify the covariance function.
+       cov_func = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
+    
+       gp = pm.gp.Marginal(cov_func=cov_func)
+            
+       # Marginal Likelihood
+       y_ = gp.marginal_likelihood("y", X=X, y=y, noise=noise_sd)
+       
+with vi_test_model:
+         
+      fr = pm.FullRankADVI()
+      tracker_fr = pm.callbacks.Tracker(
+      mean = fr.approx.mean.eval,    
+      std = fr.approx.std.eval)
+      
+      fr.fit(n=40000, callbacks=[tracker_fr])
+      trace_fr = fr.approx.sample(4000)  
+
+ad.convergence_report(tracker_fr, fr.hist, varnames, 'Full-Rank Convergence')
+
+write_posterior_predictive_samples(trace_fr, 100, X, y, X_star, results_path, 'fr') 
+sample_means_fr = pd.read_csv(results_path + 'means_fr_40.csv')
+sample_stds_fr = pd.read_csv(results_path + 'std_fr_40.csv')
+
+mu_fr = np.mean(sample_means_fr)
+# Get variational posterior map
+
+trace_fr_df = pm.trace_to_dataframe(trace_fr)
+
+mu_theta = pm.summary(trace_fr).ix[varnames]['mean']
+theta = pm.summary(trace_fr).ix[varnames]['mean'].values
+cov_theta = pa.get_empirical_covariance(trace_fr_df, varnames)
+
+
+dh = elementwise_grad(gp_mean)
+d2h = jacobian(dh)
+dg = grad(gp_cov)
+d2g = jacobian(dg) 
+
+mu_taylor, std_taylor = get_vi_analytical(X_40, y_40, X_star_40, dh, d2h, d2g, theta, mu_theta, cov_theta, results_path)
+
+plt.figure(figsize=(4,4))
+plt.plot(X_star_40, f_star_40, 'k-', label='True')
+plt.plot(X, y, 'ko', markersize=2)
+plt.fill_between(X_star_40.ravel(), lower_fr, upper_fr, color='g', alpha=0.4)
+plt.plot(X_star_40, mu_fr, 'g', label='Sampling PP')
+plt.plot(X_star_40, mu_taylor, 'dodgerblue')
  

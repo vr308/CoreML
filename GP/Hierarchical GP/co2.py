@@ -617,7 +617,6 @@ lower_fr, upper_fr = pa.get_posterior_predictive_uncertainty_intervals(sample_me
 
 
 
-
 plt.figure()
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=2)
 for i in range(0,30):
@@ -679,29 +678,95 @@ plt.ylim(370,420)
 
 # Subplot scheme for WIML
 
-plt.figure(figsize=(14,6))
+plt.figure(figsize=(4,8))
 
-plt.subplot(131)
+plt.subplot(311)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
 plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
-plt.legend(fontsize='small')
-plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+plt.title('ML-II', fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
 
-plt.subplot(132)
+#plt.legend(fontsize='small')
+#plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
+
+plt.subplot(312)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
 plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
-plt.legend(fontsize='small')
-plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
+plt.title('HMC', fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
 
 
-plt.subplot(133)
+#plt.legend(fontsize='small')
+#plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
+
+
+
+
+plt.subplot(313)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
 plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
-plt.legend(fontsize='small')
-plt.title('VI' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'LPD: ' + str(lpd_fr), fontsize='small')
+plt.title('Full Rank VI', fontsize='x-small')
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
+
+
+#plt.legend(fontsize='small')
+#plt.title('VI' + '\n' + 'RMSE: ' + str(rmse_fr) + '\n' + 'LPD: ' + str(lpd_fr), fontsize='small')
+
+
+mu_taylor = pd.read_csv(results_path + 'pred_dist/' + 'mu_taylor.csv', header=None)
+std_taylor = pd.read_csv(results_path + 'pred_dist/' + 'std_taylor.csv', header=None)
+
+
+plt.figure(figsize=(4,4))
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
+plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
+plt.plot(df['year'][sep_idx:], mu_taylor, alpha=0.5, label='test', color='coral')
+plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
+plt.fill_between(df['year'][sep_idx:], (mu_taylor - 2*std_taylor).values.ravel(), (mu_taylor + 2*std_taylor).values.ravel(), color='coral', alpha=0.4)
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.title('Full Rank VI vs. Taylor VI', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
+
+
+plt.figure(figsize=(4,4))
+plt.plot(df['year'][sep_idx:], sample_means_hmc.T, color='b', alpha=0.2)
+plt.plot(df['year'][sep_idx:], sample_means_fr.T, color='g', alpha=0.2)
+plt.plot(df['year'][sep_idx:], mu_test, alpha=0.9, label='test', color='r')
+plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.title('HMC / VI / ML-II', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
+
+
+plt.figure(figsize=(6,3))
+plt.plot(df['year'], df['co2'], 'ko', markersize=1)
+plt.plot(df['year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
+plt.axvline(x=df['year'][sep_idx+1],color='k', linestyle='--')
+#plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='y_pred_test', color='r')
+#plt.fill_between(df['year'][0:sep_idx], mu_fit - 2*std_fit, mu_fit + 2*std_fit, color='grey', alpha=0.2)
+#plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+plt.xticks(fontsize='x-small')
+plt.yticks(fontsize='x-small')
+plt.xlabel('Years', fontsize='x-small')
+plt.title('CO' + r'$_{2}$', fontsize='x-small')
+plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
+
 
 # Write out trace summary & autocorrelation plots
 
@@ -806,6 +871,4 @@ np.savetxt(fname=results_path + 'pred_dist/' + 'mu_fr.csv', X=mu_fr, delimiter='
 np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
 
 # Read 
-
-# Co2 results 
 

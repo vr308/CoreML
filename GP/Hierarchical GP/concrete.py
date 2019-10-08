@@ -354,19 +354,13 @@ if __name__ == "__main__":
         
       with concrete_model:
             
-            p=pm.Point({
-                  'log_n': np.log(ml_deltas['n']), 
-                  'log_s': np.log(ml_deltas['s']),
-                  'log_ls': np.log(ml_deltas['ls'])
-                  })
-            
-            mf = pm.ADVI(start=p)
+            mf = pm.ADVI()
       
             tracker_mf = pm.callbacks.Tracker(
             mean = mf.approx.mean.eval,    
             std = mf.approx.std.eval)
            
-            mf.fit(n=20000, callbacks=[tracker_mf])
+            mf.fit(n=30000, callbacks=[tracker_mf])
             
             trace_mf = mf.approx.sample(500)
       
@@ -406,6 +400,8 @@ if __name__ == "__main__":
       
       mf_df = pd.DataFrame(mf_param)
       fr_df = pd.DataFrame(fr_param)
+      
+      
       
       # Converting trace to df
       
