@@ -678,43 +678,39 @@ plt.ylim(370,420)
 
 # Subplot scheme for WIML
 
-plt.figure(figsize=(4,8))
+plt.figure(figsize=(6,2))
 
-plt.subplot(311)
+plt.subplot(133)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
-plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
-plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
-plt.title('ML-II', fontsize='x-small')
+plt.plot(df['year'][sep_idx:], mu_mf, alpha=0.8, label='test', color='cyan')
+plt.fill_between(df['year'][sep_idx:], lower_mf, upper_mf, color='cyan', alpha=0.8)
+plt.plot(df['year'][sep_idx:], mu_test, alpha=1, label='test', color='r')
+plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.5)
+plt.title('ML-II vs. MF', fontsize='x-small')
 plt.xticks(fontsize='x-small')
 plt.yticks(fontsize='x-small')
 plt.xlabel('Years', fontsize='x-small')
 plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
 
-#plt.legend(fontsize='small')
-#plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'LPD: ' + str(lpd_), fontsize='small')
-
-plt.subplot(312)
+plt.subplot(131)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_hmc, alpha=0.5, label='test', color='b')
 plt.fill_between(df['year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.2)
-plt.title('HMC', fontsize='x-small')
+plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
+plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+plt.title('ML-II vs. HMC', fontsize='x-small')
 plt.xticks(fontsize='x-small')
 plt.yticks(fontsize='x-small')
 plt.xlabel('Years', fontsize='x-small')
 plt.ylabel('CO' + r'$_{2}$' + ' in ppm', fontsize='x-small')
 
-
-#plt.legend(fontsize='small')
-#plt.title('HMC' + '\n' + 'RMSE: ' + str(rmse_hmc) + '\n' + 'LPD: ' + str(lpd_hmc), fontsize='small')
-
-
-
-
-plt.subplot(313)
+plt.subplot(132)
 plt.plot(df['year'][sep_idx:], df['co2'][sep_idx:], 'ko', markersize=1)
 plt.plot(df['year'][sep_idx:], mu_fr, alpha=0.5, label='test', color='g')
 plt.fill_between(df['year'][sep_idx:], lower_fr, upper_fr, color='green', alpha=0.2)
-plt.title('Full Rank VI', fontsize='x-small')
+plt.plot(df['year'][sep_idx:], mu_test, alpha=0.5, label='test', color='r')
+plt.fill_between(df['year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
+plt.title('ML-II vs. FR', fontsize='x-small')
 plt.xticks(fontsize='x-small')
 plt.yticks(fontsize='x-small')
 plt.xlabel('Years', fontsize='x-small')
@@ -870,5 +866,6 @@ np.savetxt(fname=results_path + 'pred_dist/' + 'mu_mf.csv', X=mu_mf, delimiter='
 np.savetxt(fname=results_path + 'pred_dist/' + 'mu_fr.csv', X=mu_fr, delimiter=',', header='')   
 np.savetxt(fname=results_path + 'pred_dist/' + 'means_tlr.csv', X=mu_tlr, delimiter=',', header='')   
 
-# Read 
-
+mu_test = pd.read_csv(results_path + 'pred_dist/' + 'mu_ml.csv', header=None)
+mu_mf = pd.read_csv(results_path + 'pred_dist/' + 'mu_mf.csv', header=None)
+mu_fr = pd.read_csv(results_path + 'pred_dist/' + 'mu_fr.csv', header=None)

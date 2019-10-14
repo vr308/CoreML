@@ -230,8 +230,8 @@ if __name__ == "__main__":
       sk2 = 20**2 * RBF(length_scale=1.0, length_scale_bounds=(1e-3,1e+7)) \
           * PER(length_scale=1.0, periodicity=365.0, periodicity_bounds='fixed')  # seasonal component
           
-      #sk4 = 0.1**2 * RBF(length_scale=0.1, length_scale_bounds=(1e-3,1e3)) + WhiteKernel(noise_level=0.1**2,
-                      #  noise_level_bounds=(1e-3, 100))  # noise terms
+      sk4 = 0.1**2 * RBF(length_scale=0.1, length_scale_bounds=(1e-3,1e3)) + WhiteKernel(noise_level=0.1**2,
+                        noise_level_bounds=(1e-3, 100))  # noise terms
       sk_noise = WhiteKernel(noise_level=0.1**2, noise_level_bounds=(1e-3, 100))  # noise terms
       
       #---------------------------------------------------------------------
@@ -242,7 +242,7 @@ if __name__ == "__main__":
       
       varnames = ['s_1', 'ls_2', 'ls_3', 'n_4']
       
-      sk_kernel =  sk2 + sk_noise
+      sk_kernel =  sk2 + sk4
       
       # Fit to data 
 #      for i in np.arange(9):
@@ -290,6 +290,22 @@ if __name__ == "__main__":
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2)
       plt.legend(fontsize='small')
       plt.title('Type II ML' + '\n' + 'RMSE: ' + str(rmse_) + '\n' + 'NLPD: ' + str(-lpd_), fontsize='small')
+      
+      # Airline prelim
+      plt.figure(figsize=(4,3))
+      plt.plot(df['Year'], df['Passengers'], 'ko', markersize=2)
+      plt.plot(df['Year'][0:sep_idx], mu_fit, alpha=0.5, label='y_pred_train', color='b')
+      plt.title('Airline', fontsize='x-small')
+      plt.xlabel('Years', fontsize='x-small')
+      plt.ylabel('No. of passengers in "000', fontsize='x-small')
+      plt.xticks(fontsize='x-small')
+      plt.yticks(fontsize='x-small')
+      plt.axvline(x=df['Year'][sep_idx], color='k', linestyle='--')
+
+      
+     
+      
+      
       
       s_1 = np.sqrt(gpr.kernel_.k1.k1.k1.constant_value)
       ls_2 = gpr.kernel_.k1.k1.k2.length_scale
@@ -383,12 +399,12 @@ with airline_model:
       trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
       
 
-rv_mapping = {'s_1':  airline_model.log_s1, 
+rv_mapping = {'s_1':  airline_model.s_1, 
               'ls_2': airline_model.log_l2, 
               'ls_3':  airline_model.log_l3,
-              's_4': airline_model.log_s4,
-              'ls_5': airline_model.log_l5,
-              'n_6': airline_model.log_n6}
+              'n_1': airline_model.n_1,
+              'n_2': airline_model.n_2,
+              'n_4': airline_model.log_n4}
           
 
 raw_mapping = {'log_s1':  airline_model.log_s1, 
@@ -631,45 +647,59 @@ with airline_model:
       
       
       # All in 3-way
+      plt.figure(figsize=(6,2))
       
-      plt.subplot(245)
+      plt.subplot(131)
       plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.4, label='HMC')
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
       plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
       plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
       plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.5, color='b')
-      plt.legend(fontsize='small')
-      plt.title('ML-II vs HMC', fontsize='small')
+      #plt.legend(fontsize='small')
+      plt.title('ML-II vs HMC', fontsize='x-small')
+      plt.xlabel('Years', fontsize='x-small')
+      plt.ylabel('No. of passengers in "000', fontsize='x-small')
+      plt.xticks(fontsize='x-small')
+      plt.yticks(fontsize='x-small')
+     
 
-      
-      plt.subplot(246)
-      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
-      plt.fill_between(df['Year'][sep_idx:], lower_hmc, upper_hmc, color='blue', alpha=0.4, label='HMC')
+      plt.subplot(133)
+      plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1) 
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
       plt.fill_between(df['Year'][sep_idx:], lower_fr, upper_fr, color='g', alpha=0.4, label='FR')
       plt.plot(df['Year'][sep_idx:], mu_hmc, alpha=0.8, color='b')
       plt.plot(df['Year'][sep_idx:], mu_fr, alpha=0.8, color='g')
-      plt.legend(fontsize='small')
-      plt.title('HMC vs FR',fontsize='small')
-      
-      
-      plt.subplot(247)
+      #plt.legend(fontsize='small')
+      plt.title('ML-II vs FR',fontsize='x-small')
+      plt.xlabel('Years', fontsize='x-small')
+      plt.ylabel('No. of passengers in "000', fontsize='x-small')
+      plt.xticks(fontsize='x-small')
+      plt.yticks(fontsize='x-small')
+     
+         
+      plt.subplot(132)
       plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
-      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.4, label='MF')
-      plt.fill_between(df['Year'][sep_idx:], lower_fr, upper_fr, color='g', alpha=0.4, label='FR')
-      plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.5, color='coral')
-      plt.plot(df['Year'][sep_idx:], mu_fr, alpha=0.5, color='g')
-      plt.legend(fontsize='small')
-      plt.title('MF vs FR',fontsize='small')
-      
-      
-      plt.subplot(248)      
+      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='magenta', alpha=0.4, label='MF')
+      plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
+      plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.7, color='magenta')
+      plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
+      p#lt.legend(fontsize='small')
+      plt.title('ML-II vs MF',fontsize='x-small')
+      plt.xlabel('Years', fontsize='x-small')
+      plt.ylabel('No. of passengers in "000', fontsize='x-small')
+      plt.xticks(fontsize='x-small')
+      plt.yticks(fontsize='x-small')
+     
+          
+      plt.subplot(144)      
       plt.plot(df['Year'][sep_idx:], df['Passengers'][sep_idx:], 'ko', markersize=1)   
-      plt.fill_between(df['Year'][sep_idx:], lower_mf, upper_mf, color='coral', alpha=0.4, label='MF')
+      plt.fill_between(df['Year'][sep_idx:], mu_taylor - 2*std_taylor, mu_taylor + 2*std_taylor, color='g', alpha=0.4, label='Taylor-VI')
       plt.fill_between(df['Year'][sep_idx:], mu_test - 2*std_test, mu_test + 2*std_test, color='r', alpha=0.2, label='ML-II')
       plt.plot(df['Year'][sep_idx:], mu_mf, alpha=0.5, color='coral')
       plt.plot(df['Year'][sep_idx:], mu_test, alpha=0.5, color='r')
-      plt.legend(fontsize='small')
-      plt.title('ML-II vs MF',fontsize='small')
+      #plt.legend(fontsize='small')
+      plt.title('ML-II vs Taylor VI',fontsize='x-small')
       
       
 # Metrics

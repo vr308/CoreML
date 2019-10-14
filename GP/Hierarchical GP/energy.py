@@ -29,10 +29,10 @@ if __name__ == "__main__":
       home_path = '~/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       uni_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Data/Energy/'
       
-      results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
-      #results_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      #results_path = '/home/vidhi/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
+      results_path = '/Users/vidhi.lalchand/Desktop/Workspace/CoreML/GP/Hierarchical GP/Results/Energy/'
 
-      path = uni_path
+      path = home_path
       
       raw = pd.read_csv(path + 'energy.csv', keep_default_na=False)
       
@@ -75,7 +75,7 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(5.0)*RBF(length_scale=np.array([5.0]*8), length_scale_bounds=(0.000001,1e8))
+      se_ard = Ck(5.0)*RBF(length_scale=np.array([5.0]*8), length_scale_bounds=(0.000001,1e5))
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 1000))  # noise terms
@@ -162,9 +162,9 @@ if __name__ == "__main__":
            
            log_s = pm.Normal('log_s', 0, 3)
            #log_ls = pm.Normal('log_ls', mu=np.array([0]*n_dim), sd=np.ones(n_dim,)*2, shape=(n_dim,))
-           log_n = pm.Normal('log_n', ml_deltas_log['log_n'], 0.2)
+           log_n = pm.Normal('log_n', ml_deltas_log['log_n'], 1)
            
-           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*3, shape=(n_dim,))
+           log_ls = pm.MvNormal('log_ls', mu=np.array([0])*n_dim, cov = np.eye(n_dim)*2, shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
