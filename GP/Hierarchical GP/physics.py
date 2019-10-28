@@ -70,6 +70,8 @@ if __name__ == "__main__":
       
       y = df[:,-1]
       X = df[:,0:13]
+      
+      X = df[:,[0,2,3,4,6,8,11]]
 
       str_names = list(raw.columns[0:13])
       
@@ -121,7 +123,7 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*13), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*7), length_scale_bounds=(0.000001,1e5))
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 100))  # noise terms
@@ -189,18 +191,18 @@ if __name__ == "__main__":
       
       ml_deltas_unravel = {'s':s,
                            'ls__0':ls[0],
-                           'ls__1':ls[1],
-                           'ls__2':ls[2],
-                           'ls__3':ls[3],
-                           'ls__4':ls[4],
-                           'ls__5':ls[5],
-                           'ls__6':ls[6],
-                           'ls__7':ls[7],
-                           'ls__8':ls[8],
-                           'ls__9':ls[9],
-                           'ls__10':ls[10],
-                           'ls__11':ls[11],
-                           'ls__12':ls[12],
+                           #'ls__1':ls[1],
+                           'ls__2':ls[1],
+                           'ls__3':ls[2],
+                           'ls__4':ls[3],
+                           #'ls__5':ls[5],
+                           'ls__6':ls[4],
+                           #'ls__7':ls[7],
+                           'ls__8':ls[5],
+                           #'ls__9':ls[9],
+                           #'ls__10':ls[10],
+                           'ls__11':ls[6],
+                           #'ls__12':ls[12],
                            'n': n}
       
       ml_deltas_log = {'log_s': np.log(s), 
@@ -218,6 +220,23 @@ if __name__ == "__main__":
                        'log_ls__10': np.log(ls[10]),
                        'log_ls__11': np.log(ls[11]),
                        'log_ls__12': np.log(ls[12])
+                       }
+      
+      ml_deltas_log = {'log_s': np.log(s), 
+                       'log_n': np.log(n), 
+                       'log_ls__0': np.log(ls[0]),
+                       #'log_ls__1': np.log(ls[1]),
+                       'log_ls__2': np.log(ls[1]),
+                       'log_ls__3': np.log(ls[2]),
+                       'log_ls__4': np.log(ls[3]),
+                       #'log_ls__5': np.log(ls[5]),
+                       'log_ls__6': np.log(ls[4]),
+                       #'log_ls__7': np.log(ls[7]),
+                       'log_ls__8': np.log(ls[5]),
+                       #'log_ls__9': np.log(ls[9]),
+                       #'log_ls__10': np.log(ls[10]),
+                       'log_ls__11': np.log(ls[5]),
+                       #'log_ls__12': np.log(ls[12])
                        }
       
       feature_mapping = {'log_s': '', 
@@ -244,8 +263,8 @@ if __name__ == "__main__":
            
            log_s = pm.Normal('log_s', 0, 3)
            #log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*3, shape=(13,))
-           #log_n = pm.Normal('log_n', ml_deltas['n'], 0.01)
-           log_n = ml_deltas['n']
+           log_n = pm.Normal('log_n', ml_deltas['n'], 0.5)
+           #log_n = ml_deltas['n']
            log_ls = pm.MvNormal('log_ls', mu=np.log(ml_deltas['ls']), cov = np.eye(n_dim)*2, shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
@@ -316,7 +335,7 @@ if __name__ == "__main__":
       
       # Prior Posterior Learning 
       
-      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log_unravel[-13:], ml_deltas_log, 'Prior Posterior HMC')
+      pa.plot_prior_posterior_plots(trace_prior_df, trace_hmc_df, varnames_log_unravel, ml_deltas_log, 'Prior Posterior HMC')
 
        # Forest plot
       
@@ -357,12 +376,12 @@ if __name__ == "__main__":
 
       # HMC
       
-      pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc', gp=gp) 
+      pa.write_posterior_predictive_samples(trace_hmc, 10, X_test, results_path + 'pred_dist/', method='hmc_sub', gp=gp) 
       
-      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc.csv')
-      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc.csv')
+      sample_means_hmc = pd.read_csv(results_path + 'pred_dist/' + 'means_hmc_sub.csv')
+      sample_stds_hmc = pd.read_csv(results_path + 'pred_dist/' + 'std_hmc_sub.csv')
       
-      #sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
+     # sample_means_hmc = forward_mu(sample_means_hmc, emp_mu, emp_std)
       #sample_stds_hmc = forward_std(sample_stds_hmc, emp_std)
       
       mu_hmc = pa.get_posterior_predictive_mean(sample_means_hmc)
@@ -433,6 +452,30 @@ if __name__ == "__main__":
       print('se_rmse_fr:' + str(se_rmse_fr))
       print('lpd_fr:' + str(lpd_fr))
       
-      
+
+from itertools import combinations
+
+trace = trace_hmc_df
+varnames = varnames_unravel
+ml_deltas = ml_deltas_unravel
+
+bi_list = []
+for i in combinations(varnames, 2):
+      bi_list.append(i)
+            
+bi_list_sub = bi_list[0:20]
+
+for i, j  in zip(bi_list_sub, np.arange(len(bi_list_sub))):
+      print(i)
+      print(j)
+      if np.mod(j,8) == 0:
+            plt.figure(figsize=(15,8))
+      plt.subplot(2,4,np.mod(j, 8)+1)
+      #g = sns.kdeplot(trace[i[0]], trace[i[1]], color="b", shade=True, alpha=0.7, bw='silverman')
+      plt.scatter(trace[i[0]], trace[i[1]], s=0.5, color='b', alpha=0.4)
+      plt.scatter(ml_deltas[i[0]], ml_deltas[i[1]], marker='x', color='r')
+      plt.xlabel(i[0])
+      plt.ylabel(i[1])
+      plt.tight_layout()     
       
       
