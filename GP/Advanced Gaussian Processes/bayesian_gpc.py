@@ -12,13 +12,17 @@ import numpy as np
 import matplotlib.pylab as plt
 import sys
 
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+
+
 np.random.seed(1)
 
 # number of data points
 n = 200
 
 # x locations
-x = np.linspace(0, 1.5, n)
+x = np.linspace(-5, 5, n)
 
 # true covariance
 l = 0.1
@@ -43,17 +47,27 @@ y = pm.Bernoulli.dist(p=invlogit(f_true)).random()
 fig = plt.figure(figsize=(12,5)); 
 ax = fig.gca()
 ax.plot(x, invlogit(f_true), 'dodgerblue', lw=3, label="True rate");
-ax.plot(x, y + np.random.randn(n)*0.01, 'ko', ms=3, label="Observed data");
+ax.plot(x, y, 'ko', ms=3, label="Observed data");
 ax.set_xlabel("X"); 
 ax.set_ylabel("y"); 
 plt.legend();
 
+# Laplace - ML-II
+
+
+
+
+
+
+
+# HMC
+
 with pm.Model() as model:
     # covariance function
-    ℓ = pm.Gamma("ℓ", alpha=2, beta=2)
+    l = pm.Gamma("l", alpha=2, beta=2)
     # informative, positive normal prior on the period
-    η = pm.HalfNormal("η", sd=5)
-    cov = η**2 * pm.gp.cov.ExpQuad(1, ℓ)
+    n = pm.HalfNormal("n", sd=3)
+    cov = n**2 * pm.gp.cov.ExpQuad(1, l)
 
     gp = pm.gp.Latent(cov_func=cov)
 
@@ -81,17 +95,16 @@ with model:
 fig = plt.figure(figsize=(12,5)); 
 ax = fig.gca()
 
-# plot the samples from the gp posterior with samples and shading
-plot_gp_dist(ax, invlogit(trace["f"]), x);
-
 # plot the data (with some jitter) and the true latent function
-plt.plot(x, invlogit(f_true), "dodgerblue", lw=3, label="True f");
-plt.plot(x, y + np.random.randn(y.shape[0])*0.01, 'ok', ms=3, alpha=0.5, label="Observed data");
+plt.plot(x, invlogit(trace['f'][::20].T), color='grey', alpha=0.5)
+plt.plot(x, y, 'ok', ms=3, alpha=0.5, label="y");
+plt.plot(x, invlogit(f_true), "k", lw=2, label="True f");
+plt.plot(x, invlogit(trace['f'].T).mean(axis=1), color='b', label='HMC Mean')
 
 # axis labels and title
 plt.xlabel("X"); 
-plt.ylabel("True f(x)");
-plt.title("Posterior distribution over $f(x)$ at the observed values"); 
+plt.ylabel("prob.");
+plt.title("Posterior distribution over " + r'$(f(x), \theta)$', fontsize='small'); 
 plt.legend();
     
 # 
