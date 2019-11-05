@@ -21,9 +21,9 @@ n = 200
 x = np.linspace(0, 1.5, n)
 
 # true covariance
-ℓ_true = 0.1
-η_true = 1.0
-cov_func = η_true**2 * pm.gp.cov.ExpQuad(1, ℓ_true)
+l = 0.1
+n = 1.0
+cov_func = n**2 * pm.gp.cov.ExpQuad(1, l)
 K = cov_func(x[:,None]).eval()
 
 # zero mean function
@@ -94,5 +94,5 @@ plt.ylabel("True f(x)");
 plt.title("Posterior distribution over $f(x)$ at the observed values"); 
 plt.legend();
     
-    
+# 
     
