@@ -71,6 +71,9 @@ if __name__ == "__main__":
       y = df[:,-1]
       X = df[:,0:13]
       
+      df = -df
+      sub_df = df[df[:,-1] < 0]
+      
       X = df[:,[0,2,3,4,6,8,11]]
 
       str_names = list(raw.columns[0:13])
@@ -91,9 +94,11 @@ if __name__ == "__main__":
       y_train = y[train_id]
       y_test = y[test_id]
       
-      X_train = X[train_id]
-      X_test = X[test_id]
+      #X_train = X[train_id]
+      #X_test = X[test_id]
       
+      X_train = X
+      y_train = y
       
 #      train_id = []; test_id = []
 #      
@@ -123,7 +128,7 @@ if __name__ == "__main__":
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*7), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*13), length_scale_bounds=(0.000001,1e5))
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 100))  # noise terms
@@ -191,18 +196,18 @@ if __name__ == "__main__":
       
       ml_deltas_unravel = {'s':s,
                            'ls__0':ls[0],
-                           #'ls__1':ls[1],
-                           'ls__2':ls[1],
-                           'ls__3':ls[2],
-                           'ls__4':ls[3],
-                           #'ls__5':ls[5],
-                           'ls__6':ls[4],
-                           #'ls__7':ls[7],
-                           'ls__8':ls[5],
-                           #'ls__9':ls[9],
-                           #'ls__10':ls[10],
-                           'ls__11':ls[6],
-                           #'ls__12':ls[12],
+                           'ls__1':ls[1],
+                           'ls__2':ls[2],
+                           'ls__3':ls[3],
+                           'ls__4':ls[4],
+                           'ls__5':ls[5],
+                           'ls__6':ls[6],
+                           'ls__7':ls[7],
+                           'ls__8':ls[8],
+                           'ls__9':ls[9],
+                           'ls__10':ls[10],
+                           'ls__11':ls[11],
+                           'ls__12':ls[12],
                            'n': n}
       
       ml_deltas_log = {'log_s': np.log(s), 
@@ -271,9 +276,11 @@ if __name__ == "__main__":
            ls = pm.Deterministic('ls', tt.exp(log_ls))
            n = pm.Deterministic('n', tt.exp(log_n))
            
+           bias = pm.Normal('b', 0, 1)
+           
            # Specify the covariance function
        
-           cov_main = pm.gp.cov.Constant(s**2)*pm.gp.cov.ExpQuad(n_dim, ls)
+           cov_main = pm.gp.cov.Constant(s**2)*pm.gp.cov.ExpQuad(n_dim, ls) + pm.gp.cov.Constant(bias)
            cov_noise = pm.gp.cov.WhiteNoise(n**2)
        
            gp_main = pm.gp.Marginal(cov_func=cov_main)
@@ -290,7 +297,7 @@ if __name__ == "__main__":
            
       with physics_model:
     
-            pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc/', overwrite=True)
+            pm.save_trace(trace_hmc, directory = results_path + 'Traces_pickle_hmc_2/', overwrite=True)
       
       with physics_model:
       
