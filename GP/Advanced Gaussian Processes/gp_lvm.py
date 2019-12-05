@@ -27,3 +27,13 @@ labels = np.hstack((np.zeros(A.shape[0]), np.ones(B.shape[0]), np.ones(C.shape[0
 
 input_dim = 2 # How many latent dimensions to use
 kernel = GPy.kern.RBF(input_dim, 1, ARD=True) 
+
+Q = input_dim
+m_gplvm = GPy.models.GPLVM(Y, Q, kernel=GPy.kern.RBF(Q))
+m_gplvm.kern.lengthscale = .2
+m_gplvm.kern.variance = 1
+m_gplvm.likelihood.variance = 1.
+m_gplvm
+
+m_gplvm.plot_latent(labels=labels)
+

@@ -59,16 +59,11 @@ if __name__ == "__main__":
 
       path = uni_path
       
-      raw = pd.read_csv(path + 'physics.csv', keep_default_na=False)
-      
-      #mu_y = np.mean(raw['objective'])
-      #std_y = np.std(raw['objective'])
-      
-      #df = normalize(raw)
+      raw = pd.read_csv(path + 'latest.csv', keep_default_na=False)
       
       df = np.array(raw)
       
-      y = df[:,-1]
+      y = df[:,-2]
       X = df[:,0:13]
       
       df = -df
@@ -97,38 +92,16 @@ if __name__ == "__main__":
       #X_train = X[train_id]
       #X_test = X[test_id]
       
-      X_train = X
-      y_train = y
-      
-#      train_id = []; test_id = []
-#      
-#      kf = KFold(n_splits=5, shuffle=False)
-#      
-#      X_train_folds = []; X_test_folds = []; y_train_folds = []; y_test_folds = []
-#      
-#      for i, j in kf.split(X):
-#          #print(i)
-#          #print(j)
-#          X_train_folds.append(X[i])
-#          X_test_folds.append(X[j])
-#          y_train_folds.append(y[i])
-#          y_test_folds.append(y[j])
-      
-      #sep_idx = 200
-      #y_train = y[0:sep_idx]
-      #y_test = y[sep_idx:]
-      
-      #X_train = X[0:sep_idx]
-      #X_test = X[sep_idx:]
-      
-      
+      X_train = X[0:400]
+      y_train = y[0:400]
+                  
       # ML-II 
       
       # sklearn kernel 
       
       # se-ard + noise
       
-      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*13), length_scale_bounds=(0.000001,1e5))
+      se_ard = Ck(10.0)*RBF(length_scale=np.array([1.0]*13), length_scale_bounds=(0.000001,1e2)) + Ck(1.0)
      
       noise = WhiteKernel(noise_level=1**2,
                         noise_level_bounds=(1e-5, 100))  # noise terms
@@ -172,15 +145,15 @@ if __name__ == "__main__":
 #      
 #      gpr = models[0]
             
-      mu_test, std_test = gpr.predict(X_test, return_std=True)
+      #mu_test, std_test = gpr.predict(X_test, return_std=True)
       
-      rmse_ = pa.rmse(mu_test, y_test)
-      se_rmse = pa.se_of_rmse(mu_test, y_test)
-      lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
+      #rmse_ = pa.rmse(mu_test, y_test)
+      #se_rmse = pa.se_of_rmse(mu_test, y_test)
+      #lpd_ = pa.log_predictive_density(y_test, mu_test, std_test)
       
-      print('rmse_ml: ' + str(rmse_))
-      print('se_rmse_ml: ' + str(se_rmse))
-      print('lpd_:' + str(lpd_))
+      #print('rmse_ml: ' + str(rmse_))
+      #print('se_rmse_ml: ' + str(se_rmse))
+      #print('lpd_:' + str(lpd_))
       
        # Write down mu_ml
 
@@ -266,16 +239,19 @@ if __name__ == "__main__":
       
       with pm.Model() as physics_model:
            
-           log_s = pm.Normal('log_s', 0, 3)
-           #log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*3, shape=(13,))
-           log_n = pm.Normal('log_n', ml_deltas['n'], 0.5)
+           log_s = pm.Normal('log_s', 0, 1)
+           log_ls = pm.Normal('log_ls', mu=np.array([0]*13), sd=np.ones(13,)*1, shape=(13,))
+           log_n = pm.Normal('log_n',0, 0.5)
            #log_n = ml_deltas['n']
-           log_ls = pm.MvNormal('log_ls', mu=np.log(ml_deltas['ls']), cov = np.eye(n_dim)*2, shape=(n_dim,))
+           #log_ls = pm.Normal('log_ls', mu=0, cov = np.eye(n_dim), shape=(n_dim,))
            
            s = pm.Deterministic('s', tt.exp(log_s))
            ls = pm.Deterministic('ls', tt.exp(log_ls))
            n = pm.Deterministic('n', tt.exp(log_n))
            
+           #ls = pm.Uniform('ls', 0.0001, 20)
+           #s = pm.Uniform('s', 0.0001, 20) 
+
            bias = pm.Normal('b', 0, 1)
            
            # Specify the covariance function
@@ -293,7 +269,7 @@ if __name__ == "__main__":
       with physics_model:
             
            y_ = gp.marginal_likelihood("y", X=X_train, y=y_train, noise=cov_noise)
-           trace_hmc = pm.sample(draws=500, tune=300, chains=2)
+           trace_hmc = pm.sample(draws=500, tune=300, chains=1)
            
       with physics_model:
     
@@ -303,35 +279,35 @@ if __name__ == "__main__":
       
             trace_hmc_load = pm.load_trace(results_path + 'Traces_pickle_hmc/')
         
-      with physics_model:
-            
-            mf = pm.ADVI()
-      
-            tracker_mf = pm.callbacks.Tracker(
-            mean = mf.approx.mean.eval,    
-            std = mf.approx.std.eval)
-           
-            mf.fit(n=50000, callbacks=[tracker_mf])
-            
-            trace_mf = mf.approx.sample(2000)
-      
-      with physics_model:
-            
-            fr = pm.FullRankADVI(start=ml_deltas)
-              
-            tracker_fr = pm.callbacks.Tracker(
-            mean = fr.approx.mean.eval,    
-            std = fr.approx.std.eval)
-            
-            fr.fit(n=50000, callbacks=[tracker_fr])
-            trace_fr = fr.approx.sample(2000)
-            
-            
-            bij_mf = mf.approx.groups[0].bij 
-            mf_param = {param.name: bij_mf.rmap(param.eval()) for param in mf.approx.params}
-      
-            bij_fr = fr.approx.groups[0].bij
-            fr_param = {param.name: bij_fr.rmap(param.eval()) for param in fr.approx.params}
+#      with physics_model:
+#            
+#            mf = pm.ADVI()
+#      
+#            tracker_mf = pm.callbacks.Tracker(
+#            mean = mf.approx.mean.eval,    
+#            std = mf.approx.std.eval)
+#           
+#            mf.fit(n=50000, callbacks=[tracker_mf])
+#            
+#            trace_mf = mf.approx.sample(2000)
+#      
+#      with physics_model:
+#            
+#            fr = pm.FullRankADVI(start=ml_deltas)
+#              
+#            tracker_fr = pm.callbacks.Tracker(
+#            mean = fr.approx.mean.eval,    
+#            std = fr.approx.std.eval)
+#            
+#            fr.fit(n=50000, callbacks=[tracker_fr])
+#            trace_fr = fr.approx.sample(2000)
+#            
+#            
+#            bij_mf = mf.approx.groups[0].bij 
+#            mf_param = {param.name: bij_mf.rmap(param.eval()) for param in mf.approx.params}
+#      
+#            bij_fr = fr.approx.groups[0].bij
+#            fr_param = {param.name: bij_fr.rmap(param.eval()) for param in fr.approx.params}
             
       trace_prior_df = pm.trace_to_dataframe(trace_prior)
       trace_hmc_df = pm.trace_to_dataframe(trace_hmc)
