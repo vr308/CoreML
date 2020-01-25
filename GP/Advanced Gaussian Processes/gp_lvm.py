@@ -7,9 +7,8 @@ Created on Tue Oct 29 15:26:15 2019
 """
 
 import numpy as np
-%matplotlib inline
 from matplotlib import pyplot as plt
-import GPy # import GPy package
+import GPy
 np.random.seed(12345)
 
 # Define dataset 
