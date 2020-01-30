@@ -88,23 +88,3 @@ plt.subplot(236)
 plt.plot(X, trace_hier['f_mat'].T)
 plt.title(r'$\mathcal{ls} \sim Gamma(2,1)$')
 plt.suptitle('Sampling from the prior')
-
-
-
-with pm.Model() as latent_gp_model:
-
-     # prior on lengthscale
-    log_ls = pm.Normal('log_ls',mu = 0, sd = 1)
-    ls = pm.Deterministic('ls', tt.exp(log_ls))
-
-    sig_sd = 2
-    # Specify the covariance function.
-    cov_func = pm.gp.cov.Constant(sig_sd**2)*pm.gp.cov.ExpQuad(1, ls=ls)
-
-    # Specify the GP.  The default mean function is `Zero`.
-    gp = pm.gp.Latent(cov_func=cov_func)
-
-    # Place a GP prior over the function f.
-    f = gp.prior("f", X=X)
-
-    trace = pm.sample(10)
