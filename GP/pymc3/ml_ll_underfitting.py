@@ -119,7 +119,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0, n_restarts_optimizer=10).fit(X[j][i][:,None], y[j][i])
+                                      alpha=0.0).fit(X[j][i][:,None], y[j][i])
 
             ls[j][i] = gp.kernel_.k1.k2.length_scale
             s[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
@@ -283,35 +283,41 @@ if __name__ == "__main__":
 
     # GP fit on 10 data points
 
-    X_trial = X_15[8]
-    y_trial = y_15[8]
+    X_trial = X_15[4]
+    y_trial = y_15[4]
 
     kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
-            + WhiteKernel(noise_level=1,noise_level_bounds="fixed" )
+            + WhiteKernel(noise_level=1,noise_level_bounds="fixed")
 
     gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X_trial[:,None], y_trial)
+                                      alpha=0.0 ).fit(X_trial[:,None], y_trial)
     print(gp.kernel_)
 
-    theta0 = np.logspace(-1, 4, 50)
-    theta1 = np.logspace(-1, 4, 50)
+    gp.log_marginal_likelihood((-2.302, -2.302))
+
+    theta0 = np.logspace(-1, 5, 50)
+    theta1 = np.logspace(-1, 5, 50)
     Theta0, Theta1 = np.meshgrid(theta0, theta1)
-    LML = [[gp.log_marginal_likelihood(np.log([Theta0[i,j], Theta1[i, j], gp.kernel_.k2.noise_level]))
-            for i in range(Theta0.shape[0])] for j in range(Theta0.shape[1])]
+    theta = np.log([Theta0[i,j], Theta1[i, j]])
+    LML = [[gp.log_marginal_likelihood(np.log([Theta0[i,j], Theta1[i, j]]))
+            for i in range(50)] for j in range(50)]
     LML = np.array(LML).T
     vmin, vmax = (-LML).min(), (-LML).max()
-    vmax = 50
-    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
+    vmax = 100
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=4)
     plt.contourf(Theta0, Theta1, -LML,
-                levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=plt.cm.coolwarm, alpha=1, extend='both')
+                levels=level, alpha=1, extend='both')
     plt.xscale("log")
     plt.yscale("log")
-    plt.scatter(gp1.kernel_.k1.k2.length_scale, gp1.kernel_.k2.noise_level, marker='x', color='r')
-    plt.xlabel("Length-scale", fontsize='x-small')
-    plt.ylabel("Sig sd", fontsize='x-small')
+    plt.axhline(y=lengthscale_true, color='r')
+    plt.axvline(x=sig_sd_true, color='r')
+    plt.scatter(gp.kernel_.k1.k1.constant_value, gp.kernel_.k1.k2.length_scale, marker='x', color='red')
+    plt.ylabel("Length-scale", fontsize='x-small')
+    plt.xlabel("Sig sd", fontsize='x-small')
     plt.xticks(fontsize='x-small')
     plt.yticks(fontsize='x-small')
     plt.title("Negative Log-marginal-likelihood", fontsize='x-small')
+    plt.colorbar()
 
 
 
