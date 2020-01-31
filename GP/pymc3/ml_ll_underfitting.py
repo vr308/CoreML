@@ -11,6 +11,7 @@ import pymc3 as pm
 import scipy.stats as st
 import matplotlib.pylab as plt
 import theano.tensor as tt
+from matplotlib.colors import LogNorm
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 
@@ -42,7 +43,6 @@ def generate_gp_training(X_all, f_all, n_train, noise_sd, uniform):
         y_train[j] = y.ravel()
     return X_train, y_train
 
-# Simulate datasets
 
 if __name__ == "__main__":
 
@@ -81,7 +81,6 @@ if __name__ == "__main__":
     # Generating datasets
 
     X_10, y_10 = generate_gp_training(X_all, f_all, 10, noise_sd_true, uniform)
-    X_12, y_12 = generate_gp_training(X_all, f_all, 12, noise_sd_true, uniform)
     X_15, y_15 = generate_gp_training(X_all, f_all, 15, noise_sd_true, uniform)
     X_20, y_20 = generate_gp_training(X_all, f_all, 20, noise_sd_true, uniform)
     X_25, y_25 = generate_gp_training(X_all, f_all, 25, noise_sd_true, uniform)
@@ -90,12 +89,11 @@ if __name__ == "__main__":
     X_80, y_80 = generate_gp_training(X_all, f_all, 80, noise_sd_true, uniform)
     X_100, y_100 = generate_gp_training(X_all, f_all, 100, noise_sd_true, uniform)
     X_120, y_120 = generate_gp_training(X_all, f_all, 120, noise_sd_true, uniform)
-    X_150, y_150 = generate_gp_training(X_all, f_all, 150, noise_sd_true, uniform)
 
-    X = [X_10, X_12, X_15, X_20, X_25, X_40, X_60, X_80, X_100, X_120, X_150]
-    y = [y_10, y_12, y_15, y_20, y_25, y_40, y_60, y_80, y_100, y_120, X_150]
+    X = [X_10,  X_15, X_20, X_25, X_40, X_60, X_80, X_100, X_120]
+    y = [y_10,  y_15, y_20, y_25, y_40, y_60, y_80, y_100, y_120]
 
-    seq = [10,12,15,20,25, 40,60, 80, 100, 120,150]
+    seq = [10,15,20,25, 40,60, 80, 100, 120]
 
     nd = len(seq)
 
@@ -121,7 +119,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X[j][i][:,None], y[j][i])
+                                      alpha=0.0, n_restarts_optimizer=10).fit(X[j][i][:,None], y[j][i])
 
             ls[j][i] = gp.kernel_.k1.k2.length_scale
             s[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
@@ -142,7 +140,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=1)
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X[j][i][:,None], y[j][i])
+                                      alpha=0.0, n_restarts_optimizer=10).fit(X[j][i][:,None], y[j][i])
 
             ls_noise[j][i] = gp.kernel_.k1.k2.length_scale
             s_noise[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
@@ -152,7 +150,7 @@ if __name__ == "__main__":
     # Plotting
     ls_mean_nf = np.mean(ls, axis=1)
     ls_mean_n = np.mean(ls_noise, axis=1)
-    plt.plot(seq, np.log(ls_mean_nf), 'bo-', label='Noise level fixed')
+    plt.plot(seq, np.log(ls_mean_nf[:-1]), 'bo-', label='Noise level fixed')
     plt.plot(seq, np.log(ls_mean_n), 'go-', label='Noise level estimated')
     plt.axhline(y=np.log(lengthscale_true), color='r', label='True lengthscale')
     plt.title("Learning the lenghtscale under ML-II" + '\n' + 'Avg. across 100 datasets per training set size', fontsize='small')
@@ -170,4 +168,166 @@ if __name__ == "__main__":
     plt.axhline(y=noise_sd_true, color='r', label='True lengthscale')
     plt.xlabel('Training set size', fontsize='small')
     plt.ylabel('Avg. estimated noise std', fontsize='small')
+
+
+    #  Generating datasets as a function of noise var
+
+    n_star = 500
+
+    xmin = 0
+    xmax = 10
+
+    X_all = np.linspace(xmin, xmax,n_star)[:,None]
+
+    # A mean function that is zero everywhere
+
+    mean = pm.gp.mean.Zero()
+
+    # Kernel Hyperparameters
+
+    sig_sd_true = 10.0
+    lengthscale_true = 2.0
+
+    cov = pm.gp.cov.Constant(sig_sd_true**2)*pm.gp.cov.ExpQuad(1, lengthscale_true)
+
+    # This will change the shape of the function
+
+    f_all = generate_gp_latent(X_all, mean, cov, size=100)
+
+    # Data attributes
+
+    noise_sd_low = np.sqrt(1)
+    noise_sd_med1 = np.sqrt(3)
+    noise_sd_med2 = np.sqrt(6)
+    noise_sd_high = np.sqrt(9)
+
+    uniform = True
+
+    X_nlow, y_nlow = generate_gp_training(X_all, f_all, 30, noise_sd_low, uniform)
+    X_nmed1, y_nmed1 = generate_gp_training(X_all, f_all, 30, noise_sd_med1, uniform)
+    X_nmed2, y_nmed2 = generate_gp_training(X_all, f_all, 30, noise_sd_med2, uniform)
+    X_nhi, y_nhi = generate_gp_training(X_all, f_all, 30, noise_sd_high, uniform)
+
+    X_n = [X_nlow, X_nmed1, X_nmed2, X_nhi]
+    y_n = [y_nlow, y_nmed1, y_nmed2, y_nhi]
+
+    # Sanity checking the data
+
+    key = 14
+
+    # Low noise
+    plt.figure()
+    plt.plot(X_all, f_all[key])
+    plt.plot(X_nlow[key], y_nlow[key], 'bo')
+    plt.plot(X_nmed1[key], y_nmed1[key], 'ro')
+    plt.plot(X_nhi[key], y_nhi[key], 'go')
+
+    seq_n = [1, 3, 6, 9]
+    nd = len(seq_n)
+
+    s_n = np.empty(shape=(nd,100))
+    ls_n = np.empty(shape=(nd,100))
+
+    # sklearn - learning - unconstrained optim and fixed noise
+
+    for j in np.arange(nd):
+
+        print('Analysing data-sets with noise var ' + str(seq_n[j]))
+
+        for i in np.arange(100):
+
+            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            + WhiteKernel(noise_level=seq_n[j], noise_level_bounds="fixed")
+
+            gp = GaussianProcessRegressor(kernel=kernel,
+                                      alpha=0.0).fit(X_n[j][i][:,None], y_n[j][i])
+            ls_n[j][i] = gp.kernel_.k1.k2.length_scale
+            s_n[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
+
+
+    # sklearn - learning - unconstrained optim and noise est.
+
+    s_nest = np.empty(shape=(nd,100))
+    ls_nest = np.empty(shape=(nd,100))
+    noise_est = np.empty(shape=(nd, 100))
+
+    for j in np.arange(nd):
+
+        print('Analysing data-sets with noise var ' + str(seq_n[j]))
+
+        for i in np.arange(100):
+
+            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            + WhiteKernel(noise_level=seq_n[j])
+
+            gp = GaussianProcessRegressor(kernel=kernel,
+                                      alpha=0.0).fit(X_n[j][i][:,None], y_n[j][i])
+            ls_nest[j][i] = gp.kernel_.k1.k2.length_scale
+            s_nest[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
+            noise_est[j][i] = np.sqrt(gp.kernel_.k2.noise_level)
+
+    # Plotting
+    ls_mean_noise = np.mean(ls_n, axis=1)
+    noise_est_mean = np.mean(noise_est, axis=1)
+    #ls_mean_nest = np.mean(ls_nest, axis=1)
+    plt.plot(seq_n, np.log(ls_mean_noise), 'go-')
+    #plt.plot(seq_n, np.log(ls_mean_nest), color='cyan', marker='o', label='Noise level estimated')
+    plt.axhline(y=np.log(lengthscale_true), color='r', label='True lengthscale')
+    plt.title("Learning the lengthscale under ML-II" + '\n' + 'Avg. across 100 datasets per noise level', fontsize='small')
+    plt.legend(fontsize='small')
+    plt.xlabel('Noise var ' + r'$\sigma^{2}$', fontsize='small')
+    plt.ylabel('Avg. estimated log-lengthscale', fontsize='small')
+
+
+    # LML Surface
+
+    # GP fit on 10 data points
+
+    X_trial = X_15[8]
+    y_trial = y_15[8]
+
+    kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            + WhiteKernel(noise_level=1,noise_level_bounds="fixed" )
+
+    gp = GaussianProcessRegressor(kernel=kernel,
+                                      alpha=0.0).fit(X_trial[:,None], y_trial)
+    print(gp.kernel_)
+
+    theta0 = np.logspace(-1, 4, 50)
+    theta1 = np.logspace(-1, 4, 50)
+    Theta0, Theta1 = np.meshgrid(theta0, theta1)
+    LML = [[gp.log_marginal_likelihood(np.log([Theta0[i,j], Theta1[i, j], gp.kernel_.k2.noise_level]))
+            for i in range(Theta0.shape[0])] for j in range(Theta0.shape[1])]
+    LML = np.array(LML).T
+    vmin, vmax = (-LML).min(), (-LML).max()
+    vmax = 50
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=3)
+    plt.contourf(Theta0, Theta1, -LML,
+                levels=level, norm=LogNorm(vmin=vmin, vmax=vmax), cmap=plt.cm.coolwarm, alpha=1, extend='both')
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.scatter(gp1.kernel_.k1.k2.length_scale, gp1.kernel_.k2.noise_level, marker='x', color='r')
+    plt.xlabel("Length-scale", fontsize='x-small')
+    plt.ylabel("Sig sd", fontsize='x-small')
+    plt.xticks(fontsize='x-small')
+    plt.yticks(fontsize='x-small')
+    plt.title("Negative Log-marginal-likelihood", fontsize='x-small')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
