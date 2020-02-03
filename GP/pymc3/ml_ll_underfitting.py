@@ -76,7 +76,7 @@ if __name__ == "__main__":
 
     snr = np.round(sig_sd_true**2/noise_sd_true**2)
 
-    uniform = False
+    uniform = True
 
     # Generating datasets
 
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # Sanity check data
     plt.figure()
     plt.plot(X_all, f_all[10])
-    plt.plot(X_150[10], y_150[10], 'bo')
+    plt.plot(X_120[10], y_120[10], 'bo')
 
     # 100 datasets of each of the 12 sizes
 
@@ -119,7 +119,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X[j][i][:,None], y[j][i])
+                                      alpha=0.0, n_restarts_optimizer=5).fit(X[j][i][:,None], y[j][i])
 
             ls[j][i] = gp.kernel_.k1.k2.length_scale
             s[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     # Plotting
     ls_mean_nf = np.mean(ls, axis=1)
     ls_mean_n = np.mean(ls_noise, axis=1)
-    plt.plot(seq, np.log(ls_mean_nf[:-1]), 'bo-', label='Noise level fixed')
+    plt.plot(seq, np.log(ls_mean_nf), 'bo-', label='Noise level fixed')
     plt.plot(seq, np.log(ls_mean_n), 'go-', label='Noise level estimated')
     plt.axhline(y=np.log(lengthscale_true), color='r', label='True lengthscale')
     plt.title("Learning the lenghtscale under ML-II" + '\n' + 'Avg. across 100 datasets per training set size', fontsize='small')
@@ -240,7 +240,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=seq_n[j], noise_level_bounds="fixed")
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X_n[j][i][:,None], y_n[j][i])
+                                      alpha=0.0, n_restarts_optimizer=5).fit(X_n[j][i][:,None], y_n[j][i])
             ls_n[j][i] = gp.kernel_.k1.k2.length_scale
             s_n[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
 
@@ -261,7 +261,7 @@ if __name__ == "__main__":
             + WhiteKernel(noise_level=seq_n[j])
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0).fit(X_n[j][i][:,None], y_n[j][i])
+                                      alpha=0.0, n_restarts_optimizer=5).fit(X_n[j][i][:,None], y_n[j][i])
             ls_nest[j][i] = gp.kernel_.k1.k2.length_scale
             s_nest[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
             noise_est[j][i] = np.sqrt(gp.kernel_.k2.noise_level)
@@ -269,57 +269,97 @@ if __name__ == "__main__":
     # Plotting
     ls_mean_noise = np.mean(ls_n, axis=1)
     noise_est_mean = np.mean(noise_est, axis=1)
-    #ls_mean_nest = np.mean(ls_nest, axis=1)
-    plt.plot(seq_n, np.log(ls_mean_noise), 'go-')
+    ls_mean_nest = np.mean(ls_nest, axis=1)
+    plt.plot(seq_n, np.log(ls_mean_nest), 'go-')
     #plt.plot(seq_n, np.log(ls_mean_nest), color='cyan', marker='o', label='Noise level estimated')
     plt.axhline(y=np.log(lengthscale_true), color='r', label='True lengthscale')
     plt.title("Learning the lengthscale under ML-II" + '\n' + 'Avg. across 100 datasets per noise level', fontsize='small')
+    plt.xticks(seq_n)
     plt.legend(fontsize='small')
     plt.xlabel('Noise var ' + r'$\sigma^{2}$', fontsize='small')
     plt.ylabel('Avg. estimated log-lengthscale', fontsize='small')
 
-
-    # LML Surface
+    # LML Surface as a function of training set size
 
     # GP fit on 10 data points
 
-    X_trial = X_15[4]
-    y_trial = y_15[4]
+    X_trial = X_10[16]
+    y_trial = y_10[16]
 
     kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
             + WhiteKernel(noise_level=1,noise_level_bounds="fixed")
 
     gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0 ).fit(X_trial[:,None], y_trial)
+                                      alpha=0.0, n_restarts_optimizer=5).fit(X_trial[:,None], y_trial)
     print(gp.kernel_)
 
-    gp.log_marginal_likelihood((-2.302, -2.302))
+    #gp.log_marginal_likelihood((-2.302, -2.302))
 
-    theta0 = np.logspace(-1, 5, 50)
-    theta1 = np.logspace(-1, 5, 50)
+    theta0 = np.logspace(-1, 4, 50)
+    theta1 = np.logspace(-1, 4, 50)
     Theta0, Theta1 = np.meshgrid(theta0, theta1)
-    theta = np.log([Theta0[i,j], Theta1[i, j]])
+    #theta = np.log([Theta0[i,j], Theta1[i, j]])
     LML = [[gp.log_marginal_likelihood(np.log([Theta0[i,j], Theta1[i, j]]))
             for i in range(50)] for j in range(50)]
     LML = np.array(LML).T
     vmin, vmax = (-LML).min(), (-LML).max()
     vmax = 100
     level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=4)
+    plt.figure(figsize=(8,4))
+    plt.subplot(122)
     plt.contourf(Theta0, Theta1, -LML,
                 levels=level, alpha=1, extend='both')
     plt.xscale("log")
     plt.yscale("log")
     plt.axhline(y=lengthscale_true, color='r')
-    plt.axvline(x=sig_sd_true, color='r')
+    plt.axvline(x=sig_sd_true**2, color='r')
     plt.scatter(gp.kernel_.k1.k1.constant_value, gp.kernel_.k1.k2.length_scale, marker='x', color='red')
     plt.ylabel("Length-scale", fontsize='x-small')
-    plt.xlabel("Sig sd", fontsize='x-small')
+    plt.xlabel("Sig var", fontsize='x-small')
     plt.xticks(fontsize='x-small')
     plt.yticks(fontsize='x-small')
     plt.title("Negative Log-marginal-likelihood", fontsize='x-small')
-    plt.colorbar()
+    #plt.colorbar()
 
+    # LML Surface as a function of increasing noise
 
+    X_trial = X_nlow[7]
+    y_trial = y_nlow[7]
+
+    kernel = Ck(1.0) * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            + WhiteKernel(noise_level=9)
+
+    gp = GaussianProcessRegressor(kernel=kernel,
+                                      alpha=0.0, n_restarts_optimizer=5).fit(X_trial[:,None], y_trial)
+    print(gp.kernel_)
+
+    #gp.log_marginal_likelihood((-2.302, -2.302))
+
+    theta0 = np.logspace(-1, 5, 50)
+    theta1 = np.logspace(-1, 5, 50)
+    Theta0, Theta1 = np.meshgrid(theta0, theta1)
+    #theta = np.log([Theta0[i,j], Theta1[i, j]])
+    LML = [[gp.log_marginal_likelihood(np.log([ gp.kernel_.k1.k1.constant_value ,Theta0[i,j], Theta1[i, j]]))
+            for i in range(50)] for j in range(50)]
+    LML = np.array(LML).T
+    vmin, vmax = (-LML).min(), (-LML).max()
+    vmax = 100
+    level = np.around(np.logspace(np.log10(vmin), np.log10(vmax), 100), decimals=4)
+    #plt.figure(figsize=(8,4))
+    plt.subplot(121)
+    plt.contourf(Theta0, Theta1, -LML,
+                levels=level, alpha=1, extend='both')
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.axhline(y=1, color='r')
+    plt.axvline(x=lengthscale_true, color='r')
+    plt.scatter(gp.kernel_.k1.k2.length_scale, gp.kernel_.k2.noise_level,marker='x', color='red')
+    plt.ylabel("Noise var", fontsize='x-small')
+    plt.xlabel("Length-scale", fontsize='x-small')
+    plt.xticks(fontsize='x-small')
+    plt.yticks(fontsize='x-small')
+    plt.title("Negative Log-marginal-likelihood (low noise)", fontsize='x-small')
+    #plt.colorbar()
 
 
 
