@@ -115,11 +115,11 @@ if __name__ == "__main__":
 
         for i in np.arange(100):
 
-            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
             + WhiteKernel(noise_level=1, noise_level_bounds="fixed")
 
             gp = GaussianProcessRegressor(kernel=kernel,
-                                      alpha=0.0, n_restarts_optimizer=5).fit(X[j][i][:,None], y[j][i])
+                                      alpha=0.0, n_restarts_optimizer=10).fit(X[j][i][:,None], y[j][i])
 
             ls[j][i] = gp.kernel_.k1.k2.length_scale
             s[j][i] = np.sqrt(gp.kernel_.k1.k1.constant_value)
@@ -136,7 +136,7 @@ if __name__ == "__main__":
 
         for i in np.arange(100):
 
-            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e4)) \
+            kernel = 1.0 * RBF(length_scale=1.0, length_scale_bounds=(1e-2, 1e3)) \
             + WhiteKernel(noise_level=1)
 
             gp = GaussianProcessRegressor(kernel=kernel,
