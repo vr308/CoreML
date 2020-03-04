@@ -27,18 +27,23 @@ def get_samples(covar):
     samples = gp_prior.sample(sample_shape=torch.Size([10]))
     return samples
 
-sm_kernel = gpytorch.kernels.SpectralMixtureKernel(num_mixtures=2, ard_num_dims=1)
-sm_kernel.mixture_means = [20,2]
-sm_kernel.mixture_scales = [1,0.1]
-sm_kernel.mixture_weights = [0.9,0.1]
+def plot_kernel_function(K):
+    x = torch.linspace(0, 1, 15)
+    tau = torch.linspace(0, 1, 15)
+    plt.figure()
+    plt.plot(k(tau))
+
+sm_kernel = gpytorch.kernels.SpectralMixtureKernel(num_mixtures=3, ard_num_dims=1)
+sm_kernel.mixture_means = [0.4, 0.5, 0.25]
+sm_kernel.mixture_scales = [0.05, 0.05, 0.05]
+sm_kernel.mixture_weights = [0.3,0.4,0.3]
 
 x = torch.linspace(0.01,10,200)
 K_sm = sm_kernel(x,x).evaluate()
 plt.matshow(K_sm.detach())
 
 sm_samples = get_samples(sm_kernel(x,x))
-
-plt.plot(x, sm_samples[0])
+plt.plot(x, sm_samples.T)
 
 class SpectralMixtureGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood):
