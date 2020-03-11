@@ -55,39 +55,38 @@ if __name__== "__main__":
     with pm.Model() as model:
 
         # covariance function
-        l = pm.Gamma("l", alpha=2, beta=2)
+        #l = pm.Gamma("l", alpha=2, beta=2)
         # informative, positive normal prior on the period
-        n = pm.HalfNormal("n", sigma=5)
+        #n = pm.HalfNormal("n", sigma=5)
+        l = 0.1
+        n = 1.0
         cov = n**2 * pm.gp.cov.ExpQuad(1, l)
 
         gp = pm.gp.Latent(cov_func=cov)
 
-        #L = tt.slinalg.Cholesky(cov)
-        # draw from a standard normal
-        #v = pm.MvNormal("v", mu=np.zeros(200), cov=tt.eye(200), shape=200)
         # make gp prior
         f = gp.prior("f", X=x[:,None], reparameterize=True)
-        #f = pm.Deterministic("f", pm.math.dot(L, v))
         # logit link and Bernoulli likelihood
         p = pm.Deterministic("p", pm.math.invlogit(f))
         y_ = pm.Bernoulli("y", p=p, observed=y)
 
-        #step_nuts = pm.NUTS([l,n])
-        #step_slice = pm.EllipticalSlice([f])
-        #step=[step_nuts, step_slice]
-        trace = pm.sample(1000, chains=1)
+        trace_fix = pm.sample(50, chains=1)
 
 # Testing the relationship between f_rotated_ and f
 
-f_test = []
+f_test = np.empty(shape=(200,200))
 for i in np.arange(200):
     n_test = float(trace['n'][i])
     l_test = float(trace['l'][i])
     cov_test = n_test**2 * pm.gp.cov.ExpQuad(1, l_test)
     K_test = cov_test(x[:,None]).eval() + 1e-12 * np.eye(len(x))
-    L = np.linalg.cholesky(K_test)
-    f_test = tt.dot(L,trace['f_rotated_'][i]).eval()
-    f = trace['f'][i]
+    #L = np.linalg.cholesky(K_test)
+    #f_test = tt.dot(L,trace['f_rotated_'][i]).eval()
+    v = trace['f_rotated_'][i]
+    f = cholesky(K_test).dot(v)
+    f_test[i] = f.eval()
+    #f = trace['f']
+    #lt.plot(f_test - f)
 
 n_pred = 200
 X_new = np.linspace(0, 2.0, n_pred)[:,None]
