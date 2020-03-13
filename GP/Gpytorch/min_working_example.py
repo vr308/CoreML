@@ -72,7 +72,7 @@ if __name__== "__main__":
         print(i)
         l_current = trace['l'][i]
         cov_current = 1.0**2 * pm.gp.cov.ExpQuad(1, l_current)
-        K = cov_current(x[:,None]) + 1e-12*np.eye(len(x))
+        K = cov_current(x[:,None]) + 1e-6*np.eye(len(x))
         v = trace['f_rotated_'][i]
         f_current = cholesky(K).dot(v)
         f_recovered[i] = f_current.eval()
