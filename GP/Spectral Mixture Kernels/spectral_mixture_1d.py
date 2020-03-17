@@ -17,13 +17,11 @@ from pyro.infer.mcmc import NUTS, MCMC
 from matplotlib import pyplot as plt
 from gpytorch.priors import LogNormalPrior, NormalPrior, UniformPrior
 
-random.seed(4321)
-
 class SpectralMixtureGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood):
         super(SpectralMixtureGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean()
-        self.covar_module = gpytorch.kernels.SpectralMixtureKernel(num_mixtures=4)
+        self.covar_module = gpytorch.kernels.SpectralMixtureKernel(num_mixtures=3)
         self.covar_module.initialize_from_data(train_x, train_y)
 
     def forward(self,x):
@@ -33,40 +31,48 @@ class SpectralMixtureGPModel(gpytorch.models.ExactGP):
 
 if __name__== "__main__":
 
+    torch.manual_seed(4321)
+
     sm_kernel = gpytorch.kernels.SpectralMixtureKernel(num_mixtures=3, ard_num_dims=1)
 
     # True values
 
-    means = np.array([0.04, 0.9, 0.5])
-    scales = np.array([0.01, 0.01, 0.01])
+    means = np.array([0.4, 0.09, 0.05])
+    scales = np.array([0.001, 0.0025, 0.01])
     weights = np.array([0.3,0.4,0.3])
 
     sm_kernel.mixture_means = means
     sm_kernel.mixture_scales = scales
     sm_kernel.mixture_weights = weights
 
-    x = torch.linspace(0.01,10,200)
+    x = torch.linspace(-10,10,200)
 
-    gp_prior = gpytorch.distributions.MultivariateNormal(mean=torch.tensor([0]*200), covariance_matrix=sm_kernel(x,x), validate_args=True)
-    prior_sample = gp_prior.sample(sample_shape=torch.Size([1]))
+    gp_prior = gpytorch.distributions.MultivariateNormal(mean=torch.tensor([0]*200).float(), covariance_matrix=sm_kernel(x,x), validate_args=True)
 
-    train_index = [21,13,45,65,76,86,43,22,156,197]
+    # Select a true function from either a prior sample, sine function,
+    #true_func = torch.sin(2*x)/x
+    true_func = gp_prior.sample(sample_shape=torch.Size([1])).reshape(len(x))
+    print(true_func[0:10])
+
+    n_train = 10
+    noise_sd = 0.2
+
+    train_index = random.sample(list(np.arange(len(x))),10)
     train_x = x[train_index]
-    train_f = prior_sample[0][train_index]
-    train_y =  train_f + 0.2*torch.randn(10)
+    train_f = true_func[train_index]
+    train_y =  train_f + noise_sd*torch.randn(10)
     test_x = x
 
     #Plotting training set
 
     plt.figure()
-    plt.plot(x, prior_sample[0])
+    plt.plot(x, true_func)
     plt.plot(train_x, train_y, 'bo')
 
     # Model Set-up
 
     likelihood = gpytorch.likelihoods.GaussianLikelihood()
     model_ml = SpectralMixtureGPModel(train_x, train_y, likelihood)
-    model_hmc = SpectralMixtureGPModel(train_x, train_y, likelihood)
 
     # Find optimal model hyperparameters
     model_ml.train()
@@ -102,17 +108,23 @@ if __name__== "__main__":
     plt.figure()
     # Get upper and lower confidence bounds
     lower, upper = observed_pred.confidence_region()
-    # Plot training data as black stars
     plt.plot(train_x.numpy(), train_y.numpy(), 'ko', markersize=4)
-    # Plot predictive means as blue line
     plt.plot(test_x.numpy(), observed_pred.mean.numpy(), 'r')
-    plt.plot(test_x.numpy(), prior_sample[0], color='k')
+    plt.plot(test_x.numpy(), true_func, color='k')
     # Shade between the lower and upper confidence bounds
     plt.fill_between(test_x.numpy(), lower.numpy(), upper.numpy(), alpha=0.5, color='r')
     plt.ylim([-3, 3])
     plt.legend(['Observed Data', 'Mean', 'True', '95% CI'])
 
+    # The trained hyperparameters
+
+    mixture_weights = model_ml.covar_module.mixture_weights
+    mixture_means = model_ml.covar_module.mixture_means
+    mixture_scales = model_ml.covar_module.mixture_scales
+
     # HMC
+
+    model_hmc = SpectralMixtureGPModel(train_x, train_y, likelihood)
 
     # Registering priors for hypers
 
