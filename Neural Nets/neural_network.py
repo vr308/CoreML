@@ -1,9 +1,8 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Thu Nov 16 19:30:26 2017
-
 @author:  vr308
+
 """
 
 # Simple 2-layer Neural network 
@@ -32,7 +31,7 @@ np.random.seed(1)
 # initialize weights randomly with mean 0
 syn0 = 2*np.random.random((3,1)) - 1
 
-for iter in xrange(1000):
+for iter in range(1000):
 
     # forward propagation
     l0 = X
@@ -63,7 +62,7 @@ y = np.array([[0],[1], [1], [0]])
 syn0 = 2*np.random.random((3,4)) - 1
 syn1 = 2*np.random.random((4,1)) - 1
 
-for iter in xrange(40000):
+for iter in range(40000):
     
     #Feed forward through the layers 0,1 and 2
     l0 = X
@@ -74,7 +73,7 @@ for iter in xrange(40000):
     l2_error = y - l2
     
     if (iter% 10000) == 0:
-        print "Error:" + str(np.mean(np.abs(l2_error)))
+        print ("Error:" + str(np.mean(np.abs(l2_error))))
         
     # 
     l2_delta = l2_error*sigmoid(l2,deriv=True)
@@ -87,16 +86,14 @@ for iter in xrange(40000):
     syn1 = syn1 + l1.T.dot(l2_delta)
     syn0 = syn0 + l0.T.dot(l1_delta)
 
-print "Output after Training"
-print l2
-
+print("Output after Training")
+print (l2)
 
 ###################
-# MLP using Python libraries
+# MLP using sklearn
 ####################
 
 import sklearn.datasets as skdata
-import matplotlib.pyplot as plt
 from sklearn.neural_network import MLPClassifier
 from sklearn.preprocessing import StandardScaler
 from random import shuffle
@@ -151,3 +148,89 @@ for i in range(len(activations_l2)):
     y_pred1.append(map_to_class(list(activations_l2[i]))) 
     
 (y_pred == y_pred1).all()
+
+###########################
+# MLP using numpy with RELU
+###########################
+
+# N is batch size; D_in is input dimension;
+# H is hidden dimension; D_out is output dimension.
+N, D_in, H, D_out = 64, 1000, 100, 10
+
+# Create random input and output data
+x = np.random.randn(N, D_in)
+y = np.random.randn(N, D_out)
+
+# Randomly initialize weights
+w1 = np.random.randn(D_in, H)
+w2 = np.random.randn(H, D_out)
+
+learning_rate=1e-6
+for t in range(500):
+    
+    #Forward pass: com[ute predicted y
+    h = x.dot(w1)
+    h_relu = np.maximum(h, 0)
+    y_pred = h_relu.dot(w2)
+    
+    # Compute and print loss
+    loss = np.square(y_pred - y).sum()
+    print(t, loss)
+    
+    # Backprop to compute gradients of w1 and w2 w.r.t loss
+    
+    grad_y_pred = 2.0 * (y_pred - y)
+    grad_w2 = h_relu.T.dot(grad_y_pred)
+    grad_h_relu = grad_y_pred.dot(w2.T)
+    grad_h = grad_h_relu.copy()
+    grad_h[h<0] = 0
+    grad_w1 = x.T.dot(grad_h)
+    
+    # Update weights
+    w1  -=learning_rate*grad_w1
+    w2 -= learning_rate*grad_w2
+    
+###########################
+# MLP using torch with RELU
+###########################
+
+import torch
+
+dtype = torch.float
+device = torch.device("cpu")
+# N is batch size; D_in is input dimension;
+# H is hidden dimension; D_out is output dimension.
+N, D_in, H, D_out = 64, 1000, 100, 10
+
+# Create random input and output data
+x = torch.randn(N, D_in, device=device, dtype=dtype)
+y = torch.randn(N, D_out, device=device, dtype=dtype)
+
+# Randomly initialize weights
+w1 = torch.randn(D_in, H, device=device, dtype=dtype)
+w2 = torch.randn(H, D_out, device=device, dtype=dtype)
+
+
+learning_rate = 1e-6
+for t in range(500):
+    # Forward pass: compute predicted y
+    h = x.mm(w1)
+    h_relu = h.clamp(min=0)
+    y_pred = h_relu.mm(w2)
+
+    # Compute and print loss
+    loss = (y_pred - y).pow(2).sum().item()
+    if t % 100 == 99:
+        print(t, loss)
+
+    # Backprop to compute gradients of w1 and w2 with respect to loss
+    grad_y_pred = 2.0 * (y_pred - y)
+    grad_w2 = h_relu.t().mm(grad_y_pred)
+    grad_h_relu = grad_y_pred.mm(w2.t())
+    grad_h = grad_h_relu.clone()
+    grad_h[h < 0] = 0
+    grad_w1 = x.t().mm(grad_h)
+
+    # Update weights using gradient descent
+    w1 -= learning_rate * grad_w1
+    w2 -= learning_rate * grad_w2

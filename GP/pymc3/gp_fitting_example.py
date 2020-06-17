@@ -174,6 +174,11 @@ if __name__ == "__main__":
     ml_deltas = np.round(np.exp(gpr.kernel_.theta), 3)
     post_mean, post_cov = gpr.predict(X_star_10, return_cov = True) # sklearn always predicts with noise
     post_std = np.sqrt(np.diag(post_cov))
+    
+    
+    #
+    
+    
 
     @sampled
     def generative_model(X, y):
