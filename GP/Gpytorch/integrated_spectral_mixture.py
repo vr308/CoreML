@@ -11,11 +11,12 @@ import numpy as np
 import math 
 import matplotlib.pyplot as plt
 import torch
+import scipy as sp
 import gpytorch
 
 def get_samples(K, x):
 
-    gp_prior = gpytorch.distributions.MultivariateNormal(mean=torch.tensor([0]*200), covariance_matrix=K, validate_args=True)
+    gp_prior = gpytorch.distributions.MultivariateNormal(mean=torch.tensor([0]*100), covariance_matrix=K, validate_args=True)
     samples = gp_prior.sample(sample_shape=torch.Size([5]))
     return samples
 
@@ -51,32 +52,36 @@ if __name__== "__main__":
     kfu = integrated_spectral_mixture_uniform(x, sig_f, 3, 2, l, alpha)
 
     # Kernel matrix 
-    
-    sp.linalg.toeplitz
-    
+        
     K = sp.linalg.toeplitz(kf)
     K_fu= sp.linalg.toeplitz(kfu)
+    
+    
+    # Prior samples
+    
+    prior_samples_f = sp.stats.multivariate_normal(mean=[0]*100, cov=K).rvs(5)
+    prior_samples_fu = sp.stats.multivariate_normal(mean=[0]*100, cov=K_fu).rvs(5)
 
     #plotting
 
-    fig = plt.figure(figsize=(12,4))
+    fig = plt.figure(figsize=(12,3))
   
     ax1 = fig.add_subplot(141)
     ax1.plot(omega, pdf)
     ax1.set_title(r'Prior on \mu', fontsize='x-small')
 
-    ax2 = fig.add_subplot(142)
+    ax2 = fig.add_subplot(141)
     ax2.plot(x, kf, color='green')
     ax2.set_xlabel('tau', fontsize='x-small')
     ax2.set_title('Kernel Function', fontsize='x-small')
     
-    ax3 = fig.add_subplot(143)
-    ax3.matshow(K.detach())
+    ax3 = fig.add_subplot(142)
+    ax3.matshow(K)
     ax3.set_title('Kernel Matrix', fontsize='x-small')
     ax3.tick_params(axis="x", labelsize=8)
     ax3.tick_params(axis="y", labelsize=8)
 
-    ax4 = fig.add_subplot(144)
+    ax4 = fig.add_subplot(143)
     ax4.plot(x, prior_samples_f.T)
     ax4.set_title('Functions drawn from the prior', fontsize='x-small')
 
