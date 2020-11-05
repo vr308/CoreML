@@ -202,6 +202,7 @@ if __name__ == '__main__':
     
     for i in range(n_steps):
         
+        
         z0 = base_dist.sample(batch_size)
         optimizer.zero_grad()
         loss = flow.log_prob()
