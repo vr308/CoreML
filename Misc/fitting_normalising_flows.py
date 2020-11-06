@@ -12,7 +12,10 @@ import torch
 from torch import nn
 import math
 import numpy as np
+from torch import distributions as dist
+import matplotlib.pyplot as plt
 
+float_tensor = lambda x: torch.tensor(x, dtype=torch.float)
 
 class NormalisingFlowModel(nn.Module):
        
@@ -22,13 +25,16 @@ class NormalisingFlowModel(nn.Module):
            
        def forward(self, z):
            m, _ = z.shape
-           log_det = torch.zeros(m)
+           sum_log_det = torch.zeros(m)
            zk=[z]
            for flow in self.flows:
                z, log_det = flow.forward(z)
-               sum_log_det = 
-       def get_batch():
-           return;
+               sum_log_det = log_det + sum_log_det
+               zk.append(z)
+           return zk, sum_log_det
+       
+       def get_batch(self, batch_size, z):
+           return torch.random()
            
        def get_log_prob():
            return;
@@ -39,7 +45,7 @@ class NormalisingFlowModel(nn.Module):
            
            
        
-class PlanarTransform():
+class PlanarTransform(nn.Module):
     #2d planar flow
     def __init__(self, init_sigma=0.01):
         super().__init__()
@@ -49,14 +55,14 @@ class PlanarTransform():
 
     def forward(self, z, normalised_u=True):
          # allow for a single forward pass over all the transforms in the flows with a Sequential container
-        if isinstance(x, tuple):
-            z, sum_log_abs_det_jacobians = x
+        if isinstance(z, tuple):
+            z, sum_log_abs_det_jacobians = z
         else:
-            z, sum_log_abs_det_jacobians = x, 0
+            z, sum_log_abs_det_jacobians = z, 0
 
         # normalize u s.t. w @ u >= -1; sufficient condition for invertibility
         u_hat = self.u
-        if normalize_u:
+        if normalised_u:
             wtu = (self.w @ self.u.t()).squeeze()
             m_wtu = - 1 + torch.log1p(wtu.exp())
             u_hat = self.u + (m_wtu - wtu) * self.w / (self.w @ self.w.t())
@@ -71,23 +77,25 @@ class PlanarTransform():
         return f_z, sum_log_abs_det_jacobians
         
 
-
-
-class RadialTransform():
-    #return;
+def get_batch(x, size):
     
-
+    N = len(x)
+    valid_indices = np.array(range(N))
+    batch_indices = np.random.choice(valid_indices,size=size,replace=False)
+    return float_tensor(x[batch_indices,:])
+    
+    
 def sample_2d_data(dataset, n_samples):
-
+    
     z = torch.randn(n_samples, 2)
-
+    
     if dataset == '8gaussians':
         scale = 4
         sq2 = 1/math.sqrt(2)
         centers = [(1,0), (-1,0), (0,1), (0,-1), (sq2,sq2), (-sq2,sq2), (sq2,-sq2), (-sq2,-sq2)]
         centers = torch.tensor([(scale * x, scale * y) for x,y in centers])
         return sq2 * (0.5 * z + centers[torch.randint(len(centers), size=(n_samples,))])
-
+    
     elif dataset == '2spirals':
         n = torch.sqrt(torch.rand(n_samples // 2)) * 540 * (2 * math.pi) / 360
         d1x = - torch.cos(n) * n + torch.rand(n_samples // 2) * 0.5
@@ -95,23 +103,23 @@ def sample_2d_data(dataset, n_samples):
         x = torch.cat([torch.stack([ d1x,  d1y], dim=1),
                        torch.stack([-d1x, -d1y], dim=1)], dim=0) / 3
         return x + 0.1*z
-
+    
     elif dataset == 'checkerboard':
         x1 = torch.rand(n_samples) * 4 - 2
         x2_ = torch.rand(n_samples) - torch.randint(0, 2, (n_samples,), dtype=torch.float) * 2
         x2 = x2_ + x1.floor() % 2
         return torch.stack([x1, x2], dim=1) * 2
-
+    
     elif dataset == 'rings':
         n_samples4 = n_samples3 = n_samples2 = n_samples // 4
         n_samples1 = n_samples - n_samples4 - n_samples3 - n_samples2
-
+    
         # so as not to have the first point = last point, set endpoint=False in np; here shifted by one
         linspace4 = torch.linspace(0, 2 * math.pi, n_samples4 + 1)[:-1]
         linspace3 = torch.linspace(0, 2 * math.pi, n_samples3 + 1)[:-1]
         linspace2 = torch.linspace(0, 2 * math.pi, n_samples2 + 1)[:-1]
         linspace1 = torch.linspace(0, 2 * math.pi, n_samples1 + 1)[:-1]
-
+    
         circ4_x = torch.cos(linspace4)
         circ4_y = torch.sin(linspace4)
         circ3_x = torch.cos(linspace4) * 0.75
@@ -120,27 +128,25 @@ def sample_2d_data(dataset, n_samples):
         circ2_y = torch.sin(linspace2) * 0.5
         circ1_x = torch.cos(linspace1) * 0.25
         circ1_y = torch.sin(linspace1) * 0.25
-
+    
         x = torch.stack([torch.cat([circ4_x, circ3_x, circ2_x, circ1_x]),
                          torch.cat([circ4_y, circ3_y, circ2_y, circ1_y])], dim=1) * 3.0
-
+    
         # random sample
         x = x[torch.randint(0, n_samples, size=(n_samples,))]
-
+    
         # Add noise
         return x + torch.normal(mean=torch.zeros_like(x), std=0.08*torch.ones_like(x))
-
+    
     else:
         raise RuntimeError('Invalid `dataset` to sample from.')
         
-    
-
 if __name__ == '__main__':
     
     z1 = torch.tensor(data=np.linspace(-4,4,200))
     z2 = torch.tensor(data=np.linspace(-4,4,200))
     z1_s, z2_s = torch.meshgrid((z1, z2))
-    z_field = torch.stack((z1_s.flatten(), z2_s.flatten()), dim=1).squeeze()
+    z_field = float_tensor(torch.stack((z1_s.flatten(), z2_s.flatten()), dim=1).squeeze())
     #z_field = torch.tensor(np.concatenate([z1_s[..., None], z2_s[..., None]], axis=-1)).reshape(10000,2).float()
 
     
@@ -154,7 +160,6 @@ if __name__ == '__main__':
     u_z3 = lambda z: - torch.log(torch.exp(-0.5*((z[:,1] - w1(z))/0.35)**2) + torch.exp(-0.5*((z[:,1] - w1(z) + w2(z))/0.35)**2) + 1e-10)
     u_z4 = lambda z: - torch.log(torch.exp(-0.5*((z[:,1] - w1(z))/0.4)**2) + \
                                      torch.exp(-0.5*((z[:,1] - w1(z) + w3(z))/0.35)**2) + 1e-10)
-
 
     potential_1 = u_z1(z_field)
     potential_2 = u_z2(z_field)
@@ -183,72 +188,108 @@ if __name__ == '__main__':
     axs[1,0].hist2d(x_rings[:,0].numpy(), x_rings[:,1].numpy(), bins=1000)
     axs[1,1].hist2d(x_8gauss[:,0].numpy(), x_8gauss[:,1].numpy(), bins=1000)
 
+# --------------------------------------------------------------
+# Training a flow with one of the potential functions 
+# ---------------------------------------------------------------
 
-# ----------------------------------------------------
-# Training a flow with one of the potential functions
-# ----------------------------------------------------
-
-    flow_length = 10
-    n_steps = 5000
-    batch_size=100
+    flow_length = 32
+    n_steps = 2000 
+    batch_size=200
+    lr = 0.005
     
     # setup base distribution
-    base_dist = D.MultivariateNormal(torch.zeros(2), torch.eye(2))
+    base_dist = dist.MultivariateNormal(torch.zeros(2), torch.eye(2))
     
     # set up flow
     flow = nn.Sequential(*[PlanarTransform() for _ in range(flow_length)])
 
-    optimizer = torch.optim.RMSprop(flow.parameters(), lr=args.lr, momentum=0.9, alpha=0.90, eps=1e-6)
+    optimizer = torch.optim.RMSprop(flow.parameters(), lr=lr, momentum=0.9, alpha=0.90, eps=1e-6, weight_decay=1e-3)
+    #optimizer = torch.optim.Adam(flow.parameters(), lr=lr, betas=(0.9,0.999))
+    print("number of params: ", sum(p.numel() for p in flow.parameters()))
+    
+    temp = lambda i: min(1, 0.01 + i/10000)
+    
+    for i in range(5000):
+        
+        z0 = base_dist.sample_n(batch_size)
+        optimizer.zero_grad()
+        
+        # Computing the three terms of the variational free energy
+        base_log_prob = base_dist.log_prob(z0)
+        zk, sum_log_abs_det_jacobians = flow(z0)
+        #print(zk)
+        p_log_prob = - temp(i)*u_z1(zk)
+        
+        loss = base_log_prob - sum_log_abs_det_jacobians - p_log_prob
+        loss = loss.mean(0)
+        loss.backward()
+        optimizer.step()
+        
+        if i%1000 == 0:
+            # display loss
+            print('Loss at step {}: {}'.format(i, loss))
+
+
+    # Plotting 
+    fig, axs = plt.subplots(1,1,figsize=(8,8))
+    # plot posterior approx density
+    zzk, sum_log_abs_det_jacobians = flow(z_field)
+    log_q0 = base_dist.log_prob(z_field)
+    log_qk = log_q0 - sum_log_abs_det_jacobians
+    qk = log_qk.exp().cpu()
+    zzk = zzk.cpu()
+    axs.pcolormesh(zzk[:,0].view(200,200).data, zzk[:,1].view(200,200).data, qk.view(200,200).data, cmap=plt.cm.jet)
+    axs.set_facecolor(plt.cm.jet(0))
+
+# --------------------------------------------------------------
+# Training a flow with onservations
+# ---------------------------------------------------------------
+    
+    flow_length = 32
+    n_steps = 2000 
+    batch_size=200
+    lr = 0.005
+    
+    # setup base distribution
+    base_dist = dist.MultivariateNormal(torch.zeros(2), torch.eye(2))
+    
+    # set up flow
+    flow = nn.Sequential(*[PlanarTransform() for _ in range(flow_length)])
+
+    optimizer = torch.optim.RMSprop(flow.parameters(), lr=lr, momentum=0.9, alpha=0.90, eps=1e-6, weight_decay=1e-3)
+    #optimizer = torch.optim.Adam(flow.parameters(), lr=lr, betas=(0.9,0.999))
+    print("number of params: ", sum(p.numel() for p in flow.parameters()))
+    
+    temp = lambda i: min(1, 0.01 + i/10000)
     
     for i in range(n_steps):
         
-        
-        z0 = base_dist.sample(batch_size)
+        z0 = get_batch(x, batch_size)
         optimizer.zero_grad()
-        loss = flow.log_prob()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Fitting a flow - a transformed distribution
-
-n_samples = 1000
-X, y = datasets.make_circles(n_samples=n_samples, factor=0.5, noise=0.05)
-
-base_dist = dist.Normal(torch.zeros(2), torch.ones(2))
-spline_transform = trans.spline_coupling(2, count_bins=16)
-spline_transform = trans.planar(2)
-flow_dist = dist.TransformedDistribution(base_dist, [spline_transform])
-
-dataset = torch.tensor(X, dtype=torch.float)
-optimizer = torch.optim.Adam(spline_transform.parameters(), lr=5e-3)
-for step in range(5000):
-    optimizer.zero_grad()
-    loss = -flow_dist.log_prob(dataset).mean()
-    loss.backward()
-    optimizer.step()
-    flow_dist.clear_cache()
-
-    if step % 500 == 0:
-        print('step: {}, loss: {}'.format(step, loss.item()))
         
-X_flow = flow_dist.sample(torch.Size([1000,])).detach().numpy()
-plt.title(r'Joint Distribution')
-plt.xlabel(r'$x_1$')
-plt.ylabel(r'$x_2$')
-plt.scatter(X[:,0], X[:,1], label='data', alpha=0.5)
-plt.scatter(X_flow[:,0], X_flow[:,1], color='firebrick', label='flow', alpha=0.5)
-plt.legend()
-plt.show()
+        # Computing the three terms of the variational free energy
+        base_log_prob = base_dist.log_prob(z0)
+        zk, sum_log_abs_det_jacobians = flow(z0)
+        #print(zk)
+        #p_log_prob = - temp(i)*u_z1(zk)
+        
+        loss = base_log_prob - sum_log_abs_det_jacobians
+        loss = loss.mean(0)
+        loss.backward()
+        optimizer.step()
+        
+        if i%1000 == 0:
+            # display loss
+            print('Loss at step {}: {}'.format(i, loss))
+
+
+    # Plotting 
+    fig, axs = plt.subplots(1,1,figsize=(8,8))
+    # plot posterior approx density
+    zzk, sum_log_abs_det_jacobians = flow(z_field)
+    log_q0 = base_dist.log_prob(z_field)
+    log_qk = log_q0 - sum_log_abs_det_jacobians
+    qk = log_qk.exp().cpu()
+    zzk = zzk.cpu()
+    axs.pcolormesh(zzk[:,0].view(200,200).data, zzk[:,1].view(200,200).data, qk.view(200,200).data, cmap=plt.cm.jet)
+    #axs.set_facecolor(plt.cm.jet(0))
