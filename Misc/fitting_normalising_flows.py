@@ -17,34 +17,6 @@ import matplotlib.pyplot as plt
 
 float_tensor = lambda x: torch.tensor(x, dtype=torch.float)
 
-class NormalisingFlowModel(nn.Module):
-       
-       def __init__(self, flows):
-           super().__init__()
-           self.flows = nn.ModuleList(flows)
-           
-       def forward(self, z):
-           m, _ = z.shape
-           sum_log_det = torch.zeros(m)
-           zk=[z]
-           for flow in self.flows:
-               z, log_det = flow.forward(z)
-               sum_log_det = log_det + sum_log_det
-               zk.append(z)
-           return zk, sum_log_det
-       
-       def get_batch(self, batch_size, z):
-           return torch.random()
-           
-       def get_log_prob():
-           return;
-           
-       def train(self, X):
-           batch_x = self.get_batch(X)
-           
-           
-           
-       
 class PlanarTransform(nn.Module):
     #2d planar flow
     def __init__(self, init_sigma=0.01):
