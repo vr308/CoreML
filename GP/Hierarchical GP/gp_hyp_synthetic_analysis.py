@@ -20,7 +20,6 @@ from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel as Ck, RationalQuadratic as RQ, Matern, ExpSineSquared as PER, WhiteKernel
 from matplotlib.colors import LogNorm
 import seaborn as sns
-from theano.tensor.nlinalg import matrix_inverse
 import csv
 import scipy.stats as st
 import warnings
