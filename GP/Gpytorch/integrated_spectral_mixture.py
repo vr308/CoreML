@@ -57,13 +57,12 @@ if __name__== "__main__":
     #      gamma = sp.stats.distributions.gamma(i)
     #      omega = np.exp(gamma.logpdf(x))
     #      plt.plot(x, omega)
-   
-    
+
     # Kernel function (tau)
     
     krq = rational_quadratic_spectral_mixture(x, sig_f, mu, l, alpha)
-    #kf = integrated_spectral_mixture(x, sig_f, lam, mu, l, alpha)
-    #kfu = integrated_spectral_mixture_uniform(x, sig_f, 3, 2, l, alpha)
+    kf = integrated_spectral_mixture(x, sig_f, lam, mu, l, alpha)
+    kfu = integrated_spectral_mixture_uniform(x, sig_f, 3, 2, l, alpha)
 
     # Kernel matrix 
         
@@ -87,6 +86,8 @@ if __name__== "__main__":
       
     ax1 = fig.add_subplot(141)
     ax1.plot(x_long, omega)
+    ax1.plot(x, omega)
+
     ax1.set_title(r'Prior on v', fontsize='x-small')
 
     ax2 = fig.add_subplot(142)
