@@ -37,3 +37,5 @@ for t in range(500):
             print(param)
             break;
             param -= learning_rate*param.grad
+            
+
