@@ -93,3 +93,11 @@ plt.plot(x, per_samples.T,color='grey')
 plt.subplot(236)
 plt.plot(x, rq_samples.T, color='grey')
 
+# 
+def rosen(x,y):
+    # a is the slope, x0 is the location
+    return (1-x)**2 + (1-y)**2
+
+warping_func = 
+
+logistic(x,2,0,3,1)
