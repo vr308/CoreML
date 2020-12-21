@@ -54,7 +54,7 @@ x = torch.randn(20, 16, 50)
 max1d = torch.nn.MaxPool1d(2, stride=1)
 max1d(x)
 
-x = torch.randn(10,1,3,3)
+x = torch.randn(10,1,24,24)
 max2d = torch.nn.MaxPool2d(2, stride=1)
 max2d(x)
 

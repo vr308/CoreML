@@ -14,6 +14,8 @@ from torchvision import datasets, transforms
 import numpy as np
 import matplotlib.pylab as plt
 import torch.optim as optim
+import configparser
+import os
 
 x = torch.tensor([[1,2,3],
                   [4,5,6],
@@ -24,30 +26,6 @@ np.pad(x, ((1, #top wrap pad
            (0, #left wrap pad
             0)), #right wrap pad
         mode='wrap')
-
-transform = transforms.Compose([transforms.ToTensor(),
-                              transforms.Normalize((0.5,), (0.5,)),
-                              ])
-
-trainset = datasets.MNIST('MNIST_train', download=True, train=True, transform=transform)
-valset = datasets.MNIST('MNIST_test', download=True, train=False, transform=transform)
-# The above stuff seems to contain actual data in a format I am not sure about.
-
-batch_size=64
-
-# The lines below create things (these "loaders") which can give us groups of (in this case)
-# 64 labels and 64 pieces of data per "shot".  Apparently the order is random.
-# One way of getting things out a batch of 64 goes like this:
-#                 dataiter = iter(trainloader)
-#                 images, labels = dataiter.next()
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=batch_size, shuffle=True) 
-valloader = torch.utils.data.DataLoader(valset, batch_size=batch_size, shuffle=True)
-
-dataiter = iter(trainloader)
-images, labels = dataiter.next()
-
-print(images.shape)
-print(labels.shape)
 
 def my_rotate_180(x):
   return torch.flip(x,[2,3])
@@ -78,9 +56,10 @@ def my_pad_bottom(x, n):
                 mode='circular')
 
 def show_some_images(images,max_width=8, max_height=8):
-  figure = plt.figure()
+  plt.figure()
   width=max_width
   height=max_height
+  batch_size = len(images)
   while height*width>batch_size:
     if height>width:
       height -= 1
@@ -91,6 +70,25 @@ def show_some_images(images,max_width=8, max_height=8):
     plt.subplot(width,height, index)
     plt.axis('off')
     plt.imshow(images[index-1].numpy().squeeze(), cmap='gray_r')
+    
+def float_tensor(X): return torch.tensor(X).float()
+
+class DistortedMNIST(torch.nn.Dataset):
+    def __init__(self, test_data):
+        
+        rolled_down_images = torch.roll(test_data.data[:,None,:,:],1,2)
+        reflected_images = torch.flip(test_data.data[:,None,:,:], [3])
+        self.jointset_images = float_tensor(torch.vstack((
+                                rolled_down_images, reflected_images)))
+        self.targets =  torch.cat((test_data.targets,test_data.targets))
+        
+    def __getitem__(self, index):
+        label = self.targets[index] 
+        img = self.jointset_images[index]
+        return (img, label)
+
+    def __len__(self):
+        return len(self.jointset_images)# of how many examples(images?) you have
     
 
 class Net(nn.Module):
@@ -119,9 +117,6 @@ class Net(nn.Module):
       self.dropout1 = nn.Dropout2d(0.25)
       self.dropout2 = nn.Dropout2d(0.5)
 
-      # First fully connected layer
-      #self.fc1 = nn.Linear(9216, 128) # for kernel size 3
-      #self.fc1 = nn.Linear(7744, 128)  # for kernel size 4
       self.fc1 = nn.Linear(640, 128)  # for kernel size 4
       # Second fully connected layer that outputs our 10 labels
       self.fc2 = nn.Linear(128, 1)
@@ -139,7 +134,6 @@ class Net(nn.Module):
       answer = answer + self.forward_worker(my_rotate_180(x))
       answer = answer - self.forward_worker(my_mirror_TB(x))
       answer = answer - self.forward_worker(my_mirror_LR(x))
-      #return F.hardtanh(answer)
       return F.softsign(answer)
 
 
@@ -199,26 +193,45 @@ class Net(nn.Module):
       # Apply softmax to x 
       #output = F.log_softmax(x, dim=1)
       #return torch.einsum("xi,i->x",output,torch.tensor([1.0,-1.0]))
+      
 
-my_nn = Net()
-print(my_nn)
-
-# The following line gives num_ran_images random, 1-colour, 28x28 images
-num_ran_images=10
-random_data = torch.rand((num_ran_images, 1, 28, 28))
-
-my_nn = Net()
-print("Net called with "+str(num_ran_images)+" images gives:")
-print (my_nn(random_data))
-print("Net called with some test data images gives:")
-print (my_nn(images))
-
-for i, data in enumerate(trainloader, 0):
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
-        if i<2:
-            print (i,labels)
+# def train(epoch):
+#     logging_interval = 10
+#     my_nn.train()
+#     for batch_idx, (data, target) in enumerate(train_loader):
+#         optimizer.zero_grad()
+#         output = network(data)
+#         loss = F.nll_loss(output, target)
+#         loss.backward()
+#         optimizer.step()
+#         if batch_idx % logging_interval == 0:
+#             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+#                 epoch, batch_idx * len(data), len(train_loader.dataset),
+#                 100. * batch_idx / len(train_loader), loss.item()))
+#             train_losses.append(loss.item())
+#             train_counter.append(
+#                 (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
+#             torch.save(network.state_dict(), os.getcwd() + '/results/model.pth')
+#             torch.save(optimizer.state_dict(), os.getcwd() + '/results/optimizer.pth')
             
+# def test():
+#       network.eval()
+#       test_loss = 0
+#       correct = 0
+#       with torch.no_grad():
+#         for data, target in test_loader:
+#           #print('hi')
+#           #import pdb; pdb.set_trace();
+#           output = network(data)
+#           test_loss += F.nll_loss(output, target, size_average=False).item()
+#           pred = output.data.max(1, keepdim=True)[1]
+#           correct += pred.eq(target.data.view_as(pred)).sum()
+#       test_loss /= len(test_loader.dataset)
+#       test_losses.append(test_loss)
+#       print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+#         test_loss, correct, len(test_loader.dataset),
+#         100. * correct / len(test_loader.dataset)))
+
 
 def how_did_we_do_on(x):
   from math import sqrt
@@ -231,7 +244,6 @@ def how_did_we_do_on(x):
   poisson_mean = num_total*poisson_p
   poisson_variance = num_total*poisson_p*poisson_q
   poisson_sd=sqrt(poisson_variance)
-
   fractional_mean = poisson_mean/num_total
   fractional_sd = poisson_sd/num_total
   
@@ -246,45 +258,10 @@ def how_did_we_do_on(x):
   print("Positive Fraction ",100*fractional_mean," +- ",100*fractional_sd," %")
   #print(torch.transpose(x[:32],0,1))
 
-def how_did_we_do():
+def how_did_we_do(images):
   how_did_we_do_on(my_nn(images))
   
-optimizer = optim.SGD(my_nn.parameters(), lr=0.0001, momentum=0.01)
-
-for epoch in range(10):  # loop over the dataset multiple times
-
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-      if i<20:
-        # get the inputs; data is a list of [inputs, labels]
-        inputs, labels = data
-
-        # zero the parameter gradients
-        optimizer.zero_grad()
-
-        # forward + backward + optimize
-        #print("SUM : ",torch.sum(my_nn(inputs)))
-        my_single_scalar = torch.sum(my_nn(inputs))
-        #my_single_scalar = my_nn(inputs)
-        my_negative_scalar = -my_single_scalar
-        my_negative_scalar.backward()
-        optimizer.step()
-
-        # print statistics
-        running_loss += my_single_scalar.item()
-        print_every=1
-        if i % print_every == print_every-1:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss/print_every ))
-            running_loss = 0.0
-            how_did_we_do()
-
-print('Finished Training')
-how_did_we_do()
-
-PATH = './my_nn.pth'
-torch.save(my_nn.state_dict(), PATH)
-
+  
 def tint(images,rgb_tints):
     # assume images has dimension (numImages, 1(grey-chan), wid, height)
     return torch.einsum("igxy,ic->icxy",images,rgb_tints)
@@ -307,9 +284,7 @@ def images_to_net_tints(images):
 def images_to_tinted_images(images): 
     # Assumes all images are greyscale.  
     return tint(-images, images_to_net_tints(images))
-
-#print(images_to_tinted_images(images))
-
+    
 def imshow(img):
     #img = img / 2 + 0.5     # unnormalize
     npimg = img.detach().numpy()
@@ -317,22 +292,125 @@ def imshow(img):
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
     #plt.imshow(np.transpose(npimg, (1, 2, 0)))
     plt.show()
+        
+if __name__ == '__main__':
+    
+    # Import configurations from external 'config.ini'- that's good practise 
+    # as its easier to run with different configs without touching the main src 
+    # code
+    
+    parser = configparser.ConfigParser()
+    parser.read('config.ini')
+    
+    batch_size_train = int(parser['data']['batch_size_train'])
+    batch_size_test = int(parser['data']['batch_size_test'])
+    learning_rate = float(parser['training_hypers']['learning_rate'])
+    momentum = float(parser['training_hypers']['momentum'])
+    n_epochs = int(parser['training_hypers']['n_epochs'])
+    
+    ## 
+    train_data =  torchvision.datasets.MNIST('MNIST_train', train=True, download=False,
+                                 transform=torchvision.transforms.Compose([
+                                   torchvision.transforms.ToTensor(),
+                                   torchvision.transforms.Normalize(
+                                     (0.1307,), (0.3081,))
+                                 ]))
+    subset_train = torch.utils.data.random_split(train_data, [5000, 55000])
+    train_loader = torch.utils.data.DataLoader(subset_train[0], batch_size=batch_size_train, shuffle=True)
+    
+    test_loader = torch.utils.data.DataLoader(
+    torchvision.datasets.MNIST( 'MNIST_test', train=False, download=False,
+                                 transform=torchvision.transforms.Compose([
+                                   torchvision.transforms.ToTensor(),
+                                   torchvision.transforms.Normalize(
+                                     (0.1307,), (0.3081,))
+                                 ])),
+     batch_size=batch_size_test, shuffle=True)
+    
+    train_samples = enumerate(train_loader)
+    batch_idx, (example_data, example_targets) = next(train_samples)
+    
+    ##-----------------------------------------------------########
+
+    ## Training block 
+    
+    ##-----------------------------------------------------########
+    
+    ## Subsetting to (5000/1000) train/test split to speed up training 
+    subset = torch.utils.data.Subset(train_loader, range(0,60000,12))
+    sub_loader = torch.utils.data.DataLoader(subset, batch_size=batch_size_train)
+    
+    my_nn = Net()
+    print(my_nn)
+    
+    print(" Untrained net called with some test data images (note the shape)")
+    output = my_nn(example_data)
+    
+    train_losses = []
+    train_counter = []
+    test_losses = []
+    test_counter = [i*len(train_loader.dataset) for i in range(n_epochs + 1)]
+    
+    # test()
+    # for epoch in range(1, n_epochs + 1):
+    #     train(epoch)
+    #     test()
+    
+    optimizer = optim.SGD(my_nn.parameters(), lr = learning_rate, momentum=momentum)
+    logging_interval = 10
+    my_nn.train()
+    for epoch in range(3):  # loop over the dataset multiple times
+        running_loss = 0.0
+        for batch_idx, (data, target) in enumerate(train_loader):
+            # zero the parameter gradients
+            optimizer.zero_grad()
+            # forward + backward + optimize
+            custom_loss = -torch.sum(my_nn(data))
+            custom_loss.backward()
+            optimizer.step()    
+            # print statistics at periodic intervals
+            if batch_idx % logging_interval == 0:
+                print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                    epoch, batch_idx * len(data), len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader), custom_loss.item()))
+                train_losses.append(custom_loss.item())
+                train_counter.append(
+                    (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
+                torch.save(my_nn.state_dict(), os.getcwd() + '/results/model.pth')
+                torch.save(optimizer.state_dict(), os.getcwd() + '/results/optimizer.pth')    
+                how_did_we_do(data)
     
     
-dataiter = iter(valloader)
+    print('Finished Training')
+    how_did_we_do()
+    
+    PATH = './my_nn.pth'
+    torch.save(my_nn.state_dict(), PATH)
+    
+    ##-----------------------------------------------------########
 
-# print images
-images, labels = dataiter.next()
-imshow(torchvision.utils.make_grid(images_to_tinted_images(images)))
-imshow(torchvision.utils.make_grid(my_roll_down(images_to_tinted_images(images),10)))
-how_did_we_do()
-#images, labels = dataiter.next()
-#imshow(torchvision.utils.make_grid(images_to_tinted_images(my_rotate_180(images))))
-
-#images, labels = dataiter.next()
-imshow(torchvision.utils.make_grid(images_to_tinted_images(my_mirror_LR(images))))
-imshow(torchvision.utils.make_grid(images_to_tinted_images(my_roll_down(my_mirror_LR(images),10))))
-#print('GroundTruth: ', ' '.join('%5s' % labels[j] for j in range(4)))
-
-my_net = Net()
-my_net.load_state_dict(torch.load(PATH))
+    ## Testing block -- how did we do on previously unseen images
+    
+    ##-----------------------------------------------------########
+    
+    ##-----------------------------------------------------########
+    
+    ## Vizualisation block
+    
+    ##-----------------------------------------------------########
+        
+    # print images
+    images, labels = dataiter.next()
+    imshow(torchvision.utils.make_grid(images_to_tinted_images(images)))
+    imshow(torchvision.utils.make_grid(my_roll_down(images_to_tinted_images(images),10)))
+    how_did_we_do()
+    #images, labels = dataiter.next()
+    #imshow(torchvision.utils.make_grid(images_to_tinted_images(my_rotate_180(images))))
+    
+    #images, labels = dataiter.next()
+    imshow(torchvision.utils.make_grid(images_to_tinted_images(my_mirror_LR(images))))
+    imshow(torchvision.utils.make_grid(images_to_tinted_images(my_roll_down(my_mirror_LR(images),10))))
+    #print('GroundTruth: ', ' '.join('%5s' % labels[j] for j in range(4)))
+    
+    my_net = Net()
+    my_net.load_state_dict(torch.load(PATH))

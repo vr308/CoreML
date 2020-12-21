@@ -12,6 +12,37 @@ import configparser
 import torch.nn.functional as F
 import torch.optim as optim
 import os
+from torch.utils.data.dataset import Dataset
+
+def float_tensor(X): return torch.tensor(X).float()
+
+class DistortedMNIST(Dataset):
+    def __init__(self, test_data, transform):
+        
+        if transform == 'roll_down':
+            images = torch.roll(test_data.data[:,None,:,:],1,2)
+            
+        if transform == 'reflect':
+            images = torch.flip(test_data.data[:,None,:,:], [3])
+            
+        if transform == 'shift' :
+            shift = torchvision.transforms.RandomAffine(degrees=0,translate=(0.5,0.5))
+            images = shift(test_data.data)
+
+        if transform == 'rotate':
+            rotate = torchvision.transforms.RandomAffine(degrees=40)
+            images = rotate(test_data.data)
+        
+        self.images = float_tensor(images)
+        self.targets =  test_data.targets
+        
+    def __getitem__(self, index):
+        label = self.targets[index] 
+        img = self.images[index]
+        return (img, label)
+
+    def __len__(self):
+        return len(self.images)# of how many examples(images?) you have
 
 class Net(torch.nn.Module):
     def __init__(self):
@@ -23,6 +54,47 @@ class Net(torch.nn.Module):
         self.fc2 = torch.nn.Linear(50,10)
         
     def forward(self, x):
+        
+        # import pdb; pdb.set_trace();
+        # # original shape
+        # print(x.shape) # [batch_size x channels x h x w] --> [1000 x 1 x 28 x 28]
+        
+        # x = self.conv1(x)
+        # print(x.shape) # --> [1000 x 10 x 24 x 24]
+        
+        # x = F.max_pool2d(x,2) 
+        # print(x.shape) # --> [1000 x 10 x 12 x 12] (default stride of 2)
+        
+        # x = F.relu(x)
+        # print(x.shape) # --> [1000 x 10 x 12 x 12] (shape does not change)
+        
+        # x = self.conv2(x)
+        # print(x.shape) # --> [1000 x 20 x 8 x 8] 
+        
+        # x = self.drop_layer(x) 
+        # print(x.shape) # --> [1000 x 20 x 8 x 8] 
+        
+        # x = F.max_pool2d(x,2)
+        # print(x.shape) # --> [1000 x 20 x 4 x 4] 
+        
+        # x = F.relu(x)
+        # print(x.shape) # --> [1000 x 20 x 4 x 4] 
+        
+        # x = x.view(-1,320)
+        # print(x.shape) # --> [1000 x 320] flattening operation 
+        
+        # x = self.fc1(x)
+        # print(x.shape) # --> [1000 x 50] 
+        
+        # x = F.relu(x)
+        # print(x.shape) # --> [1000 x 50] 
+        
+        # x = F.dropout(x, training=self.training)
+        # print(x.shape) # --> [1000 x 50] 
+        
+        # x = self.fc2(x)
+        # print(x.shape) # --> [1000 x 50] 
+
         
         x = F.relu(F.max_pool2d(self.conv1(x), 2))
         x = F.relu(F.max_pool2d(self.drop_layer(self.conv2(x)), 2))
@@ -52,12 +124,15 @@ def train(epoch):
             torch.save(network.state_dict(), os.getcwd() + '/results/model.pth')
             torch.save(optimizer.state_dict(), os.getcwd() + '/results/optimizer.pth')
             
-def test():
+def test(test_loader):
       network.eval()
       test_loss = 0
       correct = 0
       with torch.no_grad():
-        for data, target in test_loader:
+        for batch_idx, (data, target) in enumerate(test_loader):
+          #print(batch_idx)
+          #print(data.shape)
+          #print(target.shape)
           #print('hi')
           #import pdb; pdb.set_trace();
           output = network(data)
@@ -116,19 +191,27 @@ if __name__ == '__main__':
     for epoch in range(1, n_epochs + 1):
         train(epoch)
         test()
-        
     
-    continued_network = Net()
-    continued_optimizer = optim.SGD(network.parameters(), lr=learning_rate,
-                                momentum=momentum)
+    distorted_loader = torch.utils.data.DataLoader(DistortedMNIST(test_data), batch_size=4)
+    test(distorted_loader)
     
-    network_state_dict = torch.load(os.getcwd() + '/results/model.pth')
-    continued_network.load_state_dict(network_state_dict)
+    test(test_loader)
+    
+    
+           
+    # Continuing training from a saved state 
+    
+    # continued_network = Net()
+    # continued_optimizer = optim.SGD(network.parameters(), lr=learning_rate,
+    #                             momentum=momentum)
+    
+    # network_state_dict = torch.load(os.getcwd() + '/results/model.pth')
+    # continued_network.load_state_dict(network_state_dict)
 
-    optimizer_state_dict = torch.load(os.getcwd() + '/results/optimizer.pth')
-    continued_optimizer.load_state_dict(optimizer_state_dict)
+    # optimizer_state_dict = torch.load(os.getcwd() + '/results/optimizer.pth')
+    # continued_optimizer.load_state_dict(optimizer_state_dict)
 
-    for i in range(6,8):
-      test_counter.append(i*len(train_loader.dataset))
-      train(i)
-      test()
+    # for i in range(6,8):
+    #   test_counter.append(i*len(train_loader.dataset))
+    #   train(i)
+    #   test()
