@@ -29,7 +29,7 @@ per_covar.period_length = 2
 
 rq_covar = gpytorch.kernels.RQKernel()
 rq_covar.lengthscale = 2
-rq_covar.alpha = 10
+rq_covar.alpha = 1
 
 # Creating the kernel matrix
 
@@ -94,10 +94,6 @@ plt.subplot(236)
 plt.plot(x, rq_samples.T, color='grey')
 
 # 
-def rosen(x,y):
-    # a is the slope, x0 is the location
-    return (1-x)**2 + (1-y)**2
 
-warping_func = 
+warping_func = torch.nn.Sigmoid()
 
-logistic(x,2,0,3,1)
