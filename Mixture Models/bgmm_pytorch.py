@@ -13,6 +13,34 @@ import torch.distributions as D
 from matplotlib.patches import Ellipse
 import matplotlib.pyplot as plt
 import sklearn.datasets as skd
+from torch.autograd import Variable
+
+torch.manual_seed(1)
+np.random.seed(0)
+
+class GaussMixture(torch.nn.Module):
+
+    def __init__(self, K, dim):
+        super().__init__()
+
+        self.K = K
+        self.dim = dim
+        #self.raw_weights = torch.nn.Parameter(torch.randn(self.K))
+        self.means = torch.nn.Parameter(torch.randn(self.K, self.dim))
+        self.log_scales = torch.nn.Parameter(torch.zeros(self.K, self.dim))
+        #self.scales = torch.exp(self.log_scales)
+        
+        self.concentration = torch.randint(high=100,size=(1,))
+        self.alpha = torch.nn.Parameter(torch.tensor([self.concentration]*self.K).float())
+        self.weights = D.Dirichlet(self.alpha)
+        self.z = D.Categorical(self.weights)
+
+    def log_prob(self, Y):
+        return self.forward().log_prob(Y).sum()
+
+    def forward(self, z):
+         comp = D.Independent(D.Normal(self.means, self.log_scales.exp()), 1)
+         return D.MixtureSameFamily(self.z, comp)
 
 class BayesianGMM(torch.nn.Module):
     
@@ -20,7 +48,7 @@ class BayesianGMM(torch.nn.Module):
         '''
           :param Y (torch.tensor): data
           :param K (int): number of fixed components
-          :param D (int): the dimension of data space.
+          :param dim (int): the dimension of data space.
         
         '''
         super(BayesianGMM, self).__init__()
@@ -29,23 +57,12 @@ class BayesianGMM(torch.nn.Module):
         self.K = K
         self.dim = dim
                 
-        self.mu_prior = torch.zeros((self.K,self.dim))
-        self.sig_prior = torch.ones((self.K, self.dim))*3.0
-        self.concentration = torch.randint(high=100,size=(1,))
-        self.alpha = torch.nn.Parameter(torch.tensor([self.concentration]*self.K).float())
-        
-        self.means = D.Normal(self.mu_prior, self.sig_prior).sample()
-        self.scales = D.Gamma(torch.tensor([1.0]), torch.tensor([1.0])).sample()
-        self.weights = D.Dirichlet(self.alpha).sample()
-        self.z = D.Categorical(self.weights)
-    
-    def forward(self, Y):
-        
-        comp = D.Independent(D.Normal(self.means, self.scales), 1)
-        return D.MixtureSameFamily(self.z, comp).log_prob(Y)
+        self.likelihood = GaussMixture(self.K, self.dim)
     
     def log_prior(self, Y):
         
+        mu_prior = D.Normal(torch.zeros((self.K,self.dim)), torch.ones((self.K, self.dim))*3.0).rsample()
+        scale_prior = D.Gamma(torch.tensor([1.0]), torch.tensor([1.0])).rsample()
         self.means.log_prob(Y) + self.scales.log_prob(Y) + self.weights.log_prob(Y)
     
     def get_trainable_param_names(self):
@@ -56,11 +73,8 @@ class BayesianGMM(torch.nn.Module):
       for name, value in self.named_parameters():
           print(name)     
     
-    def loglikelihood(self, Y):
-        return self.forward(Y).mean()
-
     def map_objective(self, Y):
-        return self.loglikelihood(Y) + self.log_prior(Y)
+        return self.likelihood.log_prob(Y) + self.log_prior()
       
     def train(self, Y, optimizer, n_steps):
     
